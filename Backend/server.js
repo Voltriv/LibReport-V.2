@@ -233,6 +233,7 @@ app.get(['/api', '/api/'], (_req, res) => {
     auth: {
       signup: { method: 'POST', path: '/api/auth/signup' },
       login: { method: 'POST', path: '/api/auth/login' },
+      adminSignup: { method: 'POST', path: '/api/auth/admin-signup' }
     },
     time: new Date().toISOString()
   });
@@ -323,8 +324,36 @@ function adminRequired(req, res, next) {
 }
 
 // --- Auth: Signup
-app.post('/api/auth/signup', async (_req, res) => {
-  return res.status(403).json({ error: 'Signup is disabled. Admin-only system.' });
+app.post('/api/auth/signup', async (_req, res) => {\n  return res.status(403).json({ error: 'Signup is disabled. Admin-only system.' });\n});
+// --- Admin Signup (enabled only if no admins yet, or ALLOW_ADMIN_SIGNUP=true)
+app.post('/api/auth/admin-signup', async (req, res) => {
+  try {
+    const allow = String(process.env.ALLOW_ADMIN_SIGNUP || '').toLowerCase() === 'true';
+    const existing = await Admin.estimatedDocumentCount();
+    if (!allow && existing > 0) return res.status(403).json({ error: 'Admin signup is disabled' });
+
+    const { adminId, fullName, email, password, confirmPassword } = req.body || {};
+    if (!adminId || !fullName || !password || !confirmPassword) return res.status(400).json({ error: 'adminId, fullName, password, confirmPassword required' });
+    if (password !== confirmPassword) return res.status(400).json({ error: 'Passwords do not match' });
+    if (String(password).length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) return res.status(400).json({ error: 'Password must be at least 8 chars and contain letters and numbers' });
+
+    const adminIdNorm = String(adminId).trim();
+    const emailNorm = email ? String(email).trim().toLowerCase() : undefined;
+    const fullNameNorm = String(fullName).trim();
+    if (!/^\d{2}-\d{4}-\d{6}$/.test(adminIdNorm)) return res.status(400).json({ error: 'Admin ID must match 00-0000-000000' });
+    if (email && !validator.isEmail(emailNorm)) return res.status(400).json({ error: 'Email must be valid' });
+
+    const exists = await Admin.findOne({ $or: [ { adminId: adminIdNorm }, emailNorm ? { email: emailNorm } : null ].filter(Boolean) }).lean();
+    if (exists) return res.status(409).json({ error: 'adminId or email already exists' });
+
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const doc = await Admin.create({ adminId: adminIdNorm, email: emailNorm, fullName: fullNameNorm, role: 'librarian', passwordHash });
+    const token = signToken(doc);
+    return res.status(201).json({ token, user: { id: String(doc._id), studentId: doc.adminId, email: doc.email, fullName: doc.fullName, role: doc.role } });
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+});
 });
 
 // --- Auth: Login (email + password)
@@ -706,6 +735,10 @@ app.get('/api/books/lookup', authRequired, async (req, res) => {
 
 const PORT = process.env.BACKEND_PORT || 4000;
 app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));
+
+
+
+
 
 
 
