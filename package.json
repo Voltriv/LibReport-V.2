@@ -1,0 +1,20 @@
+{
+  "name": "libreport-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "setup": "npm install && npm --prefix Backend install && npm --prefix Frontend install",
+    "db:bootstrap": "npm --prefix Backend run db:bootstrap",
+    "db:indexes": "npm --prefix Backend run db:indexes",
+    "db:seed": "npm --prefix Backend run db:seed",
+    "dev:backend": "npm --prefix Backend run dev",
+    "dev:backend:nodb": "npm --prefix Backend run dev:nodb",
+    "dev:frontend": "npm --prefix Frontend start",
+    "predev": "npm install --no-audit --no-fund",
+    "dev": "concurrently -k -n backend,frontend -c blue,magenta \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "start": "npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

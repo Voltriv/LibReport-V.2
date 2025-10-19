@@ -1,0 +1,35 @@
+# Root ignore for LibReport workspace
+
+# Node.js / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Build outputs and coverage
+dist/
+coverage/
+.nyc_output/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+Backend/.env
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Frontend build
+Frontend/build/
+
+# Prevent accidental duplicates and stray folders
+Backend/backend/
+LibReport-V.2/
+
