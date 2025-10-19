@@ -1,7 +1,8 @@
-const path = require('node:path');
+﻿const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 require('dotenv').config({ path: path.join(__dirname, '..', '.env'), override: false });
 const express = require('express');
+const compression = require('compression');
 const mongoose = require('mongoose');
 const morgan = require('morgan');
 const cors = require('cors');
@@ -11,6 +12,8 @@ const validator = require('validator');
 const crypto = require('node:crypto');
 
 const app = express();
+app.set('etag', 'strong');
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
@@ -38,6 +41,7 @@ if (!NO_DB && USE_MEMORY_DB) {
       await mongoose.connect(MONGO_URI, { dbName: DB_NAME, serverSelectionTimeoutMS: 10000, family: 4 });
       DB_READY = true;
       console.log(`MongoMemoryServer started. Using in-memory DB "${DB_NAME}"`);
+      await ensureDefaultAdmin();
     } catch (err) {
       console.error('Failed to start in-memory MongoDB:', err.message);
       process.exit(1);
@@ -53,6 +57,7 @@ if (!NO_DB && USE_MEMORY_DB) {
       });
       DB_READY = true;
       console.log(`MongoDB connected to database "${DB_NAME}"`);
+      await ensureDefaultAdmin();
     } catch (err) {
       const code = err && (err.code || err.codeName || err.name);
       console.error('Failed to connect to MongoDB:', code ? `${code}: ${err.message}` : err.message);
@@ -103,7 +108,7 @@ const userSchema = new mongoose.Schema(
     },
     barcode: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ['admin','librarian','faculty','student','viewer'], default: 'student' },
+    role: { type: String, enum: ['librarian'], default: 'librarian' },
     status: { type: String, enum: ['active','disabled','pending'], default: 'active' }
   },
   { timestamps: true }
@@ -113,6 +118,32 @@ const userSchema = new mongoose.Schema(
 // Avoid duplicating them with schema.index() to prevent Mongoose warnings.
 
 const User = mongoose.model('User', userSchema);
+
+// Separate Admin collection
+const adminSchema = new mongoose.Schema(
+  {
+    adminId: { type: String, required: true, unique: true, trim: true },
+    email: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
+    fullName: { type: String, required: true, trim: true },
+    passwordHash: { type: String, required: true },
+    role: { type: String, enum: ['librarian'], default: 'librarian' },
+    status: { type: String, enum: ['active','disabled','pending'], default: 'active' }
+  },
+  { timestamps: true }
+);
+const Admin = mongoose.model('Admin', adminSchema);
+
+async function ensureDefaultAdmin() {
+  const email = (process.env.ADMIN_EMAIL || 'admin@example.com').toLowerCase();
+  const adminId = process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '00-0000-000000';
+  const fullName = process.env.ADMIN_NAME || 'System Librarian';
+  const password = process.env.ADMIN_PASSWORD || 'Password123';
+  const exists = await Admin.findOne({ adminId }).lean();
+  if (exists) return;
+  const passwordHash = await bcrypt.hash(String(password), 10);
+  await Admin.create({ adminId, email, fullName, role: 'librarian', passwordHash });
+  console.log(`Created default admin (librarian) with Admin ID ${adminId}`);
+}
 
 // --- Additional models ---
 const bookSchema = new mongoose.Schema(
@@ -224,6 +255,49 @@ if (NO_DB) {
   });
 }
 
+// --- Micro-cache for read-heavy GET endpoints (15s TTL)
+const microCache = new Map();
+const TTL_MS = 15_000;
+function cacheKey(req) { return `${req.method}:${req.originalUrl}`; }
+function cacheable(path) {
+  return (
+    path.startsWith('/api/books/library') ||
+    path.startsWith('/api/reports/') ||
+    path === '/api/health' ||
+    path.startsWith('/api/books/lookup') ||
+    path.startsWith('/api/hours') ||
+    path.startsWith('/api/dashboard') ||
+    path.startsWith('/api/heatmap/visits')
+  );
+}
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || !cacheable(req.path)) return next();
+  const key = cacheKey(req);
+  const hit = microCache.get(key);
+  const now = Date.now();
+  if (hit && hit.expires > now) {
+    res.set('X-Micro-Cache', 'HIT');
+    return res.status(hit.status).json(hit.body);
+  }
+  const json = res.json.bind(res);
+  res.json = (body) => {
+    try {
+      microCache.set(key, { body, status: res.statusCode || 200, expires: now + TTL_MS });
+      res.set('X-Micro-Cache', 'MISS');
+    } catch {}
+    return json(body);
+  };
+  next();
+});
+
+
+// --- Admin-only global guard for API (except health and auth)
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) return next();
+  const open = req.path === '/api' || req.path === '/api/' || req.path === '/api/health' || req.path.startsWith('/api/auth/');
+  if (open) return next();
+  return adminRequired(req, res, next);
+});
 // --- Auth helpers ---
 function signToken(user) {
   return jwt.sign({ sub: String(user._id), email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
@@ -249,76 +323,70 @@ function adminRequired(req, res, next) {
 }
 
 // --- Auth: Signup
-app.post('/api/auth/signup', async (req, res) => {
-  try {
-    const { studentId, email, fullName, password, confirmPassword } = req.body || {};
-
-    // Basic presence checks
-    if (!studentId || !email || !fullName || !password || !confirmPassword) {
-      return res.status(400).json({ error: 'studentId, email, fullName, password, confirmPassword are required' });
-    }
-    if (password !== confirmPassword) {
-      return res.status(400).json({ error: 'Passwords do not match' });
-    }
-    if (String(password).length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-      return res.status(400).json({ error: 'Password must be at least 8 chars and contain letters and numbers' });
-    }
-
-    // Normalize
-    const studentIdNorm = String(studentId).trim();
-    const emailNorm = String(email).trim().toLowerCase();
-    const fullNameNorm = String(fullName).trim();
-
-    // Explicit rule checks (mirror schema so clients get fast feedback)
-    if (!/^\d{2}-\d{4}-\d{6}$/.test(studentIdNorm)) {
-      return res.status(400).json({ error: 'Student ID must match 00-0000-000000' });
-    }
-    if (!validator.isEmail(emailNorm)) {
-      return res.status(400).json({ error: 'Email must contain @ and be valid' });
-    }
-    if (!/^[A-Za-z ]+$/.test(fullNameNorm)) {
-      return res.status(400).json({ error: 'Full name must contain letters and spaces only' });
-    }
-
-    const exists = await User.findOne({ $or: [{ email: emailNorm }, { studentId: studentIdNorm }] }).lean();
-    if (exists) {
-      const conflict = exists.email === emailNorm ? 'email' : 'studentId';
-      return res.status(409).json({ error: `${conflict} already in use` });
-    }
-
-    const passwordHash = await bcrypt.hash(String(password), 10);
-    const user = await User.create({ studentId: studentIdNorm, email: emailNorm, name: fullNameNorm, fullName: fullNameNorm, passwordHash });
-    const token = signToken(user);
-    return res.status(201).json({
-      token,
-      user: { id: String(user._id), studentId: user.studentId, email: user.email, fullName: user.fullName, role: user.role }
-    });
-  } catch (e) {
-    if (e?.code === 11000) {
-      return res.status(409).json({ error: 'Email or Student ID already exists' });
-    }
-    return res.status(500).json({ error: 'Server error', detail: e.message });
-  }
+app.post('/api/auth/signup', async (_req, res) => {
+  return res.status(403).json({ error: 'Signup is disabled. Admin-only system.' });
 });
 
 // --- Auth: Login (email + password)
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password, studentId } = req.body || {};
-  if ((!email && !studentId) || !password) return res.status(400).json({ error: 'email or studentId and password required' });
-  const q = email ? { email: String(email).toLowerCase() } : { studentId: String(studentId) };
-  const user = await User.findOne(q);
-  if (!user) return res.status(401).json({ error: 'invalid credentials' });
-  const ok = await bcrypt.compare(String(password), user.passwordHash);
+  const { password, studentId } = req.body || {};
+  if (!studentId || !password) return res.status(400).json({ error: 'studentId and password required' });
+  // Check Admin collection first
+  let admin = await Admin.findOne({ adminId: String(studentId) });
+  if (!admin) admin = await User.findOne({ studentId: String(studentId), role: 'librarian' }); // legacy
+  if (!admin) return res.status(401).json({ error: 'invalid credentials' });
+  const ok = await bcrypt.compare(String(password), admin.passwordHash);
   if (!ok) return res.status(401).json({ error: 'invalid credentials' });
-  const token = signToken(user);
-  return res.json({ token, user: { id: String(user._id), studentId: user.studentId, email: user.email, fullName: user.fullName, role: user.role } });
+  const token = signToken(admin);
+  return res.json({ token, user: { id: String(admin._id), studentId: admin.adminId || admin.studentId, email: admin.email, fullName: admin.fullName, role: admin.role } });
 });
 
 // Current user info
 app.get('/api/auth/me', authRequired, async (req, res) => {
+  let admin = await Admin.findById(req.user.sub).lean();
+  if (admin) return res.json({ id: String(admin._id), studentId: admin.adminId, email: admin.email, fullName: admin.fullName, role: admin.role });
   const user = await User.findById(req.user.sub).lean();
   if (!user) return res.status(404).json({ error: 'not found' });
   return res.json({ id: String(user._id), studentId: user.studentId, email: user.email, fullName: user.fullName, role: user.role });
+});
+
+// --- Admins (librarians) CRUD
+app.get('/api/admins', adminRequired, async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  const filter = q ? { $or: [ { adminId: new RegExp(q, 'i') }, { fullName: new RegExp(q, 'i') }, { email: new RegExp(q, 'i') } ] } : {};
+  const items = await Admin.find(filter).select('adminId fullName email role status createdAt').limit(200).sort({ createdAt: -1 }).lean();
+  res.json(items);
+});
+
+app.post('/api/admins', adminRequired, async (req, res) => {
+  try {
+    const { adminId, email, fullName, password } = req.body || {};
+    if (!adminId || !fullName || !password) return res.status(400).json({ error: 'adminId, fullName, password required' });
+    const exists = await Admin.findOne({ $or: [ { adminId }, email ? { email: String(email).toLowerCase() } : null ].filter(Boolean) });
+    if (exists) return res.status(409).json({ error: 'adminId or email already exists' });
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const doc = await Admin.create({ adminId, email: email ? String(email).toLowerCase() : undefined, fullName, role: 'librarian', passwordHash });
+    res.status(201).json({ id: String(doc._id), adminId: doc.adminId, fullName: doc.fullName, email: doc.email, role: doc.role });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.patch('/api/admins/:id', adminRequired, async (req, res) => {
+  try {
+    const update = {};
+    if (req.body.fullName) update.fullName = String(req.body.fullName);
+    if (req.body.email !== undefined) update.email = req.body.email ? String(req.body.email).toLowerCase() : undefined;
+    if (req.body.status) update.status = String(req.body.status);
+    if (req.body.newPassword) update.passwordHash = await bcrypt.hash(String(req.body.newPassword), 10);
+    const doc = await Admin.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true }).lean();
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    res.json({ id: String(doc._id), adminId: doc.adminId, fullName: doc.fullName, email: doc.email, role: doc.role, status: doc.status });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete('/api/admins/:id', adminRequired, async (req, res) => {
+  const out = await Admin.findByIdAndDelete(req.params.id).lean();
+  if (!out) return res.status(404).json({ error: 'Not found' });
+  res.status(204).send();
 });
 
 // Request password reset (returns token for demo; normally emailed)
@@ -638,4 +706,5 @@ app.get('/api/books/lookup', authRequired, async (req, res) => {
 
 const PORT = process.env.BACKEND_PORT || 4000;
 app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));
+
 

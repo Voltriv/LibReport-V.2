@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
 import api, { setAuthToken } from "../api";
 
@@ -10,13 +10,23 @@ const SignIn = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Prefill Admin ID quickly (last used) and focus
+  useEffect(() => {
+    try {
+      const last = localStorage.getItem('lr_last_admin_id');
+      if (last && typeof last === 'string') setEmail(last);
+    } catch {}
+  }, []);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
     try {
       setLoading(true);
-      const { data } = await api.post('/auth/login', { email, password });
+      // Send Admin ID as studentId to the backend
+      const { data } = await api.post('/auth/login', { studentId: email, password });
       if (data?.token) setAuthToken(data.token);
+      try { localStorage.setItem('lr_last_admin_id', email || ''); } catch {}
       try { localStorage.setItem('lr_user', JSON.stringify(data.user || {})); } catch {}
       navigate("/dashboard");
     } catch (err) {
@@ -31,7 +41,7 @@ const SignIn = () => {
       <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 overflow-hidden rounded-2xl shadow-lg bg-white/90 dark:bg-stone-900/70 ring-1 ring-slate-200 dark:ring-stone-700">
         {/* Brand panel */}
         <div className="hidden md:flex flex-col items-center justify-center gap-6 p-10 bg-gradient-to-br from-brand-green to-brand-greenDark text-white">
-          <img src={logo} alt="University Logo" className="h-20 w-20 rounded-full shadow-md" />
+          <img src={logo} alt="University Logo" className="h-24 w-24 rounded-full shadow-md" />
           <h1 className="text-3xl font-semibold tracking-tight">LibReport</h1>
           <p className="text-white/90 text-center max-w-xs">Library tracking, usage, and reporting made simple.</p>
         </div>
@@ -51,21 +61,23 @@ const SignIn = () => {
 
           <form className="space-y-4" onSubmit={handleLogin}>
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-stone-200">Email</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-stone-200">Admin ID</label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e)=>setEmail(e.target.value)}
                 required
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent"
-                placeholder="you@example.com"
+                placeholder="Admin ID"
+                autoFocus
+                autoComplete="username"
               />
             </div>
 
             <div>
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-slate-700 dark:text-stone-200">Password</label>
-                <Link to="/forgot" className="text-sm text-brand-gold hover:underline">Forgot Password?</Link>
+                <span />
               </div>
               <input
                 type="password"
@@ -73,7 +85,8 @@ const SignIn = () => {
                 onChange={(e)=>setPassword(e.target.value)}
                 required
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent"
-                placeholder="••••••••"
+                placeholder="Password"
+                autoComplete="current-password"
               />
             </div>
 
@@ -82,13 +95,10 @@ const SignIn = () => {
               disabled={loading}
               className="w-full inline-flex justify-center items-center rounded-lg bg-brand-gold text-white font-medium py-2.5 shadow-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition"
             >
-              {loading ? 'Signing in…' : 'Log in'}
+              {loading ? 'Signing in...' : 'Log in'}
             </button>
 
-            <p className="text-center text-sm text-slate-600 dark:text-stone-300">
-              Don’t have an account?{' '}
-              <Link to="/signup" className="text-brand-gold hover:underline">Sign Up</Link>
-            </p>
+            {/* Admin-only system: no extra links */}
           </form>
         </div>
       </div>
@@ -97,3 +107,16 @@ const SignIn = () => {
 }
 
 export default SignIn;
+
+
+
+
+
+
+
+
+
+
+
+
+

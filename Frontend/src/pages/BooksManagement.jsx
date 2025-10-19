@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
+import React, { useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import pfp from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
@@ -75,7 +76,7 @@ const BooksManagement = () => {
     if (data.author !== undefined && String(data.author).trim() === '') e.author = 'Author is required';
     if (data.stock !== undefined && data.stock !== '') {
       const n = Number(data.stock);
-      if (!Number.isFinite(n) || n < 0) e.stock = 'Stock must be a number ≥ 0';
+      if (!Number.isFinite(n) || n < 0) e.stock = 'Stock must be a number ? 0';
     }
     return e;
   }
@@ -515,3 +516,6 @@ export default BooksManagement;
 
 // Catalog modals (co-located for simplicity)
 // Note: Using inline modals for add/edit/delete to manage catalog
+
+
+

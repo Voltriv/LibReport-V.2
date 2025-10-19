@@ -52,3 +52,8 @@ const { resolveMongoConfig } = require('../db/uri');
   }
 })();
 
+    // Admins: unique adminId and email
+    await db.collection('admins').createIndexes([
+      { key: { adminId: 1 }, name: 'admin_adminId_unique', unique: true },
+      { key: { email: 1 }, name: 'admin_email_unique', unique: true, partialFilterExpression: { email: { $exists: true } } }
+    ]);

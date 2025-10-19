@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import api from '../api';
@@ -114,3 +115,5 @@ const BooksLibrary = () => {
 };
 
 export default BooksLibrary;
+
+

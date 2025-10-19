@@ -8,13 +8,23 @@
     "db:indexes": "npm --prefix Backend run db:indexes",
     "db:seed": "npm --prefix Backend run db:seed",
     "dev:backend": "npm --prefix Backend run dev",
+    "dev:backend:memory": "cross-env USE_MEMORY_DB=true npm --prefix Backend run dev",
     "dev:backend:nodb": "npm --prefix Backend run dev:nodb",
     "dev:frontend": "npm --prefix Frontend start",
     "predev": "npm install --no-audit --no-fund",
     "dev": "concurrently -k -n backend,frontend -c blue,magenta \"npm:dev:backend\" \"npm:dev:frontend\"",
-    "start": "npm run dev"
+    "start": "npm run dev",
+    "clean": "rimraf Frontend/build",
+    "build:frontend": "npm --prefix Frontend run build",
+    "build:clean": "npm run clean && npm run build:frontend",
+    "demo:seed:memory": "cross-env USE_MEMORY_DB=true npm --prefix Backend run db:bootstrap",
+    "demo:backend:memory": "cross-env USE_MEMORY_DB=true npm --prefix Backend run dev",
+    "demo:start:memory": "concurrently -k -n backend,frontend -c blue,magenta \"npm:demo:backend:memory\" \"npm:dev:frontend\"",
+    "demo": "npm run demo:seed:memory && npm run demo:start:memory"
   },
   "devDependencies": {
-    "concurrently": "^9.0.1"
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "rimraf": "^5.0.5"
   }
 }

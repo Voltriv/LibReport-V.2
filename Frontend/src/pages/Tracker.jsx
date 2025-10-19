@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import profileImage from "../assets/pfp.png";
@@ -258,7 +259,7 @@ const Tracker = () => {
             {feed.map((v, i) => (
               <li key={i} className="py-2 text-sm text-slate-700 dark:text-stone-200 flex items-center justify-between">
                 <span>{v.name} <span className="text-slate-500">@ {v.branch}</span></span>
-                <span className="text-slate-500">{v.enteredAt}{v.exitedAt ? ` → ${v.exitedAt}` : ''}</span>
+                <span className="text-slate-500">{v.enteredAt}{v.exitedAt ? ` ??? ${v.exitedAt}` : ''}</span>
               </li>
             ))}
           </ul>
@@ -283,3 +284,5 @@ const Tracker = () => {
 };
 
 export default Tracker;
+
+

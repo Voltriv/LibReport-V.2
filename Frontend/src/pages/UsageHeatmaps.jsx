@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import {
@@ -138,5 +139,7 @@ const UsageHeatmaps = () => {
 };
 
 export default UsageHeatmaps;
+
+
 
 

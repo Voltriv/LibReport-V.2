@@ -52,11 +52,17 @@ api.interceptors.response.use(
         return axios.request({ ...cfg, baseURL });
       }
     }
-    if (status === 401) {
-      try { setAuthToken(null); } catch {}
-      if (typeof window !== 'undefined') window.location.replace('/signin');
-    } else if (status === 403) {
-      if (typeof window !== 'undefined') window.location.replace('/dashboard');
+    if (typeof window !== 'undefined') {
+      const at = (path) => {
+        try { return window.location.pathname === path; } catch { return false; }
+      };
+      if (status === 401) {
+        try { setAuthToken(null); } catch {}
+        if (!at('/signin')) window.location.replace('/signin');
+      } else if (status === 403) {
+        // Not authorized → go to sign-in rather than looping on /dashboard
+        if (!at('/signin')) window.location.replace('/signin');
+      }
     }
     return Promise.reject(err);
   }

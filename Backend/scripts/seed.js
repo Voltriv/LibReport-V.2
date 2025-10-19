@@ -50,12 +50,8 @@ async function main() {
 
   // bcrypt hash for "Password123" (cost 10)
   const demoHash = '$2b$10$vr7A1FNcgAQR/PmKzjVfMuCUWccdXVQqeA9M8I/VeEiFxLzAVtYoO';
-  const userDocs = [
-    { _id: new ObjectId(), studentId: '10001', name: 'Alice Student', fullName: 'Alice Student', role: 'student', email: 'alice@example.edu', barcode: 'A001', passwordHash: demoHash },
-    { _id: new ObjectId(), studentId: '10002', name: 'Bob Student',   fullName: 'Bob Student',   role: 'student', email: 'bob@example.edu',   barcode: 'B002', passwordHash: demoHash },
-    { _id: new ObjectId(), studentId: '90001', name: 'Sam Admin',     fullName: 'Sam Admin',     role: 'admin', email: 'sam@example.edu', barcode: 'L9001', passwordHash: demoHash }
-  ];
-  await db.collection('users').insertMany(userDocs, { ordered: false, bypassDocumentValidation: true });
+  const adminUser = { _id: new ObjectId(), adminId: '99-0000-000001', fullName: 'Sam Librarian', role: 'librarian', email: 'admin@example.com', passwordHash: demoHash };
+  await db.collection('admins').updateOne({ adminId: adminUser.adminId }, { $set: adminUser }, { upsert: true, bypassDocumentValidation: true });
 
   const bookDocs = [
     { _id: new ObjectId(), title: 'Clean Code', author: 'Robert C. Martin', categories: ['Software'], totalCopies: 3, availableCopies: 1 },
@@ -65,29 +61,10 @@ async function main() {
   await db.collection('books').insertMany(bookDocs, { ordered: false, bypassDocumentValidation: true });
 
   const now = new Date();
-  const twoWeeks = 14 * 864e5;
-  const [alice, bob] = userDocs;
-  const [cleanCode, designThings, algo] = bookDocs;
-  const loanDocs = [
-    { _id: new ObjectId(), userId: alice._id, bookId: cleanCode._id, borrowedAt: new Date(now - 7 * 864e5), dueAt: new Date(now + 7 * 864e5), returnedAt: null },
-    { _id: new ObjectId(), userId: alice._id, bookId: designThings._id, borrowedAt: new Date(now - 20 * 864e5), dueAt: new Date(now - 6 * 864e5), returnedAt: null },
-    { _id: new ObjectId(), userId: bob._id, bookId: algo._id, borrowedAt: new Date(now - 10 * 864e5), dueAt: new Date(now - 10 * 864e5 + twoWeeks), returnedAt: new Date(now - 2 * 864e5) }
-  ];
-  await db.collection('loans').insertMany(loanDocs, { ordered: false, bypassDocumentValidation: true });
+  // No demo loans in admin-only mode
 
   // visits heatmap for last 30 days
-  const visits = [];
-  for (let d = 0; d < 30; d++) {
-    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - d);
-    const samples = 10 + Math.floor(Math.random() * 20);
-    for (let i = 0; i < samples; i++) {
-      const hour = Math.floor(Math.random() * 12) + 8; // 8am-8pm
-      const ts = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, Math.floor(Math.random() * 60));
-      const who = Math.random() < 0.5 ? alice : bob;
-      visits.push({ _id: new ObjectId(), userId: who._id, studentId: who.studentId, barcode: who.barcode, branch: 'Main', enteredAt: ts });
-    }
-  }
-  await db.collection('visits').insertMany(visits, { ordered: false, bypassDocumentValidation: true });
+  // No demo visits in admin-only mode
 
   const branch = 'Main';
   const hours = [
@@ -104,7 +81,7 @@ async function main() {
   await ensureIndexes(db);
 
   const counts = await Promise.all(
-    ['users','books','loans','visits','hours'].map(async c => [c, await db.collection(c).countDocuments()])
+    ['users','books','hours','loans','visits'].map(async c => [c, await db.collection(c).countDocuments()])
   );
   console.log('Seed complete:', Object.fromEntries(counts));
 }
