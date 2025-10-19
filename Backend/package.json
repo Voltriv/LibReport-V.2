@@ -1,29 +1,27 @@
-﻿{
-    "name":  "libreport-backend",
-    "version":  "1.0.0",
-    "private":  true,
-    "type":  "commonjs",
-    "scripts":  {
-                    "start":  "node server.js",
-                    "dev":  "node --watch server.js",
-                    "dev:nodb":  "node --watch server.js",
-                    "db:indexes":  "node scripts/indexes.js",
-                    "db:seed":  "node scripts/seed.js",
-    "db:bootstrap":  "npm run db:indexes \u0026\u0026 npm run db:seed",
+{
+  "name": "libreport-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "dev:nodb": "node --watch server.js",
+    "db:indexes": "node scripts/indexes.js",
+    "db:seed": "node scripts/seed.js",
+    "db:bootstrap": "npm run db:indexes && npm run db:seed",
     "db:check:admins": "node scripts/check_admins.js"
-                },
-    "dependencies":  {
-                         "bcryptjs":  "^3.0.2",
-                         "compression":  "^1.7.4",
-                         "cors":  "^2.8.5",
-                         "dotenv":  "^17.2.3",
-                         "express":  "^5.1.0",
-                         "jsonwebtoken":  "^9.0.2",
-                         "libreport-workspace":  "file:..",
-                         "mongodb-memory-server":  "^10.2.3",
-                         "mongoose":  "^8.8.0",
-                         "morgan":  "^1.10.1",
-                         "validator":  "^13.15.15"
-                     }
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb-memory-server": "^10.2.3",
+    "mongoose": "^8.8.0",
+    "morgan": "^1.10.1",
+    "validator": "^13.15.15"
+  }
 }
-

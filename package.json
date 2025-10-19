@@ -11,8 +11,8 @@
     "dev:backend:memory": "cross-env USE_MEMORY_DB=true npm --prefix Backend run dev",
     "dev:backend:nodb": "npm --prefix Backend run dev:nodb",
     "dev:frontend": "npm --prefix Frontend start",
-    "predev": "npm install --no-audit --no-fund",
-    "dev": "concurrently -k -n backend,frontend -c blue,magenta \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev": "npm run dev:fast",
+    "dev:fast": "cross-env USE_MEMORY_DB=true concurrently -n backend,frontend -c blue,magenta \"npm:dev:backend\" \"npm --prefix Frontend run start\"",
     "start": "npm run dev",
     "clean": "rimraf Frontend/build",
     "build:frontend": "npm --prefix Frontend run build",
@@ -20,7 +20,15 @@
     "demo:seed:memory": "cross-env USE_MEMORY_DB=true npm --prefix Backend run db:bootstrap",
     "demo:backend:memory": "cross-env USE_MEMORY_DB=true npm --prefix Backend run dev",
     "demo:start:memory": "concurrently -k -n backend,frontend -c blue,magenta \"npm:demo:backend:memory\" \"npm:dev:frontend\"",
-    "demo": "npm run demo:seed:memory && npm run demo:start:memory"
+    "demo": "npm run demo:seed:memory && npm run demo:start:memory",
+    "free:3000": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-port-3000.ps1",
+    
+    "smoke": "node scripts/smoke.js",
+    "smoke:full": "node scripts/wait-for-health.js && node scripts/smoke.js --full",
+    "wait": "node scripts/wait-for-health.js",
+    "smoke:wait": "node scripts/wait-for-health.js && node scripts/smoke.js",
+    "prestart:guided": "npm run free:3000",
+    "start:guided": "concurrently -n starter,backend,frontend -c green,blue,magenta \"node scripts/open-after-healthy.js\" \"npm:dev:backend:memory\" \"cross-env PORT=3000 npm --prefix Frontend run start\""
   },
   "devDependencies": {
     "concurrently": "^9.0.1",

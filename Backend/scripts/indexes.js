@@ -4,6 +4,8 @@ require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
 const { MongoClient } = require('mongodb');
 const { resolveMongoConfig } = require('../db/uri');
 
+// Create indexes for collections used by the app. Supports real MongoDB
+// or an in-memory MongoDB when USE_MEMORY_DB=true.
 (async () => {
   let { uri, dbName } = resolveMongoConfig();
   const USE_MEMORY_DB = String(process.env.USE_MEMORY_DB || '').toLowerCase() === 'true';
@@ -43,6 +45,12 @@ const { resolveMongoConfig } = require('../db/uri');
       { key: { branch: 1, dayOfWeek: 1 }, name: 'hours_branch_dow', unique: true }
     ]);
 
+    // Admins: unique adminId and email (email sparse/partial unique)
+    await db.collection('admins').createIndexes([
+      { key: { adminId: 1 }, name: 'admin_adminId_unique', unique: true },
+      { key: { email: 1 }, name: 'admin_email_unique', unique: true, partialFilterExpression: { email: { $exists: true } } }
+    ]);
+
     console.log('Indexes created');
   } catch (e) {
     console.error('Index error:', e.message);
@@ -51,9 +59,3 @@ const { resolveMongoConfig } = require('../db/uri');
     if (typeof mem !== 'undefined' && mem) { await mem.stop(); }
   }
 })();
-
-    // Admins: unique adminId and email
-    await db.collection('admins').createIndexes([
-      { key: { adminId: 1 }, name: 'admin_adminId_unique', unique: true },
-      { key: { email: 1 }, name: 'admin_email_unique', unique: true, partialFilterExpression: { email: { $exists: true } } }
-    ]);

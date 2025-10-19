@@ -16,7 +16,7 @@ app.set('etag', 'strong');
 app.use(compression());
 app.use(cors());
 app.use(express.json());
-app.use(morgan('dev'));
+app.use(morgan('tiny'));
 
 // --- DB connect
 const { resolveMongoConfig } = require('./db/uri');
@@ -297,6 +297,9 @@ app.use((req, res, next) => {
   if (!req.path.startsWith('/api')) return next();
   const open = req.path === '/api' || req.path === '/api/' || req.path === '/api/health' || req.path.startsWith('/api/auth/');
   if (open) return next();
+  if (!NO_DB && !(mongoose.connection.readyState === 1 || DB_READY)) {
+    return res.status(503).json({ error: 'Database not ready' });
+  }
   return adminRequired(req, res, next);
 });
 // --- Auth helpers ---
@@ -318,13 +321,18 @@ function authRequired(req, res, next) {
 
 function adminRequired(req, res, next) {
   return authRequired(req, res, () => {
-    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'admin role required' });
+    const role = req.user?.role;
+    if (role !== 'admin' && role !== 'librarian') {
+      return res.status(403).json({ error: 'admin role required' });
+    }
     return next();
   });
 }
 
-// --- Auth: Signup
-app.post('/api/auth/signup', async (_req, res) => {\n  return res.status(403).json({ error: 'Signup is disabled. Admin-only system.' });\n});
+// --- Auth: Signup (disabled; admin-only system)
+app.post('/api/auth/signup', async (_req, res) => {
+  return res.status(403).json({ error: 'Signup is disabled. Admin-only system.' });
+});
 // --- Admin Signup (enabled only if no admins yet, or ALLOW_ADMIN_SIGNUP=true)
 app.post('/api/auth/admin-signup', async (req, res) => {
   try {
@@ -353,7 +361,7 @@ app.post('/api/auth/admin-signup', async (req, res) => {
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
-});
+
 });
 
 // --- Auth: Login (email + password)
