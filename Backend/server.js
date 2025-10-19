@@ -232,7 +232,7 @@ app.get(['/api', '/api/'], (_req, res) => {
     health: '/api/health',
     auth: {
       signup: { method: 'POST', path: '/api/auth/signup' },
-      login: { method: 'POST', path: '/api/auth/login' }
+      login: { method: 'POST', path: '/api/auth/login' },
     },
     time: new Date().toISOString()
   });
@@ -706,5 +706,6 @@ app.get('/api/books/lookup', authRequired, async (req, res) => {
 
 const PORT = process.env.BACKEND_PORT || 4000;
 app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));
+
 
 
