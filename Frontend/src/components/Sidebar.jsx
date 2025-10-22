@@ -6,8 +6,21 @@ import ThemeToggle from "./ThemeToggle";
 const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const baseLink = "block rounded-lg px-3 py-2 text-sm font-medium text-white/90 hover:bg-white/10";
-  const activeLink = "bg-white/15 text-brand-gold";
+  const baseLink =
+    "block rounded-lg px-3 py-2 text-sm font-medium text-white/90 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80";
+  const activeLink = "bg-white/20 text-brand-gold shadow-inner";
+  const primaryNav = [
+    { to: "/dashboard", label: "Dashboard" },
+    { to: "/tracker", label: "Tracker" },
+    { to: "/usage-heatmaps", label: "Usage Heatmaps" },
+    { to: "/reports", label: "Reports" },
+    { to: "/library", label: "Library" },
+  ];
+  const managementNav = [
+    { to: "/usermanagement", label: "User Management" },
+    { to: "/booksmanagement", label: "Books Management" },
+    { to: "/admins", label: "Admins" },
+  ];
 
   return (
     <>
@@ -31,13 +44,33 @@ const Sidebar = () => {
           <ThemeToggle />
         </div>
 
-        <nav className="p-4 space-y-1">
-          <NavLink to="/dashboard" onClick={() => setIsOpen(false)} className={({isActive}) => `${baseLink} ${isActive ? activeLink : ''}`}>Dashboard</NavLink>
-          <div className="pt-2">
-            <div className="mt-1 ml-1 space-y-1">
-              <NavLink to="/usermanagement" onClick={() => setIsOpen(false)} className={({isActive}) => `${baseLink} ${isActive ? activeLink : ''}`}>User</NavLink>
-              <NavLink to="/booksmanagement" onClick={() => setIsOpen(false)} className={({isActive}) => `${baseLink} ${isActive ? activeLink : ''}`}>Books Management</NavLink>
-              <NavLink to="/admins" onClick={() => setIsOpen(false)} className={({isActive}) => `${baseLink} ${isActive ? activeLink : ''}`}>Admins</NavLink>
+        <nav className="p-4 space-y-4 overflow-y-auto h-[calc(100%-4.5rem)]">
+          <div className="space-y-1">
+            {primaryNav.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setIsOpen(false)}
+                className={({ isActive }) => `${baseLink} ${isActive ? activeLink : ""}`}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+
+          <div>
+            <p className="px-3 text-xs uppercase tracking-wide text-white/60">Management</p>
+            <div className="mt-2 space-y-1">
+              {managementNav.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setIsOpen(false)}
+                  className={({ isActive }) => `${baseLink} ${isActive ? activeLink : ""}`}
+                >
+                  {item.label}
+                </NavLink>
+              ))}
             </div>
           </div>
         </nav>

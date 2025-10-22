@@ -23,7 +23,11 @@ const Dashboard = () => {
 
   const handleLogout = () => {
     setShowLogoutModal(false);
-    setShowDropdown(false); try { localStorage.removeItem('lr_token'); try { localStorage.removeItem('lr_user'); } catch {} } catch {}
+    setShowDropdown(false);
+    try {
+      localStorage.removeItem('lr_token');
+      localStorage.removeItem('lr_user');
+    } catch {}
     navigate("/signin", { replace: true });
   };
 

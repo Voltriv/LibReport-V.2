@@ -54,17 +54,139 @@ async function main() {
   await db.collection('admins').updateOne({ adminId: adminUser.adminId }, { $set: adminUser }, { upsert: true, bypassDocumentValidation: true });
 
   const bookDocs = [
-    { _id: new ObjectId(), title: 'Clean Code', author: 'Robert C. Martin', categories: ['Software'], totalCopies: 3, availableCopies: 1 },
-    { _id: new ObjectId(), title: 'The Design of Everyday Things', author: 'Don Norman', categories: ['Design'], totalCopies: 2, availableCopies: 2 },
-    { _id: new ObjectId(), title: 'Introduction to Algorithms', author: 'Cormen et al.', categories: ['CS'], totalCopies: 5, availableCopies: 4 }
+    {
+      _id: new ObjectId(),
+      title: 'Clean Code',
+      author: 'Robert C. Martin',
+      isbn: '9780132350884',
+      tags: ['CITE'],
+      totalCopies: 3,
+      availableCopies: 2
+    },
+    {
+      _id: new ObjectId(),
+      title: 'The Design of Everyday Things',
+      author: 'Don Norman',
+      isbn: '9780465050659',
+      tags: ['CAHS'],
+      totalCopies: 2,
+      availableCopies: 1
+    },
+    {
+      _id: new ObjectId(),
+      title: 'Introduction to Algorithms',
+      author: 'Cormen et al.',
+      isbn: '9780262046305',
+      tags: ['CEA'],
+      totalCopies: 5,
+      availableCopies: 5
+    }
   ];
   await db.collection('books').insertMany(bookDocs, { ordered: false, bypassDocumentValidation: true });
 
   const now = new Date();
-  // No demo loans in admin-only mode
+  const userDocs = [
+    {
+      _id: new ObjectId(),
+      studentId: '03-2324-000101',
+      email: 'alice.villanueva@example.com',
+      fullName: 'Alice Villanueva',
+      barcode: 'LR-000101',
+      passwordHash: demoHash,
+      role: 'student',
+      status: 'active'
+    },
+    {
+      _id: new ObjectId(),
+      studentId: '03-2324-000102',
+      email: 'ben.santos@example.com',
+      fullName: 'Ben Santos',
+      barcode: 'LR-000102',
+      passwordHash: demoHash,
+      role: 'student',
+      status: 'active'
+    },
+    {
+      _id: new ObjectId(),
+      studentId: '03-2324-000103',
+      email: 'cara.delacruz@example.com',
+      fullName: 'Cara Dela Cruz',
+      barcode: 'LR-000103',
+      passwordHash: demoHash,
+      role: 'faculty',
+      status: 'active'
+    }
+  ];
+  await db.collection('users').insertMany(userDocs, { ordered: false, bypassDocumentValidation: true });
 
-  // visits heatmap for last 30 days
-  // No demo visits in admin-only mode
+  const loanDocs = [
+    {
+      _id: new ObjectId(),
+      userId: userDocs[0]._id,
+      bookId: bookDocs[0]._id,
+      borrowedAt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+      dueAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+      returnedAt: null
+    },
+    {
+      _id: new ObjectId(),
+      userId: userDocs[1]._id,
+      bookId: bookDocs[1]._id,
+      borrowedAt: new Date(now.getTime() - 16 * 24 * 60 * 60 * 1000),
+      dueAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+      returnedAt: null
+    },
+    {
+      _id: new ObjectId(),
+      userId: userDocs[2]._id,
+      bookId: bookDocs[2]._id,
+      borrowedAt: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000),
+      dueAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+      returnedAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000)
+    }
+  ];
+  await db.collection('loans').insertMany(loanDocs, { ordered: false, bypassDocumentValidation: true });
+
+  // Adjust available copies for active loans
+  const activeByBook = loanDocs.reduce((acc, loan) => {
+    if (!loan.returnedAt) acc.set(String(loan.bookId), (acc.get(String(loan.bookId)) || 0) + 1);
+    return acc;
+  }, new Map());
+  for (const book of bookDocs) {
+    const activeCount = activeByBook.get(String(book._id)) || 0;
+    await db.collection('books').updateOne({ _id: book._id }, { $set: { availableCopies: Math.max(0, book.totalCopies - activeCount) } });
+  }
+
+  const visitDocs = [
+    {
+      _id: new ObjectId(),
+      userId: userDocs[0]._id,
+      studentId: userDocs[0].studentId,
+      barcode: userDocs[0].barcode,
+      branch: 'Main',
+      enteredAt: new Date(now.getTime() - 90 * 60 * 1000),
+      exitedAt: new Date(now.getTime() - 45 * 60 * 1000)
+    },
+    {
+      _id: new ObjectId(),
+      userId: userDocs[1]._id,
+      studentId: userDocs[1].studentId,
+      barcode: userDocs[1].barcode,
+      branch: 'Main',
+      enteredAt: new Date(now.getTime() - 30 * 60 * 1000),
+      exitedAt: null
+    },
+    {
+      _id: new ObjectId(),
+      userId: userDocs[2]._id,
+      studentId: userDocs[2].studentId,
+      barcode: userDocs[2].barcode,
+      branch: 'Downtown',
+      enteredAt: new Date(now.getTime() - 3 * 60 * 60 * 1000),
+      exitedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000)
+    }
+  ];
+  await db.collection('visits').insertMany(visitDocs, { ordered: false, bypassDocumentValidation: true });
 
   const branch = 'Main';
   const hours = [

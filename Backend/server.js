@@ -108,7 +108,7 @@ const userSchema = new mongoose.Schema(
     },
     barcode: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ['librarian'], default: 'librarian' },
+    role: { type: String, trim: true, default: 'student' },
     status: { type: String, enum: ['active','disabled','pending'], default: 'active' }
   },
   { timestamps: true }
@@ -539,6 +539,71 @@ app.get('/api/visits/recent', authRequired, async (req, res) => {
   res.json({ items });
 });
 
+// Tracker dashboard stats (visits + loans snapshot)
+app.get('/api/tracker/stats', adminRequired, async (_req, res) => {
+  const now = new Date();
+  const startOfDay = new Date(now);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const [inbound, outbound, overdue, activeVisits, activeLoans] = await Promise.all([
+    Visit.countDocuments({ enteredAt: { $gte: startOfDay } }),
+    Visit.countDocuments({ exitedAt: { $ne: null, $gte: startOfDay } }),
+    Loan.countDocuments({ returnedAt: null, dueAt: { $lt: now } }),
+    Visit.countDocuments({ exitedAt: null }),
+    Loan.countDocuments({ returnedAt: null })
+  ]);
+
+  res.json({ inbound, outbound, overdue, active: activeVisits, activeLoans });
+});
+
+// Recent loan activity for tracker quick log
+app.get('/api/tracker/logs', adminRequired, async (req, res) => {
+  const limitRaw = Number(req.query.limit || 25);
+  const daysRaw = Number(req.query.days || 30);
+  const limit = Math.max(1, Math.min(limitRaw, 100));
+  const days = Math.max(1, Math.min(daysRaw, 180));
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  const docs = await Loan.aggregate([
+    { $match: { borrowedAt: { $gte: since } } },
+    { $sort: { borrowedAt: -1 } },
+    { $limit: limit },
+    { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+    { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } },
+    { $unwind: { path: '$book', preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        _id: 1,
+        borrowedAt: 1,
+        dueAt: 1,
+        returnedAt: 1,
+        userName: '$user.fullName',
+        studentId: '$user.studentId',
+        bookTitle: '$book.title'
+      }
+    }
+  ]).exec();
+
+  const now = new Date();
+  const items = docs.map((doc) => {
+    let status = 'Borrowed';
+    if (doc.returnedAt) status = 'Returned';
+    else if (doc.dueAt && doc.dueAt < now) status = 'Overdue';
+    return {
+      id: String(doc._id),
+      status,
+      borrowedAt: doc.borrowedAt,
+      dueAt: doc.dueAt,
+      returnedAt: doc.returnedAt,
+      material: doc.bookTitle || 'Unknown Material',
+      user: doc.userName || doc.studentId || 'Unknown Borrower'
+    };
+  });
+
+  res.json({ items });
+});
+
 // --- Public library listing (auth), supports q and limit
 app.get('/api/books/library', authRequired, async (req, res) => {
   const q = String(req.query.q || '').trim();
@@ -651,21 +716,37 @@ app.get('/api/student/:id/borrowed', authRequired, async (req, res) => {
 });
 
 // --- Reports
-app.get('/api/reports/top-books', authRequired, async (_req, res) => {
-  const data = await Loan.aggregate([
+app.get('/api/reports/top-books', authRequired, async (req, res) => {
+  const limit = Math.max(1, Math.min(Number(req.query.limit || 10), 50));
+  const daysRaw = Number(req.query.days);
+  const pipeline = [];
+  if (!Number.isNaN(daysRaw) && daysRaw > 0) {
+    const since = new Date(Date.now() - daysRaw * 24 * 60 * 60 * 1000);
+    pipeline.push({ $match: { borrowedAt: { $gte: since } } });
+  }
+  pipeline.push(
     { $group: { _id: '$bookId', borrows: { $sum: 1 } } },
     { $sort: { borrows: -1 } },
-    { $limit: 10 },
+    { $limit: limit },
     { $lookup: { from: 'books', localField: '_id', foreignField: '_id', as: 'book' } },
     { $unwind: '$book' },
     { $project: { _id: 0, bookId: '$_id', title: '$book.title', author: '$book.author', borrows: 1 } }
-  ]);
+  );
+  const data = await Loan.aggregate(pipeline);
   res.json({ items: data });
 });
 
-app.get('/api/reports/overdue', authRequired, async (_req, res) => {
+app.get('/api/reports/overdue', authRequired, async (req, res) => {
+  const limit = Math.max(1, Math.min(Number(req.query.limit || 100), 500));
+  const daysRaw = Number(req.query.days || 0);
+  const dueMatch = { returnedAt: null, dueAt: { $lt: new Date() } };
+  if (!Number.isNaN(daysRaw) && daysRaw > 0) {
+    dueMatch.dueAt.$gte = new Date(Date.now() - daysRaw * 24 * 60 * 60 * 1000);
+  }
   const items = await Loan.aggregate([
-    { $match: { returnedAt: null, dueAt: { $lt: new Date() } } },
+    { $match: dueMatch },
+    { $sort: { dueAt: 1 } },
+    { $limit: limit },
     { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
     { $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } },
     { $unwind: '$user' },

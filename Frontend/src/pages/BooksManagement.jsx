@@ -76,7 +76,7 @@ const BooksManagement = () => {
     if (data.author !== undefined && String(data.author).trim() === '') e.author = 'Author is required';
     if (data.stock !== undefined && data.stock !== '') {
       const n = Number(data.stock);
-      if (!Number.isFinite(n) || n < 0) e.stock = 'Stock must be a number ? 0';
+      if (!Number.isFinite(n) || n < 0) e.stock = 'Stock must be a number ≥ 0';
     }
     return e;
   }

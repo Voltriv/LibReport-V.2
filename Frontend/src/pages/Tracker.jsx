@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import profileImage from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
@@ -19,7 +19,7 @@ const Tracker = () => {
   };
 
   const [logs, setLogs] = useState([]);
-  const [stats, setStats] = useState({ outbound: 0, inbound: 0, overdue: 0, active: 0 });
+  const [stats, setStats] = useState({ outbound: 0, inbound: 0, overdue: 0, active: 0, activeLoans: 0 });
   const [feed, setFeed] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -29,21 +29,50 @@ const Tracker = () => {
   const videoRef = useRef(null);
   const rafRef = useRef(null);
 
-  useEffect(() => {
-    api.get('/reports/overdue').then(r => {
-      const items = r.data?.items || [];
-      const mapped = items.map(o => ({
-        status: 'Overdue',
-        borrowedDate: o.borrowedAt ? new Date(o.borrowedAt).toLocaleString() : '-',
-        dueDate: o.dueAt ? new Date(o.dueAt).toLocaleString() : '-',
-        material: o.title,
-        user: o.user,
-        color: 'red'
-      }));
-      setLogs(mapped);
-      setStats({ outbound: 0, inbound: 0, overdue: mapped.length, active: mapped.length });
-    }).catch(() => { setLogs([]); });
+  const refreshStats = useCallback(async () => {
+    try {
+      const { data } = await api.get('/tracker/stats');
+      setStats({
+        outbound: data.outbound || 0,
+        inbound: data.inbound || 0,
+        overdue: data.overdue || 0,
+        active: data.active || 0,
+        activeLoans: data.activeLoans || 0
+      });
+    } catch {
+      setStats({ outbound: 0, inbound: 0, overdue: 0, active: 0, activeLoans: 0 });
+    }
   }, []);
+
+  const refreshLogs = useCallback(async () => {
+    try {
+      const { data } = await api.get('/tracker/logs', { params: { limit: 25 } });
+      const items = (data.items || []).map((row) => ({
+        status: row.status,
+        borrowedDate: row.borrowedAt ? new Date(row.borrowedAt).toLocaleString() : '-',
+        dueDate: row.returnedAt
+          ? `Returned ${new Date(row.returnedAt).toLocaleString()}`
+          : row.dueAt
+          ? new Date(row.dueAt).toLocaleString()
+          : '-',
+        material: row.material || 'Unknown material',
+        user: row.user || 'Unknown user'
+      }));
+      setLogs(items);
+    } catch {
+      setLogs([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshStats();
+  }, [refreshStats]);
+
+  useEffect(() => {
+    refreshLogs();
+    const timer = setInterval(refreshLogs, 30000);
+    return () => clearInterval(timer);
+  }, [refreshLogs]);
 
   useEffect(() => {
     try {
@@ -152,6 +181,7 @@ const Tracker = () => {
       const { data } = await api.post('/visit/enter', payload);
       setMessage(`Entered: ${data?.user?.fullName || payload.studentId || payload.barcode}`);
       beep();
+      refreshStats();
     } catch (e) {
       setMessage(e?.response?.data?.error || 'Enter failed');
     } finally { setBusy(false); }
@@ -164,6 +194,7 @@ const Tracker = () => {
       const { data } = await api.post('/visit/exit', payload);
       setMessage(`Exited at ${new Date(data.exitedAt).toLocaleTimeString()}`);
       beep();
+      refreshStats();
     } catch (e) {
       setMessage(e?.response?.data?.error || 'Exit failed');
     } finally { setBusy(false); }
@@ -195,7 +226,7 @@ const Tracker = () => {
             { label: 'Outbound', value: stats.outbound },
             { label: 'Inbound', value: stats.inbound },
             { label: 'Overdue', value: stats.overdue },
-            { label: 'Active', value: stats.active }
+            { label: 'Active Visits', value: stats.active }
           ].map((c) => (
             <div key={c.label} className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
               <p className="text-sm text-slate-500 dark:text-stone-300">{c.label}</p>
@@ -240,16 +271,36 @@ const Tracker = () => {
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {logs.map((log, i) => (
                   <tr key={i} className="text-slate-800 dark:text-stone-100">
-                    <td className="py-2 pr-4"><span className="inline-flex items-center rounded px-2 py-0.5 bg-rose-600 text-white text-xs">{log.status}</span></td>
+                    <td className="py-2 pr-4">
+                      <span
+                        className={`inline-flex items-center rounded px-2 py-0.5 text-xs text-white ${
+                          log.status === 'Overdue'
+                            ? 'bg-rose-600'
+                            : log.status === 'Returned'
+                            ? 'bg-emerald-600'
+                            : 'bg-indigo-600'
+                        }`}
+                      >
+                        {log.status}
+                      </span>
+                    </td>
                     <td className="py-2 pr-4">{log.borrowedDate}</td>
                     <td className="py-2 pr-4">{log.dueDate}</td>
                     <td className="py-2 pr-4">{log.material}</td>
                     <td className="py-2 pr-4">{log.user}</td>
                   </tr>
                 ))}
+                {logs.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-3 text-center text-slate-500 dark:text-stone-400">
+                      No recent loan activity.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
+          <p className="mt-3 text-xs text-slate-500 dark:text-stone-400">Active loans: {stats.activeLoans}</p>
         </section>
 
         {/* Recent visits feed */}
@@ -259,7 +310,7 @@ const Tracker = () => {
             {feed.map((v, i) => (
               <li key={i} className="py-2 text-sm text-slate-700 dark:text-stone-200 flex items-center justify-between">
                 <span>{v.name} <span className="text-slate-500">@ {v.branch}</span></span>
-                <span className="text-slate-500">{v.enteredAt}{v.exitedAt ? ` ??? ${v.exitedAt}` : ''}</span>
+                <span className="text-slate-500">{v.enteredAt}{v.exitedAt ? ` → ${v.exitedAt}` : ''}</span>
               </li>
             ))}
           </ul>

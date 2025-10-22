@@ -1,5 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import {
   LineChart,
@@ -14,67 +13,96 @@ import profileImage from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 
+const ranges = [
+  { label: "Last 7 days", value: 7 },
+  { label: "Last 30 days", value: 30 },
+  { label: "Last 90 days", value: 90 },
+];
+
 const UsageHeatmaps = () => {
-  const [timeRange, setTimeRange] = useState("");
-  const [metric, setMetric] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [chartRange, setChartRange] = useState("Daily");
-  const [showLogoutModal, setShowLogoutModal] = useState(false); 
-  const navigate = useNavigate(); 
-
- 
-  const handleLogout = () => {
-    setShowLogoutModal(false);
-    setShowDropdown(false); try { localStorage.removeItem('lr_token'); try { localStorage.removeItem('lr_user'); } catch {} } catch {}
-    navigate("/signin", { replace: true }); 
-  };
-
+  const [range, setRange] = useState(ranges[1]);
+  const [view, setView] = useState("daily");
   const [items, setItems] = useState([]);
-  useEffect(() => {
-    setTimeRange("");
-    setChartRange("Daily");
-    api.get('/heatmap/visits', { params: { days: 30 } })
-      .then(r => setItems(r.data.items || []))
-      .catch(() => setItems([]));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [userName, setUserName] = useState("Account");
+  const navigate = useNavigate();
+
+  const load = useCallback(async (days) => {
+    setLoading(true);
+    setError("");
+    try {
+      const { data } = await api.get("/heatmap/visits", { params: { days } });
+      setItems(data.items || []);
+    } catch {
+      setItems([]);
+      setError("Failed to load usage data.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const dataSets = useMemo(() => {
-    // Build simple Daily/Weekly/Monthly aggregations from items
-    const daily = new Array(7).fill(0); // dow 1..7
-    const weekly = [0,0,0,0];
-    const monthly = [0,0,0,0];
-    const now = new Date();
+  useEffect(() => {
+    load(range.value);
+  }, [load, range]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("lr_user");
+      if (raw) {
+        const u = JSON.parse(raw);
+        const name = u?.fullName || u?.name || (u?.email ? String(u.email).split("@")[0] : null);
+        if (name) setUserName(name);
+      }
+    } catch {}
+  }, []);
+
+  const handleLogout = () => {
+    setShowLogoutModal(false);
+    setShowDropdown(false);
+    try {
+      localStorage.removeItem("lr_token");
+      localStorage.removeItem("lr_user");
+    } catch {}
+    navigate("/signin", { replace: true });
+  };
+
+  const dailySeries = useMemo(() => {
+    const sums = new Array(7).fill(0);
     for (const it of items) {
-      const d = it.dow || 1;
-      daily[d-1] += it.count || 0;
-      // rough split into 4 weeks from last 28 days
-      const daysAgo = Math.max(0, Math.floor((now - new Date(now.getFullYear(), now.getMonth(), now.getDate()))/86400000));
-      // can't recover date from aggregation; just mirror daily into weekly/monthly to keep UI populated
+      const dow = (it.dow ?? 1) - 1;
+      if (dow >= 0 && dow < 7) sums[dow] += it.count || 0;
     }
-    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    const dailySeries = dayNames.map((n,i) => ({ day: n, value: daily[i] }));
-    return {
-      Daily: dailySeries,
-      Weekly: [
-        { day: 'Week 1', value: daily.slice(0,2).reduce((a,b)=>a+b,0) },
-        { day: 'Week 2', value: daily.slice(2,4).reduce((a,b)=>a+b,0) },
-        { day: 'Week 3', value: daily.slice(4,6).reduce((a,b)=>a+b,0) },
-        { day: 'Week 4', value: daily.slice(6).reduce((a,b)=>a+b,0) },
-      ],
-      Monthly: [
-        { day: 'This Month', value: daily.reduce((a,b)=>a+b,0) }
-      ]
-    };
+    const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    return labels.map((label, idx) => ({ label, value: sums[idx] }));
   }, [items]);
 
-  const ranges = ["Daily", "Weekly", "Monthly"];
-  const metrics = ["Books Borrowed", "Overdue Books"];
+  const hourlySeries = useMemo(() => {
+    const sums = new Array(24).fill(0);
+    for (const it of items) {
+      const hour = it.hour ?? 0;
+      if (hour >= 0 && hour < 24) sums[hour] += it.count || 0;
+    }
+    return sums.map((value, hour) => ({ label: `${hour}:00`, value }));
+  }, [items]);
 
-  const handleTimeRangeChange = (e) => {
-    const value = e.target.value;
-    setTimeRange(value);
-    setChartRange(value || "Daily");
-  };
+  const summary = useMemo(() => {
+    const total = items.reduce((acc, it) => acc + (it.count || 0), 0);
+    const peakDay = dailySeries.reduce((best, row) => (row.value > best.value ? row : best), {
+      label: "-",
+      value: 0,
+    });
+    const peakHour = hourlySeries.reduce((best, row) => (row.value > best.value ? row : best), {
+      label: "-",
+      value: 0,
+    });
+    return { total, peakDay, peakHour };
+  }, [dailySeries, hourlySeries, items]);
+
+  const chartData = view === "hourly" ? hourlySeries : dailySeries;
+  const chartLabel = view === "hourly" ? "Visits by Hour" : "Visits by Day of Week";
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
@@ -83,42 +111,105 @@ const UsageHeatmaps = () => {
       <main className="px-4 md:pl-6 lg:pl-8 pr-4 py-6 md:ml-72">
         <div className="flex items-center justify-end">
           <div className="relative">
-            <button onClick={() => setShowDropdown(!showDropdown)} className="inline-flex items-center gap-2 rounded-full bg-white/80 dark:bg-stone-900/60 ring-1 ring-slate-200 dark:ring-stone-700 px-2 py-1 shadow hover:shadow-md">
+            <button
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="inline-flex items-center gap-2 rounded-full bg-white/80 dark:bg-stone-900/60 ring-1 ring-slate-200 dark:ring-stone-700 px-2 py-1 shadow hover:shadow-md"
+            >
               <img src={profileImage} alt="Profile" className="h-8 w-8 rounded-full" />
-              <span className="text-sm text-slate-700 dark:text-stone-200">Account</span>
+              <span className="text-sm text-slate-700 dark:text-stone-200" title={userName}>
+                {userName}
+              </span>
             </button>
             {showDropdown && (
               <div className="absolute right-0 mt-2 w-40 rounded-md bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg p-1">
-                <button className="w-full text-left rounded px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => setShowLogoutModal(true)}>Logout</button>
+                <button
+                  className="w-full text-left rounded px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  onClick={() => setShowLogoutModal(true)}
+                >
+                  Logout
+                </button>
               </div>
             )}
           </div>
         </div>
 
-        <section className="mt-6 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
-          <h2 className="text-2xl font-semibold text-slate-900 dark:text-stone-100">Usage Heatmaps</h2>
-          <div className="mt-3 flex items-center gap-2">
-            <select value={timeRange} onChange={handleTimeRangeChange} className="rounded-lg px-3 py-1.5 bg-white dark:bg-stone-950 ring-1 ring-slate-200 dark:ring-stone-700 text-slate-700 dark:text-stone-200">
-              <option value="" disabled>Select Time Range</option>
-              {ranges.map((range) => (<option key={range} value={range}>{range}</option>))}
-            </select>
-            <select value={metric} onChange={(e)=>setMetric(e.target.value)} className="rounded-lg px-3 py-1.5 bg-white dark:bg-stone-950 ring-1 ring-slate-200 dark:ring-stone-700 text-slate-700 dark:text-stone-200">
-              <option value="" disabled>Metric</option>
-              {metrics.map((m) => (<option key={m} value={m}>{m}</option>))}
-            </select>
+        <section className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+              <p className="text-sm text-slate-500 dark:text-stone-300">Total Visits</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-stone-100">{summary.total}</p>
+            </div>
+            <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+              <p className="text-sm text-slate-500 dark:text-stone-300">Busiest Day</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-stone-100">
+                {summary.peakDay.label} ({summary.peakDay.value})
+              </p>
+            </div>
+            <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+              <p className="text-sm text-slate-500 dark:text-stone-300">Peak Hour</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-stone-100">
+                {summary.peakHour.label} ({summary.peakHour.value})
+              </p>
+            </div>
           </div>
-          <div className="mt-4">
-            <div className="h-[300px]">
+
+          <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-900 dark:text-stone-100">Usage Heatmaps</h2>
+                <p className="text-sm text-slate-500 dark:text-stone-300">{chartLabel}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-lg bg-slate-100 dark:bg-stone-800 p-1">
+                  <button
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === "daily" ? "bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-100 shadow" : "text-slate-600 dark:text-stone-300"}`}
+                    onClick={() => setView("daily")}
+                  >
+                    Day of week
+                  </button>
+                  <button
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === "hourly" ? "bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-100 shadow" : "text-slate-600 dark:text-stone-300"}`}
+                    onClick={() => setView("hourly")}
+                  >
+                    Hour of day
+                  </button>
+                </div>
+                <select
+                  className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-1.5 text-sm text-slate-700 dark:text-stone-200"
+                  value={range.value}
+                  onChange={(e) => {
+                    const next = ranges.find((r) => r.value === Number(e.target.value));
+                    if (next) setRange(next);
+                  }}
+                >
+                  {ranges.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {error && (
+              <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
+            )}
+
+            <div className="mt-4 h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dataSets[chartRange] || []}>
+                <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
+                  <XAxis dataKey="label" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip formatter={(value) => [value, "Visits"]} />
+                  <Line type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={!loading} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
+
+            <p className="mt-2 text-xs text-slate-500 dark:text-stone-400">
+              Showing visitor check-ins {range.label.toLowerCase()}.
+            </p>
           </div>
         </section>
       </main>
@@ -128,8 +219,15 @@ const UsageHeatmaps = () => {
           <div className="w-full max-w-md rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Are you sure you want to logout?</h3>
             <div className="mt-6 flex items-center justify-end gap-3">
-              <button className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200" onClick={() => setShowLogoutModal(false)}>Close</button>
-              <button className="rounded-lg px-4 py-2 bg-red-600 text-white hover:bg-red-500" onClick={handleLogout}>Confirm</button>
+              <button
+                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200"
+                onClick={() => setShowLogoutModal(false)}
+              >
+                Close
+              </button>
+              <button className="rounded-lg px-4 py-2 bg-red-600 text-white hover:bg-red-500" onClick={handleLogout}>
+                Confirm
+              </button>
             </div>
           </div>
         </div>
@@ -139,7 +237,3 @@ const UsageHeatmaps = () => {
 };
 
 export default UsageHeatmaps;
-
-
-
-

@@ -1,4 +1,4 @@
-﻿/* Auth page overrides using CSS variables for consistency */
+/* Auth page overrides using CSS variables for consistency */
 .auth-title { color: var(--text); }
 .auth-subtle { color: var(--muted); }
 .auth-accent { color: var(--brand-gold); }
@@ -19,8 +19,11 @@
   filter: brightness(0.98);
 }
 
-
-\.auth-pattern { position: relative; overflow: hidden; }`n.auth-pattern::before {
+.auth-pattern {
+  position: relative;
+  overflow: hidden;
+}
+.auth-pattern::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -30,5 +33,3 @@
   background-repeat: repeat;
   opacity: 1;
 }
-
-
