@@ -28,7 +28,7 @@
     "wait": "node scripts/wait-for-health.js",
     "smoke:wait": "node scripts/wait-for-health.js && node scripts/smoke.js",
     "prestart:guided": "npm run free:3000",
-    "start:guided": "concurrently -n starter,backend,frontend -c green,blue,magenta \"node scripts/open-after-healthy.js\" \"npm:dev:backend:memory\" \"cross-env PORT=3000 npm --prefix Frontend run start\""
+    "start:guided": "node scripts/start-guided.js"
   },
   "devDependencies": {
     "concurrently": "^9.0.1",

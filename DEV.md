@@ -27,9 +27,10 @@ Local Development
   - Install deps: `npm run setup`
   - Start MongoDB (Docker): `docker compose up -d`
   - Bootstrap DB (indexes + seed demo data): `npm run db:bootstrap`
-  - Start full dev (fast default): `npm run dev` (in-memory DB + frontend on port 3000)
-  - Free port 3000 (if needed): `npm run free:3000`
-  - Start dev with in-memory DB (default CRA port 3000): `npm run dev:fast`
+- Start full dev (fast default): `npm run dev` (in-memory DB + frontend on port 3000)
+- Free port 3000 (if needed): `npm run free:3000`
+- Start dev with in-memory DB (default CRA port 3000): `npm run dev:fast`
+- Guided start with auto-port pick (Windows-friendly): `npm run start:guided` (chooses 3000 → 3001 → 3002 if busy)
   - Backend only (watch, memory DB): `npm run dev:backend:memory`
   - Quick smoke test (requires backend running): `npm run smoke`
   - Tailwind is loaded via CDN for rapid iteration (see `Frontend/public/index.html`).
