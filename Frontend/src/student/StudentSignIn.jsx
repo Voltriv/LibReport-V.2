@@ -44,7 +44,7 @@ const StudentSignIn = () => {
       if (role === "librarian" || role === "admin") {
         navigate("/dashboard", { replace: true });
       } else {
-        navigate("/student/account", { replace: true });
+        navigate("/student/catalog", { replace: true });
       }
     } catch (e) {
       const msg = e?.response?.data?.error || "Unable to sign in. Please try again.";
