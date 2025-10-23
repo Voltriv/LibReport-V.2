@@ -59,6 +59,8 @@ async function main() {
       title: 'Clean Code',
       author: 'Robert C. Martin',
       isbn: '9780132350884',
+      bookCode: 'BK-0001',
+      genre: 'CITE',
       tags: ['CITE'],
       totalCopies: 3,
       availableCopies: 2
@@ -68,6 +70,8 @@ async function main() {
       title: 'The Design of Everyday Things',
       author: 'Don Norman',
       isbn: '9780465050659',
+      bookCode: 'BK-0002',
+      genre: 'CAHS',
       tags: ['CAHS'],
       totalCopies: 2,
       availableCopies: 1
@@ -77,6 +81,8 @@ async function main() {
       title: 'Introduction to Algorithms',
       author: 'Cormen et al.',
       isbn: '9780262046305',
+      bookCode: 'BK-0003',
+      genre: 'CEA',
       tags: ['CEA'],
       totalCopies: 5,
       availableCopies: 5

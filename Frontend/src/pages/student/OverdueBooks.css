@@ -1,0 +1,187 @@
+/* OverdueBooks.css */
+.overdue-books-container {
+  width: 95%;
+  margin: 0 auto;
+}
+
+.full-width {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+/* Override shared dashboard centering for detail pages */
+.student-dashboard.full-width {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.top-back-btn {
+  background-color: transparent;
+  color: #4B6734;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 10px 0;
+  margin-bottom: 10px;
+  text-align: left;
+  font-weight: bold;
+  display: block;
+}
+
+.overdue-books-card {
+  background-color: white;
+  border-radius: 10px;
+  padding: 25px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  margin-top: 10px;
+}
+
+.overdue-books-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #4B6734;
+  padding-bottom: 15px;
+}
+
+.overdue-icon {
+  width: 40px;
+  height: 40px;
+  margin-right: 15px;
+}
+
+.overdue-books-header h2 {
+  color: #4B6734;
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+.overdue-books-table {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+}
+
+th {
+  background-color: #4B6734;
+  color: white;
+  text-align: left;
+  padding: 12px 15px;
+}
+
+td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #ddd;
+}
+
+tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+tr:hover {
+  background-color: #f1f1f1;
+}
+
+.status-badge {
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.status-overdue {
+  background-color: #d9534f;
+  color: white;
+}
+
+.no-overdue-books {
+  text-align: center;
+  padding: 30px;
+  color: #6c757d;
+  font-size: 1.2rem;
+}
+
+.overdue-books-note {
+  background-color: #f8f9fa;
+  border-left: 4px solid #4B6734;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 0 5px 5px 0;
+}
+
+.back-btn {
+  background-color: #4B6734;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.3s;
+}
+
+.back-btn:hover {
+  background-color: #3a5227;
+}
+
+/* ---------------------------------------------
+   GUIDE: Overdue Books emphasis and actions
+   - Tweak alert colors, table/card spacing, and button styles.
+   - Keep consistent with green brand accents used elsewhere.
+   --------------------------------------------- */
+
+.overdue-alert {
+  /* GUIDE: prominent alert styling */
+  background: #fff1f0;
+  border: 1px solid #ffa39e;
+  color: #a8071a;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.overdue-card-list {
+  /* GUIDE: grid for overdue items */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.overdue-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 14px;
+}
+
+.overdue-card h4 {
+  margin: 0 0 8px;
+  color: #d9534f;
+}
+
+.overdue-card .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.overdue-card .action-btn {
+  background-color: #4B6734;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.overdue-card .action-btn:hover {
+  background-color: #3a5227;
+}

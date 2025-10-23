@@ -13,6 +13,15 @@ const BooksManagement = lazy(() => import("./pages/BooksManagement"));
 const BooksLibrary = lazy(() => import("./pages/BooksLibrary"));
 const Admins = lazy(() => import("./pages/Admins"));
 
+function hasStoredToken() {
+  if (typeof window === "undefined") return false;
+  try {
+    return !!localStorage.getItem("lr_token");
+  } catch {
+    return false;
+  }
+}
+
 function RequireAuth({ children }) {
   try {
     const t = localStorage.getItem("lr_token");
@@ -28,6 +37,16 @@ function RequireAdmin({ children }) {
     if (!u || u.role !== "librarian") return <Navigate to="/signin" replace />;
   } catch {}
   return children;
+}
+
+function PublicOnly({ children }) {
+  if (hasStoredToken()) return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+function DefaultRedirect() {
+  const target = hasStoredToken() ? "/dashboard" : "/signin";
+  return <Navigate to={target} replace />;
 }
 
 function App() {
@@ -49,8 +68,8 @@ function App() {
       <div className="App">
         <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Loading...</div>}>
           <Routes>
-            <Route path="/" element={<SignIn />} />
-            <Route path="/signin" element={<SignIn />} />
+            <Route path="/" element={<DefaultRedirect />} />
+            <Route path="/signin" element={<PublicOnly><SignIn /></PublicOnly>} />
             {/* SignUp disabled for admin-only system */}
             <Route path="/forgot" element={<Navigate to="/signin" replace />} />
             <Route path="/reset" element={<Navigate to="/signin" replace />} />
@@ -135,6 +154,7 @@ function App() {
                 </RequireAuth>
               )}
             />
+            <Route path="*" element={<DefaultRedirect />} />
           </Routes>
         </Suspense>
       </div>

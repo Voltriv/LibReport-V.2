@@ -5,6 +5,20 @@ import pfp from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 
+const GENRE_DEFAULTS = [
+  'Fiction',
+  'Non-fiction',
+  'Science',
+  'Technology',
+  'History',
+  'Arts',
+  'Education',
+  'Reference',
+  'Research',
+];
+
+const CUSTOM_GENRE_VALUE = '__custom__';
+
 const BooksManagement = () => {
   const [openDropdown, setOpenDropdown] = useState(null);
   const [books, setBooks] = useState([]);
@@ -47,21 +61,13 @@ const BooksManagement = () => {
   const [uSel, setUSel] = useState(null);
   const [bSel, setBSel] = useState(null);
   const [loanBusy, setLoanBusy] = useState(false);
-  const [camOn, setCamOn] = useState(false);
-  const [soundOn, setSoundOn] = useState(true);
-  const [scanTarget, setScanTarget] = useState('user');
-  const [detectorSupported, setDetectorSupported] = useState(true);
-  const videoRef = useRef(null);
-  const rafRef = useRef(null);
-  const lastScanAtRef = useRef(0);
   // Catalog management (migrated from Material page)
   const [catalog, setCatalog] = useState([]);
-  const [catSelected, setCatSelected] = useState(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [formCat, setFormCat] = useState({ type: "", title: "", author: "", stock: "" });
-  const [formErrors, setFormErrors] = useState({});
+  const [editingBook, setEditingBook] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [formBusy, setFormBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [toast, setToast] = useState(null); // { msg, type }
 
   function showToast(msg, type = 'info') {
@@ -70,16 +76,13 @@ const BooksManagement = () => {
     window.__bm_toast = setTimeout(() => setToast(null), 3000);
   }
 
-  function validateForm(data) {
-    const e = {};
-    if (data.title !== undefined && String(data.title).trim() === '') e.title = 'Title is required';
-    if (data.author !== undefined && String(data.author).trim() === '') e.author = 'Author is required';
-    if (data.stock !== undefined && data.stock !== '') {
-      const n = Number(data.stock);
-      if (!Number.isFinite(n) || n < 0) e.stock = 'Stock must be a number ≥ 0';
-    }
-    return e;
-  }
+  const genreOptions = useMemo(() => {
+    const opts = new Set(GENRE_DEFAULTS);
+    catalog.forEach((item) => {
+      if (item.genre) opts.add(item.genre);
+    });
+    return Array.from(opts);
+  }, [catalog]);
 
   async function lookupUser() {
     if (!uInput) return setUSel(null);
@@ -126,64 +129,6 @@ const BooksManagement = () => {
     finally { setLoanBusy(false); }
   }
 
-  // Persist scanner sound preference
-  useEffect(() => { try { const s = localStorage.getItem('lr_scan_sound'); if (s !== null) setSoundOn(s === '1'); } catch {} }, []);
-  useEffect(() => { try { localStorage.setItem('lr_scan_sound', soundOn ? '1' : '0'); } catch {} }, [soundOn]);
-
-  // Camera scanner using BarcodeDetector
-  useEffect(() => {
-    let cancelled = false; let stream; let detector;
-    async function start() {
-      try {
-        if (!('BarcodeDetector' in window)) { setDetectorSupported(false); return; }
-        detector = new window.BarcodeDetector({ formats: ['qr_code','code_128','code_39','ean_13','ean_8'] });
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        if (!videoRef.current) return;
-        videoRef.current.srcObject = stream; await videoRef.current.play();
-        const loop = async () => {
-          if (cancelled || !camOn) return;
-          try {
-            const det = await detector.detect(videoRef.current);
-            if (det && det[0]?.rawValue) {
-              const code = String(det[0].rawValue).trim();
-              const now = Date.now();
-              if (now - lastScanAtRef.current > 800) {
-                lastScanAtRef.current = now;
-                if (scanTarget === 'user') { setUInput(code); lookupUser(); }
-                else { setBInput(code); lookupBook(); }
-                beep();
-              }
-            }
-          } catch {}
-          rafRef.current = requestAnimationFrame(loop);
-        };
-        rafRef.current = requestAnimationFrame(loop);
-      } catch {}
-    }
-    if (camOn) start();
-    return () => {
-      cancelled = true;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = videoRef.current.srcObject.getTracks?.() || [];
-        tracks.forEach(t => t.stop());
-        videoRef.current.srcObject = null;
-      }
-    };
-  }, [camOn, scanTarget]);
-
-  function beep() {
-    if (!soundOn) return;
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
-      g.gain.setValueAtTime(0.0001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
-      o.start(); setTimeout(() => { g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.08); o.stop(ctx.currentTime + 0.1); }, 80);
-    } catch {}
-  }
-
   useEffect(() => {
     try {
       const raw = localStorage.getItem('lr_user');
@@ -198,60 +143,82 @@ const BooksManagement = () => {
   async function loadCatalog() {
     try {
       const { data } = await api.get('/books');
-      const items = (data || []).map(b => ({
+      const items = (data || []).map((b) => ({
         id: b._id || b.id,
-        type: (b.tags && b.tags[0]) || 'Book',
         title: b.title,
         author: b.author,
+        bookCode: b.bookCode || '',
+        genre: b.genre || (Array.isArray(b.tags) && b.tags[0]) || '',
         totalCopies: b.totalCopies ?? 0,
         availableCopies: b.availableCopies ?? 0,
+        coverImagePath: b.coverImagePath || '',
+        coverImageOriginalName: b.coverImageOriginalName || '',
+        pdfPath: b.pdfPath || '',
+        pdfOriginalName: b.pdfOriginalName || '',
+        createdAt: b.createdAt ? new Date(b.createdAt) : null,
       }));
+      items.sort((a, b) => {
+        const aTime = a.createdAt ? a.createdAt.getTime() : 0;
+        const bTime = b.createdAt ? b.createdAt.getTime() : 0;
+        return bTime - aTime;
+      });
       setCatalog(items);
-    } catch { setCatalog([]); }
+    } catch (error) {
+      setCatalog([]);
+      showToast('Failed to load catalog', 'error');
+    }
   }
   useEffect(() => { loadCatalog(); }, []);
 
-  async function addCatalogItem() {
-    const errs = validateForm({ title: formCat.title, author: formCat.author, stock: formCat.stock });
-    setFormErrors(errs);
-    if (Object.keys(errs).length) return;
+  async function handleCreateBook(payload) {
+    setFormBusy(true);
     try {
-      const body = { title: formCat.title, author: formCat.author, tags: formCat.type ? [formCat.type] : [], totalCopies: Number(formCat.stock || 1) };
-      await api.post('/books', body);
-      setFormCat({ type: "", title: "", author: "", stock: "" });
+      await api.post('/books', payload);
+      await loadCatalog();
       setIsAddOpen(false);
-      await loadCatalog();
       showToast('Book added', 'success');
-    } catch {}
+      return true;
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to add book';
+      showToast(msg, 'error');
+      return false;
+    } finally {
+      setFormBusy(false);
+    }
   }
 
-  async function editCatalogItem() {
-    if (!catSelected) return;
+  async function handleUpdateBook(payload) {
+    if (!editingBook) return false;
+    setFormBusy(true);
     try {
-      const body = {
-        title: formCat.title || catSelected.title,
-        author: formCat.author || catSelected.author,
-        totalCopies: formCat.stock ? Number(formCat.stock) : undefined,
-        tags: formCat.type ? [formCat.type] : undefined,
-      };
-      const errs = validateForm({ title: body.title ?? '', author: body.author ?? '', stock: formCat.stock });
-      setFormErrors(errs);
-      if (Object.keys(errs).length) return;
-      await api.patch(`/books/${catSelected.id}`, body);
-      setIsEditOpen(false);
-      setFormCat({ type: "", title: "", author: "", stock: "" });
+      await api.patch(`/books/${editingBook.id}`, payload);
       await loadCatalog();
+      setEditingBook(null);
       showToast('Book updated', 'success');
-    } catch {}
+      return true;
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to update book';
+      showToast(msg, 'error');
+      return false;
+    } finally {
+      setFormBusy(false);
+    }
   }
 
-  async function deleteCatalogItem() {
-    if (!catSelected) return;
-    try { await api.delete(`/books/${catSelected.id}`); } catch {}
-    setIsDeleteOpen(false);
-    setCatSelected(null);
-    await loadCatalog();
-    showToast('Book deleted', 'success');
+  async function handleDeleteBook() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      await api.delete(`/books/${deleteTarget.id}`);
+      await loadCatalog();
+      showToast('Book deleted', 'success');
+      setDeleteTarget(null);
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to delete book';
+      showToast(msg, 'error');
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   // Legacy books preview
@@ -325,18 +292,9 @@ const BooksManagement = () => {
               <div className="flex flex-wrap gap-2">
                 <button className="rounded-lg px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60" disabled={!uSel || !bSel || loanBusy} onClick={doBorrow}>Borrow 14d</button>
                 <button className="rounded-lg px-3 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60" disabled={!uSel || !bSel || loanBusy} onClick={doReturn}>Return</button>
-                <button className="rounded-lg px-3 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200" onClick={() => setCamOn(!camOn)}>{camOn ? 'Stop Camera' : 'Start Camera'}</button>
-                <button className="rounded-lg px-3 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200" onClick={() => setSoundOn(!soundOn)}>{soundOn ? 'Sound On' : 'Sound Off'}</button>
-                <select className="rounded-lg px-3 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200" value={scanTarget} onChange={e=>setScanTarget(e.target.value)}>
-                  <option value="user">Scan User</option>
-                  <option value="book">Scan Book</option>
-                </select>
               </div>
-              {!detectorSupported && (
-                <div className="text-xs text-slate-600 dark:text-stone-300">Camera scanning not supported in this browser. Use Chrome/Edge on HTTPS or http://localhost.</div>
-              )}
-              <div className="rounded-lg overflow-hidden ring-1 ring-slate-200 dark:ring-stone-700 bg-slate-900">
-                <video ref={videoRef} className={`block w-full h-64 object-cover ${camOn ? '' : 'opacity-40'}`} playsInline muted></video>
+              <div className="text-xs text-slate-600 dark:text-stone-300">
+                Camera-based scanning has been removed. Use the lookup fields above to search for users and books before borrowing or returning.
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                 <div className="rounded-lg ring-1 ring-slate-200 dark:ring-stone-700 p-2 bg-white dark:bg-stone-950"><h4 className="font-semibold">User</h4><pre>{JSON.stringify(uSel || {}, null, 2)}</pre></div>
@@ -359,35 +317,94 @@ const BooksManagement = () => {
 
         {/* Catalog (Material merged) */}
         <section className="mt-6 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Catalog</h3>
-            <div className="flex items-center gap-2">
-              <button className="rounded-lg px-3 py-2 bg-brand-gold text-white hover:opacity-90" onClick={()=> setIsAddOpen(true)}>Add Book</button>
-              <button className="rounded-lg px-3 py-2 ring-1 ring-slate-200 dark:ring-stone-700" onClick={()=> { if (!catSelected && catalog[0]) setCatSelected(catalog[0]); if (catSelected || catalog[0]) setIsEditOpen(true); }}>Edit</button>
-              <button className="rounded-lg px-3 py-2 bg-rose-600 text-white hover:bg-rose-500" onClick={()=> { if (!catSelected && catalog[0]) setCatSelected(catalog[0]); if (catSelected || catalog[0]) setIsDeleteOpen(true); }}>Remove</button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Books Catalog</h3>
+              <p className="text-sm text-slate-500 dark:text-stone-400">Track physical copies and digital resources for your library.</p>
             </div>
+            <button
+              className="inline-flex items-center justify-center rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-500 transition"
+              onClick={() => setIsAddOpen(true)}
+            >
+              Add Book
+            </button>
           </div>
-          <div className="mt-3 overflow-x-auto">
+          <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="text-left text-slate-600 dark:text-stone-300">
-                  <th className="py-2 pr-4">Title</th>
-                  <th className="py-2 pr-4">Author</th>
-                  <th className="py-2 pr-4">Type</th>
-                  <th className="py-2 pr-4">Total</th>
-                  <th className="py-2 pr-4">Available</th>
+                <tr className="text-xs uppercase tracking-wide text-slate-500 dark:text-stone-400 bg-slate-100/60 dark:bg-stone-800/60">
+                  <th className="px-4 py-3 text-left font-semibold">Book Cover</th>
+                  <th className="px-4 py-3 text-left font-semibold">Title</th>
+                  <th className="px-4 py-3 text-left font-semibold">Author</th>
+                  <th className="px-4 py-3 text-left font-semibold">Book Code</th>
+                  <th className="px-4 py-3 text-left font-semibold">Available Copies</th>
+                  <th className="px-4 py-3 text-left font-semibold">Total Copies</th>
+                  <th className="px-4 py-3 text-left font-semibold">Category</th>
+                  <th className="px-4 py-3 text-left font-semibold">Book PDF</th>
+                  <th className="px-4 py-3 text-left font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-stone-700">
-                {catalog.map((b)=> (
-                  <tr key={b.id} className={`cursor-pointer ${catSelected?.id===b.id? 'bg-slate-50 dark:bg-stone-900' : ''}`} onClick={()=> setCatSelected(b)}>
-                    <td className="py-2 pr-4">{b.title}</td>
-                    <td className="py-2 pr-4">{b.author}</td>
-                    <td className="py-2 pr-4">{b.type}</td>
-                    <td className="py-2 pr-4">{b.totalCopies}</td>
-                    <td className="py-2 pr-4">{b.availableCopies}</td>
+                {catalog.map((book) => (
+                  <tr key={book.id} className="bg-white dark:bg-stone-900/70 transition-colors hover:bg-slate-50 dark:hover:bg-stone-800/70">
+                    <td className="px-4 py-3">
+                      {book.coverImagePath ? (
+                        <img
+                          src={book.coverImagePath}
+                          alt={`Cover of ${book.title}`}
+                          className="h-12 w-9 rounded object-cover shadow-sm"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-9 items-center justify-center rounded bg-slate-200 text-[10px] font-semibold text-slate-500">
+                          No Cover
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-slate-800 dark:text-stone-100">{book.title}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-stone-300">{book.author}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-stone-200">{book.bookCode || '—'}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-stone-200">{book.availableCopies}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-stone-200">{book.totalCopies}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-stone-200">{book.genre || '—'}</td>
+                    <td className="px-4 py-3">
+                      {book.pdfPath ? (
+                        <a
+                          href={book.pdfPath}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          {book.pdfOriginalName || 'Book PDF'}
+                        </a>
+                      ) : (
+                        <span className="text-slate-400 dark:text-stone-500">No PDF</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className="rounded-full border border-emerald-600 px-3 py-1 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-50 dark:hover:bg-emerald-600/10"
+                          onClick={() => setEditingBook(book)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="rounded-full border border-rose-500 px-3 py-1 text-xs font-semibold text-rose-500 transition hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                          onClick={() => setDeleteTarget(book)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
+                {catalog.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="px-4 py-6 text-center text-slate-500 dark:text-stone-400">
+                      No books have been added yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -413,81 +430,32 @@ const BooksManagement = () => {
         )}
 
         
-        {isAddOpen && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Add Book</h3>
-              <div className="mt-4 space-y-3"> 
-                <div>
-                  <label className="block text-sm text-slate-600 dark:text-stone-300">Type</label>
-                  <input className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2" value={formCat.type} onChange={e=>setFormCat({...formCat, type:e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-600 dark:text-stone-300">Title</label>
-                  <input className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2" value={formCat.title} onChange={e=>setFormCat({...formCat, title:e.target.value})} />
-                  {formErrors.title && <div className="text-rose-500 text-xs mt-1">{formErrors.title}</div>}
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-600 dark:text-stone-300">Author</label>
-                  <input className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2" value={formCat.author} onChange={e=>setFormCat({...formCat, author:e.target.value})} />
-                  {formErrors.author && <div className="text-rose-500 text-xs mt-1">{formErrors.author}</div>}
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-600 dark:text-stone-300">Stock</label>
-                  <input type="number" className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2" value={formCat.stock} onChange={e=>setFormCat({...formCat, stock:e.target.value})} />
-                  {formErrors.stock && <div className="text-rose-500 text-xs mt-1">{formErrors.stock}</div>}
-                </div>
-              </div>
-              <div className="mt-6 flex items-center justify-end gap-3">
-                <button className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700" onClick={()=> setIsAddOpen(false)}>Cancel</button>
-                <button className="rounded-lg px-4 py-2 bg-brand-gold text-white hover:opacity-90" onClick={addCatalogItem}>Save</button>
-              </div>
-            </div>
-          </div>
-        )}
+        <BookFormModal
+          open={isAddOpen}
+          mode="create"
+          onCancel={() => setIsAddOpen(false)}
+          onSubmit={handleCreateBook}
+          submitting={formBusy}
+          genreOptions={genreOptions}
+        />
 
-        {isEditOpen && catSelected && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Edit Book</h3>
-              <div className="mt-4 space-y-3">
-                <div>
-                  <label className="block text-sm text-slate-600 dark:text-stone-300">Type</label>
-                  <input className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2" defaultValue={catSelected.type} onChange={e=>setFormCat({...formCat, type:e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-600 dark:text-stone-300">Title</label>
-                  <input className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2" defaultValue={catSelected.title} onChange={e=>setFormCat({...formCat, title:e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-600 dark:text-stone-300">Author</label>
-                  <input className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2" defaultValue={catSelected.author} onChange={e=>setFormCat({...formCat, author:e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-600 dark:text-stone-300">Stock</label>
-                  <input type="number" className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2" defaultValue={catSelected.totalCopies} onChange={e=>setFormCat({...formCat, stock:e.target.value})} />
-                </div>
-              </div>
-              <div className="mt-6 flex items-center justify-end gap-3">
-                <button className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700" onClick={()=> setIsEditOpen(false)}>Cancel</button>
-                <button className="rounded-lg px-4 py-2 bg-brand-gold text-white hover:opacity-90" onClick={editCatalogItem}>Save</button>
-              </div>
-            </div>
-          </div>
-        )}
+        <BookFormModal
+          open={Boolean(editingBook)}
+          mode="edit"
+          onCancel={() => setEditingBook(null)}
+          onSubmit={handleUpdateBook}
+          submitting={formBusy}
+          genreOptions={genreOptions}
+          initialData={editingBook}
+        />
 
-        {isDeleteOpen && catSelected && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Delete this record?</h3>
-              <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{catSelected.title}</p>
-              <div className="mt-6 flex items-center justify-end gap-3">
-                <button className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700" onClick={()=> setIsDeleteOpen(false)}>Cancel</button>
-                <button className="rounded-lg px-4 py-2 bg-rose-600 text-white hover:bg-rose-500" onClick={deleteCatalogItem}>Delete</button>
-              </div>
-            </div>
-          </div>
-        )}
+        <DeleteConfirmModal
+          open={Boolean(deleteTarget)}
+          title={deleteTarget?.title}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDeleteBook}
+          loading={deleteBusy}
+        />
 
         {/* Toast */}
         {toast && (
@@ -514,8 +482,350 @@ const BooksManagement = () => {
 
 export default BooksManagement;
 
-// Catalog modals (co-located for simplicity)
-// Note: Using inline modals for add/edit/delete to manage catalog
+function buildInitialBookForm(initialData, genreOptions) {
+  const base = initialData || {};
+  const tags = Array.isArray(base.tags) ? base.tags : [];
+  const rawGenre = base.genre || tags[0] || '';
+  let genreValue = '';
+  let customGenre = '';
+  if (rawGenre) {
+    const match = (genreOptions || []).find((option) => String(option).toLowerCase() === String(rawGenre).toLowerCase());
+    if (match) genreValue = match;
+    else {
+      genreValue = CUSTOM_GENRE_VALUE;
+      customGenre = rawGenre;
+    }
+  }
+  return {
+    title: base.title || '',
+    author: base.author || '',
+    bookCode: base.bookCode || '',
+    totalCopies: base.totalCopies !== undefined && base.totalCopies !== null ? String(base.totalCopies) : '',
+    availableCopies: base.availableCopies !== undefined && base.availableCopies !== null ? String(base.availableCopies) : '',
+    genre: genreValue,
+    customGenre,
+    coverImageData: null,
+    coverImageName: '',
+    coverPreview: base.coverImagePath || '',
+    existingCoverName: base.coverImageOriginalName || '',
+    pdfData: null,
+    pdfName: '',
+    existingPdfName: base.pdfOriginalName || '',
+    existingPdfPath: base.pdfPath || '',
+  };
+}
 
+const BookFormModal = ({ open, mode, onCancel, onSubmit, submitting, genreOptions, initialData }) => {
+  const [form, setForm] = useState(() => buildInitialBookForm(initialData, genreOptions));
+  const [errors, setErrors] = useState({});
 
+  useEffect(() => {
+    if (open) {
+      setForm(buildInitialBookForm(initialData, genreOptions));
+      setErrors({});
+    }
+  }, [open, initialData, genreOptions]);
 
+  if (!open) return null;
+
+  const heading = mode === 'edit' ? 'Edit Book' : 'Add Book';
+  const primaryLabel = mode === 'edit' ? 'Save Changes' : 'Add Book';
+  const resolvedGenre = form.genre === CUSTOM_GENRE_VALUE ? form.customGenre : form.genre;
+
+  const setField = (field) => (event) => {
+    const value = event.target.value;
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
+
+  const handleGenreChange = (event) => {
+    const value = event.target.value;
+    setForm((prev) => ({
+      ...prev,
+      genre: value,
+      customGenre: value === CUSTOM_GENRE_VALUE ? prev.customGenre : '',
+    }));
+  };
+
+  const handleCoverChange = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file && file.type && !file.type.startsWith('image/')) {
+      setErrors((prev) => ({ ...prev, coverImageData: 'Please choose an image file (PNG, JPG, WEBP)' }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({
+        ...prev,
+        coverImageData: reader.result,
+        coverImageName: file.name,
+        coverPreview: reader.result,
+      }));
+      setErrors((prev) => ({ ...prev, coverImageData: undefined }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePdfChange = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    const lowerName = file.name.toLowerCase();
+    if (file.type && file.type !== 'application/pdf' && !lowerName.endsWith('.pdf')) {
+      setErrors((prev) => ({ ...prev, pdfData: 'Please choose a PDF file' }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({
+        ...prev,
+        pdfData: reader.result,
+        pdfName: file.name,
+      }));
+      setErrors((prev) => ({ ...prev, pdfData: undefined }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async () => {
+    const nextErrors = {};
+    if (!form.title.trim()) nextErrors.title = 'Book title is required';
+    if (!form.author.trim()) nextErrors.author = 'Author is required';
+    if (!form.bookCode.trim()) nextErrors.bookCode = 'Book code is required';
+
+    const totalRaw = form.totalCopies.trim();
+    const totalNumber = totalRaw === '' ? 1 : Number(totalRaw);
+    let normalizedTotal = 0;
+    if (!Number.isFinite(totalNumber)) {
+      nextErrors.totalCopies = 'Total copies must be a number';
+    } else {
+      normalizedTotal = Math.max(0, Math.trunc(totalNumber));
+    }
+
+    const availableRaw = form.availableCopies.trim();
+    const availableNumber = availableRaw === '' ? normalizedTotal : Number(availableRaw);
+    let normalizedAvailable = normalizedTotal;
+    if (!Number.isFinite(availableNumber)) {
+      nextErrors.availableCopies = 'Available copies must be a number';
+    } else {
+      normalizedAvailable = Math.max(0, Math.trunc(availableNumber));
+    }
+
+    if (!nextErrors.totalCopies && !nextErrors.availableCopies && normalizedAvailable > normalizedTotal) {
+      nextErrors.availableCopies = 'Available copies cannot exceed total copies';
+    }
+
+    if (form.genre === CUSTOM_GENRE_VALUE && !form.customGenre.trim()) {
+      nextErrors.customGenre = 'Please enter a category';
+    }
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).some((key) => nextErrors[key])) return;
+
+    const payload = {
+      title: form.title.trim(),
+      author: form.author.trim(),
+      bookCode: form.bookCode.trim(),
+      totalCopies: normalizedTotal,
+      availableCopies: Math.min(normalizedTotal, normalizedAvailable),
+    };
+
+    const normalizedGenre = resolvedGenre ? resolvedGenre.trim() : '';
+    if (normalizedGenre) {
+      payload.genre = normalizedGenre;
+      payload.tags = [normalizedGenre];
+    }
+
+    if (form.coverImageData) {
+      payload.coverImageData = form.coverImageData;
+      payload.coverImageName = form.coverImageName;
+    }
+    if (form.pdfData) {
+      payload.pdfData = form.pdfData;
+      payload.pdfName = form.pdfName;
+    }
+
+    const success = await onSubmit(payload);
+    if (success) {
+      setForm(buildInitialBookForm(null, genreOptions));
+      setErrors({});
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-[#6BAF7A] px-6 py-8 text-white shadow-xl">
+        <h3 className="text-center text-2xl font-semibold leading-tight">{heading}</h3>
+        <p className="mt-1 text-center text-sm text-white/80">
+          {mode === 'edit' ? 'Update the details below to keep the catalog accurate.' : 'Fill out the information below to add a new title to the catalog.'}
+        </p>
+
+        <div className="mt-5 space-y-3">
+          <div>
+            <input
+              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              placeholder="Book Title"
+              value={form.title}
+              onChange={setField('title')}
+            />
+            {errors.title && <p className="mt-1 text-xs text-rose-100">{errors.title}</p>}
+          </div>
+
+          <div>
+            <input
+              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              placeholder="Author"
+              value={form.author}
+              onChange={setField('author')}
+            />
+            {errors.author && <p className="mt-1 text-xs text-rose-100">{errors.author}</p>}
+          </div>
+
+          <div>
+            <input
+              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              placeholder="Book Code"
+              value={form.bookCode}
+              onChange={setField('bookCode')}
+            />
+            {errors.bookCode && <p className="mt-1 text-xs text-rose-100">{errors.bookCode}</p>}
+          </div>
+
+          <div>
+            <input
+              type="number"
+              min="0"
+              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              placeholder="Available Copies"
+              value={form.availableCopies}
+              onChange={setField('availableCopies')}
+            />
+            {errors.availableCopies && <p className="mt-1 text-xs text-rose-100">{errors.availableCopies}</p>}
+          </div>
+
+          <div>
+            <input
+              type="number"
+              min="0"
+              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              placeholder="Total Copies"
+              value={form.totalCopies}
+              onChange={setField('totalCopies')}
+            />
+            {errors.totalCopies && <p className="mt-1 text-xs text-rose-100">{errors.totalCopies}</p>}
+          </div>
+
+          <div>
+            <select
+              className="w-full appearance-none rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              value={form.genre || ''}
+              onChange={handleGenreChange}
+            >
+              <option value="">Select Genre</option>
+              {genreOptions?.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+              <option value={CUSTOM_GENRE_VALUE}>Custom...</option>
+            </select>
+            {form.genre === CUSTOM_GENRE_VALUE && (
+              <div className="mt-2">
+                <input
+                  className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+                  placeholder="Enter custom category"
+                  value={form.customGenre}
+                  onChange={setField('customGenre')}
+                />
+                {errors.customGenre && <p className="mt-1 text-xs text-rose-100">{errors.customGenre}</p>}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex w-full cursor-pointer items-center justify-center rounded-full border border-white/50 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20">
+              <input type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
+              Upload a photo
+            </label>
+            {(form.coverImageName || form.existingCoverName) && (
+              <p className="text-center text-xs text-white/80">
+                {form.coverImageName || `Current: ${form.existingCoverName}`}
+              </p>
+            )}
+            {errors.coverImageData && <p className="text-center text-xs text-rose-100">{errors.coverImageData}</p>}
+            {form.coverPreview && (
+              <div className="flex justify-center">
+                <img src={form.coverPreview} alt="Selected cover preview" className="mt-2 h-32 w-24 rounded-xl object-cover shadow" />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex w-full cursor-pointer items-center justify-center rounded-full border border-white/50 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20">
+              <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfChange} />
+              Upload a PDF
+            </label>
+            {form.pdfName && <p className="text-center text-xs text-white/80">Selected: {form.pdfName}</p>}
+            {!form.pdfName && form.existingPdfName && form.existingPdfPath && (
+              <p className="text-center text-xs text-white/80">
+                <a href={form.existingPdfPath} target="_blank" rel="noopener noreferrer" className="underline">
+                  Current: {form.existingPdfName}
+                </a>
+              </p>
+            )}
+            {errors.pdfData && <p className="text-center text-xs text-rose-100">{errors.pdfData}</p>}
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-2">
+          <button
+            type="button"
+            className="w-full rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-[#2d5a3a] shadow focus:outline-none disabled:opacity-70"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? (mode === 'edit' ? 'Saving...' : 'Adding...') : primaryLabel}
+          </button>
+          <button
+            type="button"
+            className="w-full rounded-full border border-white/70 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-70"
+            onClick={onCancel}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DeleteConfirmModal = ({ open, onCancel, onConfirm, title, loading }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-sm rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Delete this book?</h3>
+        <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">
+          {title ? `"${title}" will be removed from the catalog.` : 'The selected book will be removed from the catalog.'}
+        </p>
+        <div className="mt-6 flex items-center justify-end gap-3">
+          <button
+            className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            className="rounded-lg px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60"
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

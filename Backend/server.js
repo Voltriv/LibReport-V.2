@@ -1,4 +1,6 @@
 ﻿const path = require('node:path');
+const fs = require('node:fs');
+const fsp = require('node:fs/promises');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 require('dotenv').config({ path: path.join(__dirname, '..', '.env'), override: false });
 const express = require('express');
@@ -15,8 +17,166 @@ const app = express();
 app.set('etag', 'strong');
 app.use(compression());
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(morgan('tiny'));
+
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOAD_DIR));
+
+const MIME_EXTENSIONS = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf'
+};
+
+function parseBase64Payload(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('data:')) {
+    const comma = trimmed.indexOf(',');
+    if (comma === -1) return null;
+    const meta = trimmed.slice(5, comma); // skip "data:"
+    const [mimePart, encoding] = meta.split(';');
+    if (!encoding || encoding.toLowerCase() !== 'base64') return null;
+    const data = trimmed.slice(comma + 1);
+    if (!data) return null;
+    try {
+      const buffer = Buffer.from(data, 'base64');
+      return { buffer, mime: (mimePart || '').toLowerCase() };
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const buffer = Buffer.from(trimmed, 'base64');
+    return { buffer, mime: '' };
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeFilename(name) {
+  if (!name || typeof name !== 'string') return '';
+  return name.replace(/[^A-Za-z0-9._-]+/g, '_');
+}
+
+async function removeStoredFile(storedPath) {
+  if (!storedPath) return;
+  const prefix = '/uploads/';
+  let relative = storedPath;
+  if (storedPath.startsWith(prefix)) {
+    relative = storedPath.slice(prefix.length);
+  }
+  relative = relative.replace(/^\/+/, '');
+  if (!relative || relative.includes('..')) return;
+  const target = path.join(UPLOAD_DIR, relative);
+  try {
+    await fsp.unlink(target);
+  } catch {}
+}
+
+async function storeBase64File({ base64, originalName, allowedMime = [], maxBytes = 5 * 1024 * 1024 }) {
+  const parsed = parseBase64Payload(base64);
+  if (!parsed) throw new Error('Invalid file data provided');
+  const { buffer } = parsed;
+  const mime = (parsed.mime || '').toLowerCase();
+  const normalizedAllowed = allowedMime.map((m) => m.toLowerCase());
+  if (maxBytes && buffer.length > maxBytes) {
+    throw new Error(`File is too large. Max size is ${Math.round(maxBytes / (1024 * 1024))}MB`);
+  }
+  if (normalizedAllowed.length) {
+    if (mime) {
+      if (!normalizedAllowed.includes(mime)) {
+        throw new Error('Unsupported file type');
+      }
+    } else {
+      const fromName = originalName ? path.extname(originalName).toLowerCase() : '';
+      const fallbackMime = fromName === '.pdf' ? 'application/pdf' : '';
+      if (fallbackMime && !normalizedAllowed.includes(fallbackMime)) {
+        throw new Error('Unsupported file type');
+      }
+    }
+  }
+
+  let ext = '';
+  if (originalName) {
+    ext = path.extname(originalName).toLowerCase();
+  }
+  if (!ext && mime && MIME_EXTENSIONS[mime]) {
+    ext = MIME_EXTENSIONS[mime];
+  }
+  if (!ext && normalizedAllowed.includes('application/pdf')) {
+    ext = '.pdf';
+  }
+  if (!ext && mime.startsWith('image/')) {
+    ext = '.png';
+  }
+
+  const safeName = sanitizeFilename(originalName || 'file');
+  const fileName = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext || ''}`;
+  const finalPath = path.join(UPLOAD_DIR, fileName);
+  await fsp.writeFile(finalPath, buffer);
+  return {
+    storedPath: `/uploads/${fileName}`,
+    originalName: safeName || fileName
+  };
+}
+
+function parseIntField(value, fieldName) {
+  if (value === undefined || value === null || value === '') return null;
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    throw new Error(`${fieldName} must be a number`);
+  }
+  return Math.max(0, Math.trunc(num));
+}
+
+function parseTagsInput(raw, fallback) {
+  const list = [];
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (item !== undefined && item !== null) list.push(String(item));
+    }
+  } else if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed) {
+      if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            for (const item of parsed) {
+              if (item !== undefined && item !== null) list.push(String(item));
+            }
+          }
+        } catch {
+          list.push(trimmed);
+        }
+      } else {
+        for (const piece of trimmed.split(',')) {
+          if (piece.trim()) list.push(piece.trim());
+        }
+      }
+    }
+  }
+  if (fallback) list.push(String(fallback));
+  const unique = new Set();
+  const out = [];
+  for (const item of list) {
+    const val = item.trim();
+    if (val && !unique.has(val.toLowerCase())) {
+      unique.add(val.toLowerCase());
+      out.push(val);
+    }
+  }
+  return out;
+}
 
 // --- DB connect
 const { resolveMongoConfig } = require('./db/uri');
@@ -151,13 +311,20 @@ const bookSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     author: { type: String, required: true, trim: true },
     isbn: { type: String, trim: true },
+    bookCode: { type: String, trim: true, unique: true, sparse: true },
+    genre: { type: String, trim: true },
     tags: [{ type: String, trim: true }],
     totalCopies: { type: Number, default: 1, min: 0 },
-    availableCopies: { type: Number, default: 1, min: 0 }
+    availableCopies: { type: Number, default: 1, min: 0 },
+    coverImagePath: { type: String, trim: true },
+    coverImageOriginalName: { type: String, trim: true },
+    pdfPath: { type: String, trim: true },
+    pdfOriginalName: { type: String, trim: true }
   },
   { timestamps: true }
 );
 bookSchema.index({ title: 'text', author: 'text' });
+bookSchema.index({ bookCode: 1 }, { unique: true, sparse: true });
 const Book = mongoose.model('Book', bookSchema);
 
 const loanSchema = new mongoose.Schema(
@@ -612,8 +779,10 @@ app.get('/api/books/library', authRequired, async (req, res) => {
   const tag = String(req.query.tag || '').trim();
   const withPdf = String(req.query.withPdf || '').toLowerCase() === 'true';
   const filter = q ? { $or: [ { title: new RegExp(q, 'i') }, { author: new RegExp(q, 'i') } ] } : {};
-  if (tag) filter.tags = tag;
-  if (withPdf) filter.pdfUrl = { $exists: true, $ne: '' };
+  if (tag) {
+    filter.$and = (filter.$and || []).concat({ $or: [{ genre: tag }, { tags: tag }] });
+  }
+  if (withPdf) filter.pdfPath = { $exists: true, $ne: '' };
   const cursor = Book.find(filter).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).lean();
   const items = await cursor.exec();
   res.json({ items });
@@ -621,18 +790,98 @@ app.get('/api/books/library', authRequired, async (req, res) => {
 
 // --- Books CRUD (Admin)
 app.post('/api/books', adminRequired, async (req, res) => {
+  const {
+    title,
+    author,
+    isbn,
+    bookCode,
+    genre,
+    tags,
+    totalCopies,
+    availableCopies,
+    coverImageData,
+    coverImageName,
+    pdfData,
+    pdfName
+  } = req.body || {};
+
   try {
-    const { title, author, isbn, tags, totalCopies } = req.body || {};
-    if (!title || !author) return res.status(400).json({ error: 'title and author required' });
-    const book = await Book.create({ title, author, isbn, tags, totalCopies, availableCopies: totalCopies ?? 1 });
-    res.status(201).json(book);
-  } catch (e) { res.status(400).json({ error: e.message }); }
+    const normalizedTitle = String(title || '').trim();
+    const normalizedAuthor = String(author || '').trim();
+    const normalizedCode = String(bookCode || '').trim();
+    if (!normalizedTitle || !normalizedAuthor || !normalizedCode) {
+      return res.status(400).json({ error: 'title, author, and bookCode are required' });
+    }
+
+    const totalParsed = parseIntField(totalCopies, 'totalCopies');
+    const totalValue = totalParsed === null ? 1 : totalParsed;
+    const availableParsed = parseIntField(availableCopies, 'availableCopies');
+    let availableValue = availableParsed === null ? totalValue : availableParsed;
+    if (availableValue > totalValue) availableValue = totalValue;
+
+    const normalizedGenre = typeof genre === 'string' ? genre.trim() : '';
+    const tagList = parseTagsInput(tags, normalizedGenre);
+
+    const payload = {
+      title: normalizedTitle,
+      author: normalizedAuthor,
+      isbn: isbn ? String(isbn).trim() : undefined,
+      bookCode: normalizedCode,
+      genre: normalizedGenre || undefined,
+      totalCopies: totalValue,
+      availableCopies: availableValue,
+      tags: tagList
+    };
+
+    const storedPaths = [];
+    try {
+      if (coverImageData) {
+        const coverInfo = await storeBase64File({
+          base64: coverImageData,
+          originalName: coverImageName,
+          allowedMime: ['image/png', 'image/jpeg', 'image/webp'],
+          maxBytes: 5 * 1024 * 1024
+        });
+        payload.coverImagePath = coverInfo.storedPath;
+        payload.coverImageOriginalName = coverInfo.originalName;
+        storedPaths.push(coverInfo.storedPath);
+      }
+      if (pdfData) {
+        const pdfInfo = await storeBase64File({
+          base64: pdfData,
+          originalName: pdfName,
+          allowedMime: ['application/pdf'],
+          maxBytes: 25 * 1024 * 1024
+        });
+        payload.pdfPath = pdfInfo.storedPath;
+        payload.pdfOriginalName = pdfInfo.originalName;
+        storedPaths.push(pdfInfo.storedPath);
+      }
+
+      const book = await Book.create(payload);
+      res.status(201).json(book);
+    } catch (err) {
+      for (const pathRef of storedPaths) {
+        await removeStoredFile(pathRef);
+      }
+      throw err;
+    }
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.get('/api/books', adminRequired, async (req, res) => {
   const q = String(req.query.q || '').trim();
-  const filter = q ? { $text: { $search: q } } : {};
-  const items = await Book.find(filter).limit(200).lean();
+  const filter = {};
+  if (q) {
+    const escaped = q.replace(/[-/\^$*+?.()|[\]{}]/g, '\$&');
+    const regex = new RegExp(escaped, 'i');
+    filter.$or = [{ title: regex }, { author: regex }, { bookCode: regex }];
+  }
+  const tag = String(req.query.tag || '').trim();
+  if (tag) filter.genre = tag;
+  const items = await Book.find(filter).sort({ createdAt: -1, _id: -1 }).limit(400).lean();
   res.json(items);
 });
 
@@ -643,16 +892,123 @@ app.get('/api/books/:id', adminRequired, async (req, res) => {
 });
 
 app.patch('/api/books/:id', adminRequired, async (req, res) => {
+  const {
+    title,
+    author,
+    isbn,
+    bookCode,
+    genre,
+    tags,
+    totalCopies,
+    availableCopies,
+    coverImageData,
+    coverImageName,
+    pdfData,
+    pdfName
+  } = req.body || {};
+
+  let newCover;
+  let newPdf;
+  let oldCoverPath;
+  let oldPdfPath;
   try {
-    const item = await Book.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).lean();
-    if (!item) return res.status(404).json({ error: 'Not found' });
-    res.json(item);
-  } catch (e) { res.status(400).json({ error: e.message }); }
+    const book = await Book.findById(req.params.id);
+    if (!book) return res.status(404).json({ error: 'Not found' });
+
+    if (title !== undefined) {
+      const trimmed = String(title).trim();
+      if (!trimmed) throw new Error('title cannot be empty');
+      book.title = trimmed;
+    }
+    if (author !== undefined) {
+      const trimmed = String(author).trim();
+      if (!trimmed) throw new Error('author cannot be empty');
+      book.author = trimmed;
+    }
+    if (isbn !== undefined) {
+      const trimmed = String(isbn).trim();
+      book.isbn = trimmed || undefined;
+    }
+    if (bookCode !== undefined) {
+      const trimmed = String(bookCode).trim();
+      if (!trimmed) throw new Error('bookCode cannot be empty');
+      book.bookCode = trimmed;
+    }
+
+    let nextGenre = book.genre;
+    if (genre !== undefined) {
+      const trimmed = typeof genre === 'string' ? genre.trim() : '';
+      nextGenre = trimmed || undefined;
+      book.genre = nextGenre;
+    }
+
+    if (totalCopies !== undefined || availableCopies !== undefined) {
+      let totalValue = book.totalCopies;
+      let availableValue = book.availableCopies;
+      if (totalCopies !== undefined) {
+        const parsed = parseIntField(totalCopies, 'totalCopies');
+        if (parsed !== null) totalValue = parsed;
+      }
+      if (availableCopies !== undefined) {
+        const parsed = parseIntField(availableCopies, 'availableCopies');
+        if (parsed !== null) availableValue = parsed;
+      }
+      if (availableValue > totalValue) availableValue = totalValue;
+      book.totalCopies = totalValue;
+      book.availableCopies = availableValue;
+    }
+
+    if (coverImageData) {
+      newCover = await storeBase64File({
+        base64: coverImageData,
+        originalName: coverImageName,
+        allowedMime: ['image/png', 'image/jpeg', 'image/webp'],
+        maxBytes: 5 * 1024 * 1024
+      });
+      oldCoverPath = book.coverImagePath;
+      book.coverImagePath = newCover.storedPath;
+      book.coverImageOriginalName = newCover.originalName;
+    }
+    if (pdfData) {
+      newPdf = await storeBase64File({
+        base64: pdfData,
+        originalName: pdfName,
+        allowedMime: ['application/pdf'],
+        maxBytes: 25 * 1024 * 1024
+      });
+      oldPdfPath = book.pdfPath;
+      book.pdfPath = newPdf.storedPath;
+      book.pdfOriginalName = newPdf.originalName;
+    }
+
+    if (tags !== undefined) {
+      book.tags = parseTagsInput(tags, nextGenre);
+    } else if (genre !== undefined) {
+      book.tags = parseTagsInput([], nextGenre);
+    }
+
+    await book.save();
+
+    if (newCover && oldCoverPath && oldCoverPath !== newCover.storedPath) {
+      await removeStoredFile(oldCoverPath);
+    }
+    if (newPdf && oldPdfPath && oldPdfPath !== newPdf.storedPath) {
+      await removeStoredFile(oldPdfPath);
+    }
+
+    res.json(book.toObject());
+  } catch (e) {
+    if (newCover) await removeStoredFile(newCover.storedPath);
+    if (newPdf) await removeStoredFile(newPdf.storedPath);
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.delete('/api/books/:id', adminRequired, async (req, res) => {
   const out = await Book.findByIdAndDelete(req.params.id).lean();
   if (!out) return res.status(404).json({ error: 'Not found' });
+  if (out.coverImagePath) await removeStoredFile(out.coverImagePath);
+  if (out.pdfPath) await removeStoredFile(out.pdfPath);
   res.status(204).send();
 });
 
@@ -812,10 +1168,11 @@ app.get('/api/users/lookup', authRequired, async (req, res) => {
 });
 
 app.get('/api/books/lookup', authRequired, async (req, res) => {
-  const { isbn, q } = req.query || {};
+  const { isbn, q, code } = req.query || {};
   const filter = {};
   if (isbn) filter.isbn = String(isbn);
-  if (q) filter.$or = [{ title: new RegExp(String(q), 'i') }, { author: new RegExp(String(q), 'i') }];
+  if (code) filter.bookCode = String(code);
+  if (q) filter.$or = [{ title: new RegExp(String(q), 'i') }, { author: new RegExp(String(q), 'i') }, { bookCode: new RegExp(String(q), 'i') }];
   const items = await Book.find(filter).limit(20).lean();
   res.json({ items });
 });

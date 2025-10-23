@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import profileImage from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
@@ -24,10 +24,7 @@ const Tracker = () => {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const [camOn, setCamOn] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
-  const videoRef = useRef(null);
-  const rafRef = useRef(null);
 
   const refreshStats = useCallback(async () => {
     try {
@@ -101,45 +98,6 @@ const Tracker = () => {
     tick();
     return () => { if (t) clearTimeout(t); };
   }, []);
-
-  useEffect(() => {
-    let stream;
-    let detector;
-    let cancelled = false;
-    async function start() {
-      try {
-        if (!('BarcodeDetector' in window)) return;
-        detector = new window.BarcodeDetector({ formats: ['qr_code','code_128','code_39','ean_13','ean_8'] });
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        if (!videoRef.current) return;
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        const loop = async () => {
-          if (cancelled || !camOn) return;
-          try {
-            const det = await detector.detect(videoRef.current);
-            if (det && det[0]?.rawValue) {
-              const code = String(det[0].rawValue).trim();
-              setInput(code);
-              beep();
-            }
-          } catch {}
-          rafRef.current = requestAnimationFrame(loop);
-        };
-        rafRef.current = requestAnimationFrame(loop);
-      } catch {}
-    }
-    if (camOn) start();
-    return () => {
-      cancelled = true;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = videoRef.current.srcObject.getTracks?.() || [];
-        tracks.forEach(t => t.stop());
-        videoRef.current.srcObject = null;
-      }
-    };
-  }, [camOn]);
 
   function beep() {
     if (!soundOn) return;
@@ -235,22 +193,21 @@ const Tracker = () => {
           ))}
         </section>
 
-        {/* Scanner */}
-        <section className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Manual entry */}
+        <section className="mt-6 grid grid-cols-1 gap-4">
           <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
             <label className="block text-sm font-medium text-slate-700 dark:text-stone-200">Scan or enter Student ID / Barcode</label>
             <input value={input} onChange={e=>setInput(e.target.value)} placeholder="03-2324-000000 or barcode"
                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
             <div className="mt-3 flex flex-wrap gap-2">
-              <button className="rounded-lg px-3 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200" onClick={()=>setCamOn(!camOn)}>{camOn ? 'Stop Camera' : 'Start Camera'}</button>
               <button className="rounded-lg px-3 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200" onClick={()=>setSoundOn(!soundOn)}>{soundOn ? 'Sound On' : 'Sound Off'}</button>
               <button className="rounded-lg px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60" disabled={busy || !input} onClick={doEnter}>Enter</button>
               <button className="rounded-lg px-3 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60" disabled={busy || !input} onClick={doExit}>Exit</button>
             </div>
+            <p className="mt-3 text-xs text-slate-600 dark:text-stone-300">
+              Camera scanning has been removed. Type a student ID or barcode to record entries and exits.
+            </p>
             {message && <div className="mt-3 text-sm text-slate-700 dark:text-stone-200">{message}</div>}
-          </div>
-          <div className="rounded-xl overflow-hidden bg-slate-900 ring-1 ring-slate-700">
-            <video ref={videoRef} className={`block w-full h-64 object-cover ${camOn ? '' : 'opacity-40'}`} playsInline muted></video>
           </div>
         </section>
 

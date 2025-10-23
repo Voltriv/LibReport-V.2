@@ -27,7 +27,8 @@ const { resolveMongoConfig } = require('../db/uri');
     ]);
 
     await db.collection('books').createIndexes([
-      { key: { title: 'text', author: 'text' }, name: 'books_text' }
+      { key: { title: 'text', author: 'text' }, name: 'books_text' },
+      { key: { bookCode: 1 }, name: 'books_bookCode_unique', unique: true, partialFilterExpression: { bookCode: { $exists: true, $ne: '' } } }
     ]);
 
     await db.collection('loans').createIndexes([
