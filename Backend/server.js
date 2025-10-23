@@ -1234,6 +1234,28 @@ app.post('/api/loans/return', adminRequired, async (req, res) => {
   res.json(loan);
 });
 
+app.delete('/api/loans/:id', adminRequired, async (req, res) => {
+  let loan;
+  try {
+    loan = await Loan.findById(req.params.id);
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid loan id' });
+  }
+
+  if (!loan) return res.status(404).json({ error: 'Loan not found' });
+
+  const wasReturned = Boolean(loan.returnedAt);
+  const bookId = loan.bookId;
+
+  await Loan.deleteOne({ _id: loan._id });
+
+  if (!wasReturned && bookId) {
+    await Book.findByIdAndUpdate(bookId, { $inc: { availableCopies: 1 } });
+  }
+
+  return res.status(204).send();
+});
+
 // Active loans with user + book details (for Books Management UI)
 app.get('/api/loans/active', adminRequired, async (_req, res) => {
   const now = new Date();

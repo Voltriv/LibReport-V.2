@@ -59,10 +59,8 @@ const UsageHeatmaps = () => {
   const handleLogout = () => {
     setShowLogoutModal(false);
     setShowDropdown(false);
-    try {
-      localStorage.removeItem("lr_token");
-      localStorage.removeItem("lr_user");
-    } catch {}
+    clearAuthSession();
+    broadcastAuthChange();
     navigate("/signin", { replace: true });
   };
 

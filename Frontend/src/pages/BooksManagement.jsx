@@ -3,11 +3,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import pfp from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
-<<<<<<< ours
-import api, { resolveMediaUrl } from "../api";
-=======
+
 import api, { resolveMediaUrl, clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
->>>>>>> theirs
 
 const GENRE_DEFAULTS = [
   'Fiction',
@@ -66,6 +63,7 @@ const BooksManagement = () => {
   const [uSel, setUSel] = useState(null);
   const [bSel, setBSel] = useState(null);
   const [loanBusy, setLoanBusy] = useState(false);
+  const [modalBusy, setModalBusy] = useState(false);
   // Catalog management (migrated from Material page)
   const [catalog, setCatalog] = useState([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -137,22 +135,13 @@ const BooksManagement = () => {
   }
 
   useEffect(() => {
-<<<<<<< ours
-    try {
-      const raw = localStorage.getItem('lr_user');
-      if (raw) {
-        const u = JSON.parse(raw);
-        const name = u?.fullName || u?.name || (u?.email ? String(u.email).split('@')[0] : null);
-        if (name) setUserName(name);
-      }
-    } catch {}
-=======
+
     const stored = getStoredUser();
     if (stored) {
       const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split('@')[0] : null);
       if (name) setUserName(name);
     }
->>>>>>> theirs
+
   }, []);
   // Load catalog list
   async function loadCatalog() {
@@ -268,8 +257,40 @@ const BooksManagement = () => {
     setOpenDropdown(null);
   };
   const closeModal = () => { setActiveModal(null); setSelectedBook(null); };
-  const confirmReturn = async () => { try { await api.post('/loans/return', { loanId: selectedBook.id }); await loadActiveLoans(); await loadCatalog(); } catch {} closeModal(); };
-  const confirmDelete = () => { setBooks(prev => prev.filter(b => b.id !== selectedBook.id)); closeModal(); };
+  const handleModalCancel = () => {
+    if (modalBusy) return;
+    closeModal();
+  };
+  const confirmReturn = async () => {
+    if (!selectedBook) return;
+    setModalBusy(true);
+    try {
+      await api.post('/loans/return', { loanId: selectedBook.id });
+      await Promise.all([loadActiveLoans(), loadCatalog()]);
+      showToast('Loan marked as returned', 'success');
+      closeModal();
+    } catch (error) {
+      const msg = error?.response?.data?.error || 'Failed to mark loan as returned';
+      showToast(msg, 'error');
+    } finally {
+      setModalBusy(false);
+    }
+  };
+  const confirmDelete = async () => {
+    if (!selectedBook) return;
+    setModalBusy(true);
+    try {
+      await api.delete(`/loans/${selectedBook.id}`);
+      await Promise.all([loadActiveLoans(), loadCatalog()]);
+      showToast('Loan record deleted', 'success');
+      closeModal();
+    } catch (error) {
+      const msg = error?.response?.data?.error || 'Failed to delete loan record';
+      showToast(msg, 'error');
+    } finally {
+      setModalBusy(false);
+    }
+  };
 
   function renderDropdownOptions(status, book) {
     return (
@@ -319,12 +340,7 @@ const BooksManagement = () => {
               <div className="flex flex-wrap gap-2">
                 <button className="rounded-lg px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60" disabled={!uSel || !bSel || loanBusy} onClick={doBorrow}>Borrow 14d</button>
                 <button className="rounded-lg px-3 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60" disabled={!uSel || !bSel || loanBusy} onClick={doReturn}>Return</button>
-<<<<<<< ours
-              </div>
-              <div className="text-xs text-slate-600 dark:text-stone-300">
-                Camera-based scanning has been removed. Use the lookup fields above to search for users and books before borrowing or returning.
-=======
->>>>>>> theirs
+
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                 <div className="rounded-lg ring-1 ring-slate-200 dark:ring-stone-700 p-2 bg-white dark:bg-stone-950"><h4 className="font-semibold">User</h4><pre>{JSON.stringify(uSel || {}, null, 2)}</pre></div>
@@ -447,12 +463,30 @@ const BooksManagement = () => {
               <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">{activeModal === 'delete' ? 'Confirm Delete' : activeModal === 'return' ? 'Confirm Return' : 'Borrow Details'}</h3>
               <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">Selected Book: {selectedBook?.title}</p>
               <div className="mt-6 flex items-center justify-end gap-3">
-                <button className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200" onClick={closeModal}>Cancel</button>
+                <button
+                  className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 disabled:opacity-60"
+                  onClick={handleModalCancel}
+                  disabled={modalBusy}
+                >
+                  Cancel
+                </button>
                 {activeModal === 'return' && (
-                  <button className="rounded-lg px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500" onClick={confirmReturn}>Confirm Return</button>
+                  <button
+                    className="rounded-lg px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60"
+                    onClick={confirmReturn}
+                    disabled={modalBusy}
+                  >
+                    {modalBusy ? 'Processing...' : 'Confirm Return'}
+                  </button>
                 )}
                 {activeModal === 'delete' && (
-                  <button className="rounded-lg px-4 py-2 bg-rose-600 text-white hover:bg-rose-500" onClick={confirmDelete}>Delete Record</button>
+                  <button
+                    className="rounded-lg px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60"
+                    onClick={confirmDelete}
+                    disabled={modalBusy}
+                  >
+                    {modalBusy ? 'Deleting...' : 'Delete Record'}
+                  </button>
                 )}
               </div>
             </div>
@@ -555,7 +589,6 @@ const BookFormModal = ({ open, mode, onCancel, onSubmit, submitting, genreOption
       setErrors({});
     }
   }, [open, initialData, genreOptions]);
-<<<<<<< ours
 
   if (!open) return null;
 
@@ -644,96 +677,6 @@ const BookFormModal = ({ open, mode, onCancel, onSubmit, submitting, genreOption
       normalizedAvailable = Math.max(0, Math.trunc(availableNumber));
     }
 
-=======
-
-  if (!open) return null;
-
-  const heading = mode === 'edit' ? 'Edit Book' : 'Add Book';
-  const primaryLabel = mode === 'edit' ? 'Save Changes' : 'Add Book';
-  const resolvedGenre = form.genre === CUSTOM_GENRE_VALUE ? form.customGenre : form.genre;
-
-  const setField = (field) => (event) => {
-    const value = event.target.value;
-    setForm((prev) => ({ ...prev, [field]: value }));
-    setErrors((prev) => ({ ...prev, [field]: undefined }));
-  };
-
-  const handleGenreChange = (event) => {
-    const value = event.target.value;
-    setForm((prev) => ({
-      ...prev,
-      genre: value,
-      customGenre: value === CUSTOM_GENRE_VALUE ? prev.customGenre : '',
-    }));
-  };
-
-  const handleCoverChange = (event) => {
-    const file = event.target.files && event.target.files[0];
-    event.target.value = '';
-    if (!file) return;
-    if (file && file.type && !file.type.startsWith('image/')) {
-      setErrors((prev) => ({ ...prev, coverImageData: 'Please choose an image file (PNG, JPG, WEBP)' }));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((prev) => ({
-        ...prev,
-        coverImageData: reader.result,
-        coverImageName: file.name,
-        coverPreview: reader.result,
-      }));
-      setErrors((prev) => ({ ...prev, coverImageData: undefined }));
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handlePdfChange = (event) => {
-    const file = event.target.files && event.target.files[0];
-    event.target.value = '';
-    if (!file) return;
-    const lowerName = file.name.toLowerCase();
-    if (file.type && file.type !== 'application/pdf' && !lowerName.endsWith('.pdf')) {
-      setErrors((prev) => ({ ...prev, pdfData: 'Please choose a PDF file' }));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((prev) => ({
-        ...prev,
-        pdfData: reader.result,
-        pdfName: file.name,
-      }));
-      setErrors((prev) => ({ ...prev, pdfData: undefined }));
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSubmit = async () => {
-    const nextErrors = {};
-    if (!form.title.trim()) nextErrors.title = 'Book title is required';
-    if (!form.author.trim()) nextErrors.author = 'Author is required';
-    if (!form.bookCode.trim()) nextErrors.bookCode = 'Book code is required';
-
-    const totalRaw = form.totalCopies.trim();
-    const totalNumber = totalRaw === '' ? 1 : Number(totalRaw);
-    let normalizedTotal = 0;
-    if (!Number.isFinite(totalNumber)) {
-      nextErrors.totalCopies = 'Total copies must be a number';
-    } else {
-      normalizedTotal = Math.max(0, Math.trunc(totalNumber));
-    }
-
-    const availableRaw = form.availableCopies.trim();
-    const availableNumber = availableRaw === '' ? normalizedTotal : Number(availableRaw);
-    let normalizedAvailable = normalizedTotal;
-    if (!Number.isFinite(availableNumber)) {
-      nextErrors.availableCopies = 'Available copies must be a number';
-    } else {
-      normalizedAvailable = Math.max(0, Math.trunc(availableNumber));
-    }
-
->>>>>>> theirs
     if (!nextErrors.totalCopies && !nextErrors.availableCopies && normalizedAvailable > normalizedTotal) {
       nextErrors.availableCopies = 'Available copies cannot exceed total copies';
     }
@@ -952,3 +895,5 @@ const DeleteConfirmModal = ({ open, onCancel, onConfirm, title, loading }) => {
     </div>
   );
 };
+
+export default BooksManagement;
