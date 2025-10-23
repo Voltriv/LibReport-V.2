@@ -8,15 +8,38 @@ const api = axios.create({
 });
 
 // Fallback helper: if proxy breaks, retry once against direct backend URL
-function directBackendBase() {
+export function directBackendBase() {
   try {
-    const proto = window?.location?.protocol || 'http:';
-    const host = 'localhost';
-    const port = (window?.__BACKEND_PORT__) || 4000;
-    return `${proto}//${host}:${port}`;
+    if (typeof window === 'undefined') throw new Error('no-window');
+    const w = window;
+    if (w.__BACKEND_ORIGIN__) return w.__BACKEND_ORIGIN__;
+
+    const { protocol = 'http:', hostname = 'localhost', port: locationPort = '' } = w.location || {};
+    const overridePort = w.__BACKEND_PORT__;
+
+    let port = overridePort ?? locationPort;
+    if (!port || port === '3000' || port === '5173' || port === '4173') {
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        port = '4000';
+      }
+    }
+
+    const normalizedPort = String(port || '').replace(/^:+/, '');
+    const shouldIncludePort = normalizedPort && normalizedPort !== '80' && normalizedPort !== '443';
+    return `${protocol}//${hostname}${shouldIncludePort ? `:${normalizedPort}` : ''}`;
   } catch {
     return 'http://localhost:4000';
   }
+}
+
+export function resolveMediaUrl(path) {
+  if (!path) return '';
+  const value = String(path).trim();
+  if (!value) return '';
+  if (/^(?:[a-z]+:)?\/\//i.test(value) || value.startsWith('data:')) return value;
+  const base = directBackendBase();
+  if (value.startsWith('/')) return `${base}${value}`;
+  return `${base}/${value}`;
 }
 
 // Optional auth header helper
@@ -27,6 +50,17 @@ export function setAuthToken(token) {
   } else {
     delete api.defaults.headers.common['Authorization'];
     try { localStorage.removeItem('lr_token'); } catch {}
+  }
+}
+
+function getStoredRole() {
+  try {
+    const raw = localStorage.getItem('lr_user');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.role || null;
+  } catch {
+    return null;
   }
 }
 
@@ -56,12 +90,15 @@ api.interceptors.response.use(
       const at = (path) => {
         try { return window.location.pathname === path; } catch { return false; }
       };
-      if (status === 401) {
-        try { setAuthToken(null); } catch {}
-        if (!at('/signin')) window.location.replace('/signin');
-      } else if (status === 403) {
-        // Not authorized → go to sign-in rather than looping on /dashboard
-        if (!at('/signin')) window.location.replace('/signin');
+      if (status === 401 || status === 403) {
+        const role = getStoredRole();
+        const target = role === 'student' ? '/student/signin' : '/signin';
+        try {
+          setAuthToken(null);
+          localStorage.removeItem('lr_user');
+          window.dispatchEvent(new Event('lr-auth-change'));
+        } catch {}
+        if (!at(target)) window.location.replace(target);
       }
     }
     return Promise.reject(err);

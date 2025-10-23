@@ -33,7 +33,15 @@ const SignIn = () => {
       try {
         localStorage.setItem("lr_user", JSON.stringify(data.user || {}));
       } catch {}
-      navigate("/dashboard");
+      try {
+        window.dispatchEvent(new Event("lr-auth-change"));
+      } catch {}
+      const role = data?.user?.role;
+      if (role === "librarian" || role === "admin") {
+        navigate("/dashboard");
+      } else {
+        navigate("/student/account");
+      }
     } catch (err) {
       const status = err?.response?.status;
       const msg = err?.response?.data?.error || "Login failed";

@@ -13,40 +13,45 @@ const BooksManagement = lazy(() => import("./pages/BooksManagement"));
 const BooksLibrary = lazy(() => import("./pages/BooksLibrary"));
 const Admins = lazy(() => import("./pages/Admins"));
 
-function hasStoredToken() {
-  if (typeof window === "undefined") return false;
-  try {
-    return !!localStorage.getItem("lr_token");
-  } catch {
-    return false;
-  }
-}
-
 function RequireAuth({ children }) {
-  try {
-    const t = localStorage.getItem("lr_token");
-    if (!t) return <Navigate to="/signin" replace />;
-  } catch {}
+  if (!hasStoredToken()) return <Navigate to="/signin" replace />;
+  const user = getStoredUser();
+  if (!user) return <Navigate to="/signin" replace />;
+  if (user.role !== "librarian" && user.role !== "admin") {
+    return <Navigate to="/student/account" replace />;
+  }
   return children;
 }
 
 function RequireAdmin({ children }) {
-  try {
-    const raw = localStorage.getItem("lr_user");
-    const u = raw ? JSON.parse(raw) : null;
-    if (!u || u.role !== "librarian") return <Navigate to="/signin" replace />;
-  } catch {}
+  const user = getStoredUser();
+  if (!user || (user.role !== "librarian" && user.role !== "admin")) {
+    return <Navigate to="/signin" replace />;
+  }
+  return children;
+}
+
+function RequireStudent({ children }) {
+  if (!hasStoredToken()) return <Navigate to="/student/signin" replace />;
+  const user = getStoredUser();
+  if (!user || (user.role !== "student" && user.role !== "librarian" && user.role !== "admin")) {
+    return <Navigate to="/student/signin" replace />;
+  }
   return children;
 }
 
 function PublicOnly({ children }) {
+  const user = getStoredUser();
+  if (user?.role === "librarian" || user?.role === "admin") return <Navigate to="/dashboard" replace />;
+  if (user?.role === "student") return <Navigate to="/student/account" replace />;
   if (hasStoredToken()) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
-function DefaultRedirect() {
-  const target = hasStoredToken() ? "/dashboard" : "/signin";
-  return <Navigate to={target} replace />;
+function StudentPublicOnly({ children }) {
+  const user = getStoredUser();
+  if (user?.role === "student") return <Navigate to="/student/account" replace />;
+  return children;
 }
 
 function App() {
@@ -68,8 +73,8 @@ function App() {
       <div className="App">
         <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Loading...</div>}>
           <Routes>
-            <Route path="/" element={<DefaultRedirect />} />
-            <Route path="/signin" element={<PublicOnly><SignIn /></PublicOnly>} />
+            <Route path="/" element={<SignIn />} />
+            <Route path="/signin" element={<SignIn />} />
             {/* SignUp disabled for admin-only system */}
             <Route path="/forgot" element={<Navigate to="/signin" replace />} />
             <Route path="/reset" element={<Navigate to="/signin" replace />} />
@@ -154,7 +159,6 @@ function App() {
                 </RequireAuth>
               )}
             />
-            <Route path="*" element={<DefaultRedirect />} />
           </Routes>
         </Suspense>
       </div>

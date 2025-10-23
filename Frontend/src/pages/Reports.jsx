@@ -43,6 +43,9 @@ const Reports = () => {
       localStorage.removeItem("lr_token");
       localStorage.removeItem("lr_user");
     } catch {}
+    try {
+      window.dispatchEvent(new Event("lr-auth-change"));
+    } catch {}
     navigate("/signin", { replace: true });
   };
 

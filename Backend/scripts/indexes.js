@@ -23,7 +23,13 @@ const { resolveMongoConfig } = require('../db/uri');
     await db.collection('users').createIndexes([
       { key: { name: 1 }, name: 'user_name' },
       { key: { role: 1 }, name: 'user_role' },
-      { key: { email: 1 }, name: 'user_email_unique', unique: true, partialFilterExpression: { email: { $exists: true } } }
+      { key: { email: 1 }, name: 'user_email_unique', unique: true, partialFilterExpression: { email: { $exists: true } } },
+      {
+        key: { studentId: 1 },
+        name: 'user_studentId_unique',
+        unique: true,
+        partialFilterExpression: { studentId: { $exists: true, $ne: '' } }
+      }
     ]);
 
     await db.collection('books').createIndexes([

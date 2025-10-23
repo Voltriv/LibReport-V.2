@@ -462,8 +462,28 @@ app.use((req, res, next) => {
 // --- Admin-only global guard for API (except health and auth)
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api')) return next();
-  const open = req.path === '/api' || req.path === '/api/' || req.path === '/api/health' || req.path.startsWith('/api/auth/');
+  const open =
+    req.path === '/api' ||
+    req.path === '/api/' ||
+    req.path === '/api/health' ||
+    req.path.startsWith('/api/auth/');
   if (open) return next();
+
+  // Routes that any authenticated user (students or librarians) can access
+  const sharedAuthPaths = [
+    '/api/books/library',
+    '/api/books/lookup',
+    '/api/hours'
+  ];
+  if (sharedAuthPaths.some((p) => req.path.startsWith(p))) {
+    return authRequired(req, res, next);
+  }
+
+  // Student specific APIs
+  if (req.path.startsWith('/api/student/')) {
+    return studentRequired(req, res, next);
+  }
+
   if (!NO_DB && !(mongoose.connection.readyState === 1 || DB_READY)) {
     return res.status(503).json({ error: 'Database not ready' });
   }
@@ -496,9 +516,81 @@ function adminRequired(req, res, next) {
   });
 }
 
-// --- Auth: Signup (disabled; admin-only system)
-app.post('/api/auth/signup', async (_req, res) => {
-  return res.status(403).json({ error: 'Signup is disabled. Admin-only system.' });
+function studentRequired(req, res, next) {
+  return authRequired(req, res, () => {
+    const role = req.user?.role;
+    if (role !== 'student' && role !== 'librarian' && role !== 'admin') {
+      return res.status(403).json({ error: 'student role required' });
+    }
+    return next();
+  });
+}
+
+// --- Auth: Student Signup
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    if (!NO_DB && !(mongoose.connection.readyState === 1 || DB_READY)) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+    const { studentId, email, fullName, password, confirmPassword } = req.body || {};
+    if (!studentId || !email || !fullName || !password || !confirmPassword) {
+      return res.status(400).json({ error: 'studentId, email, fullName, password, confirmPassword required' });
+    }
+    if (String(password) !== String(confirmPassword)) {
+      return res.status(400).json({ error: 'Passwords do not match' });
+    }
+    if (String(password).length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Password must be at least 8 chars and contain letters and numbers' });
+    }
+
+    const studentIdNorm = String(studentId).trim();
+    const emailNorm = String(email).trim().toLowerCase();
+    const fullNameNorm = String(fullName).trim();
+
+    if (!/^\d{2}-\d{4}-\d{6}$/.test(studentIdNorm)) {
+      return res.status(400).json({ error: 'Student ID must match 00-0000-000000' });
+    }
+    if (!validator.isEmail(emailNorm)) {
+      return res.status(400).json({ error: 'Email must be valid' });
+    }
+    if (!/^[A-Za-z .'-]+$/.test(fullNameNorm)) {
+      return res.status(400).json({ error: 'Full name may contain letters, spaces, apostrophes, hyphens, and periods only' });
+    }
+
+    const existing = await User.findOne({
+      $or: [
+        { studentId: studentIdNorm },
+        { email: emailNorm }
+      ]
+    }).lean();
+    if (existing) {
+      return res.status(409).json({ error: 'studentId or email already exists' });
+    }
+
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const doc = await User.create({
+      studentId: studentIdNorm,
+      email: emailNorm,
+      fullName: fullNameNorm,
+      name: fullNameNorm,
+      passwordHash,
+      role: 'student',
+      status: 'active'
+    });
+    const token = signToken(doc);
+    return res.status(201).json({
+      token,
+      user: {
+        id: String(doc._id),
+        studentId: doc.studentId,
+        email: doc.email,
+        fullName: doc.fullName,
+        role: doc.role
+      }
+    });
+  } catch (e) {
+    return res.status(400).json({ error: e.message || 'Signup failed' });
+  }
 });
 // --- Admin Signup (enabled only if no admins yet, or ALLOW_ADMIN_SIGNUP=true)
 app.post('/api/auth/admin-signup', async (req, res) => {
@@ -531,18 +623,51 @@ app.post('/api/auth/admin-signup', async (req, res) => {
 
 });
 
-// --- Auth: Login (email + password)
+// --- Auth: Login (studentId or email + password)
 app.post('/api/auth/login', async (req, res) => {
   const { password, studentId } = req.body || {};
   if (!studentId || !password) return res.status(400).json({ error: 'studentId and password required' });
-  // Check Admin collection first
-  let admin = await Admin.findOne({ adminId: String(studentId) });
-  if (!admin) admin = await User.findOne({ studentId: String(studentId), role: 'librarian' }); // legacy
-  if (!admin) return res.status(401).json({ error: 'invalid credentials' });
-  const ok = await bcrypt.compare(String(password), admin.passwordHash);
+  if (!NO_DB && !(mongoose.connection.readyState === 1 || DB_READY)) {
+    return res.status(503).json({ error: 'Database not ready' });
+  }
+
+  const lookup = String(studentId).trim();
+  let account = null;
+  let isAdmin = false;
+
+  if (/^\d{2}-\d{4}-\d{6}$/.test(lookup)) {
+    account = await Admin.findOne({ adminId: lookup });
+    if (account) isAdmin = true;
+    if (!account) account = await User.findOne({ studentId: lookup });
+  }
+  if (!account && lookup.includes('@')) {
+    account = await Admin.findOne({ email: lookup.toLowerCase() });
+    if (account) isAdmin = true;
+    if (!account) account = await User.findOne({ email: lookup.toLowerCase() });
+  }
+  if (!account) {
+    // Final fallback: allow admins to log in with legacy studentId without dashes
+    const normalized = lookup.replace(/[^0-9]/g, '');
+    account = await Admin.findOne({ adminId: normalized });
+    if (account) isAdmin = true;
+    if (!account) account = await User.findOne({ studentId: normalized });
+  }
+  if (!account) return res.status(401).json({ error: 'invalid credentials' });
+
+  const ok = await bcrypt.compare(String(password), account.passwordHash);
   if (!ok) return res.status(401).json({ error: 'invalid credentials' });
-  const token = signToken(admin);
-  return res.json({ token, user: { id: String(admin._id), studentId: admin.adminId || admin.studentId, email: admin.email, fullName: admin.fullName, role: admin.role } });
+
+  const role = account.role || (isAdmin ? 'librarian' : 'student');
+  const baseAccount = typeof account.toObject === 'function' ? account.toObject() : account;
+  const token = signToken({ ...baseAccount, role });
+  const payload = {
+    id: String(account._id),
+    studentId: account.adminId || account.studentId,
+    email: account.email,
+    fullName: account.fullName,
+    role
+  };
+  return res.json({ token, user: payload });
 });
 
 // Current user info
@@ -552,6 +677,22 @@ app.get('/api/auth/me', authRequired, async (req, res) => {
   const user = await User.findById(req.user.sub).lean();
   if (!user) return res.status(404).json({ error: 'not found' });
   return res.json({ id: String(user._id), studentId: user.studentId, email: user.email, fullName: user.fullName, role: user.role });
+});
+
+// --- Student self-service endpoints
+app.get('/api/student/me', studentRequired, async (req, res) => {
+  const user = await User.findById(req.user.sub).lean();
+  if (!user) return res.status(404).json({ error: 'not found' });
+  return res.json({
+    id: String(user._id),
+    studentId: user.studentId,
+    email: user.email,
+    fullName: user.fullName,
+    status: user.status,
+    role: user.role || 'student',
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  });
 });
 
 // --- Admins (librarians) CRUD
@@ -779,10 +920,8 @@ app.get('/api/books/library', authRequired, async (req, res) => {
   const tag = String(req.query.tag || '').trim();
   const withPdf = String(req.query.withPdf || '').toLowerCase() === 'true';
   const filter = q ? { $or: [ { title: new RegExp(q, 'i') }, { author: new RegExp(q, 'i') } ] } : {};
-  if (tag) {
-    filter.$and = (filter.$and || []).concat({ $or: [{ genre: tag }, { tags: tag }] });
-  }
-  if (withPdf) filter.pdfPath = { $exists: true, $ne: '' };
+  if (tag) filter.tags = tag;
+  if (withPdf) filter.pdfUrl = { $exists: true, $ne: '' };
   const cursor = Book.find(filter).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).lean();
   const items = await cursor.exec();
   res.json({ items });
@@ -790,85 +929,12 @@ app.get('/api/books/library', authRequired, async (req, res) => {
 
 // --- Books CRUD (Admin)
 app.post('/api/books', adminRequired, async (req, res) => {
-  const {
-    title,
-    author,
-    isbn,
-    bookCode,
-    genre,
-    tags,
-    totalCopies,
-    availableCopies,
-    coverImageData,
-    coverImageName,
-    pdfData,
-    pdfName
-  } = req.body || {};
-
   try {
-    const normalizedTitle = String(title || '').trim();
-    const normalizedAuthor = String(author || '').trim();
-    const normalizedCode = String(bookCode || '').trim();
-    if (!normalizedTitle || !normalizedAuthor || !normalizedCode) {
-      return res.status(400).json({ error: 'title, author, and bookCode are required' });
-    }
-
-    const totalParsed = parseIntField(totalCopies, 'totalCopies');
-    const totalValue = totalParsed === null ? 1 : totalParsed;
-    const availableParsed = parseIntField(availableCopies, 'availableCopies');
-    let availableValue = availableParsed === null ? totalValue : availableParsed;
-    if (availableValue > totalValue) availableValue = totalValue;
-
-    const normalizedGenre = typeof genre === 'string' ? genre.trim() : '';
-    const tagList = parseTagsInput(tags, normalizedGenre);
-
-    const payload = {
-      title: normalizedTitle,
-      author: normalizedAuthor,
-      isbn: isbn ? String(isbn).trim() : undefined,
-      bookCode: normalizedCode,
-      genre: normalizedGenre || undefined,
-      totalCopies: totalValue,
-      availableCopies: availableValue,
-      tags: tagList
-    };
-
-    const storedPaths = [];
-    try {
-      if (coverImageData) {
-        const coverInfo = await storeBase64File({
-          base64: coverImageData,
-          originalName: coverImageName,
-          allowedMime: ['image/png', 'image/jpeg', 'image/webp'],
-          maxBytes: 5 * 1024 * 1024
-        });
-        payload.coverImagePath = coverInfo.storedPath;
-        payload.coverImageOriginalName = coverInfo.originalName;
-        storedPaths.push(coverInfo.storedPath);
-      }
-      if (pdfData) {
-        const pdfInfo = await storeBase64File({
-          base64: pdfData,
-          originalName: pdfName,
-          allowedMime: ['application/pdf'],
-          maxBytes: 25 * 1024 * 1024
-        });
-        payload.pdfPath = pdfInfo.storedPath;
-        payload.pdfOriginalName = pdfInfo.originalName;
-        storedPaths.push(pdfInfo.storedPath);
-      }
-
-      const book = await Book.create(payload);
-      res.status(201).json(book);
-    } catch (err) {
-      for (const pathRef of storedPaths) {
-        await removeStoredFile(pathRef);
-      }
-      throw err;
-    }
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+    const { title, author, isbn, tags, totalCopies } = req.body || {};
+    if (!title || !author) return res.status(400).json({ error: 'title and author required' });
+    const book = await Book.create({ title, author, isbn, tags, totalCopies, availableCopies: totalCopies ?? 1 });
+    res.status(201).json(book);
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 app.get('/api/books', adminRequired, async (req, res) => {
@@ -892,116 +958,11 @@ app.get('/api/books/:id', adminRequired, async (req, res) => {
 });
 
 app.patch('/api/books/:id', adminRequired, async (req, res) => {
-  const {
-    title,
-    author,
-    isbn,
-    bookCode,
-    genre,
-    tags,
-    totalCopies,
-    availableCopies,
-    coverImageData,
-    coverImageName,
-    pdfData,
-    pdfName
-  } = req.body || {};
-
-  let newCover;
-  let newPdf;
-  let oldCoverPath;
-  let oldPdfPath;
   try {
-    const book = await Book.findById(req.params.id);
-    if (!book) return res.status(404).json({ error: 'Not found' });
-
-    if (title !== undefined) {
-      const trimmed = String(title).trim();
-      if (!trimmed) throw new Error('title cannot be empty');
-      book.title = trimmed;
-    }
-    if (author !== undefined) {
-      const trimmed = String(author).trim();
-      if (!trimmed) throw new Error('author cannot be empty');
-      book.author = trimmed;
-    }
-    if (isbn !== undefined) {
-      const trimmed = String(isbn).trim();
-      book.isbn = trimmed || undefined;
-    }
-    if (bookCode !== undefined) {
-      const trimmed = String(bookCode).trim();
-      if (!trimmed) throw new Error('bookCode cannot be empty');
-      book.bookCode = trimmed;
-    }
-
-    let nextGenre = book.genre;
-    if (genre !== undefined) {
-      const trimmed = typeof genre === 'string' ? genre.trim() : '';
-      nextGenre = trimmed || undefined;
-      book.genre = nextGenre;
-    }
-
-    if (totalCopies !== undefined || availableCopies !== undefined) {
-      let totalValue = book.totalCopies;
-      let availableValue = book.availableCopies;
-      if (totalCopies !== undefined) {
-        const parsed = parseIntField(totalCopies, 'totalCopies');
-        if (parsed !== null) totalValue = parsed;
-      }
-      if (availableCopies !== undefined) {
-        const parsed = parseIntField(availableCopies, 'availableCopies');
-        if (parsed !== null) availableValue = parsed;
-      }
-      if (availableValue > totalValue) availableValue = totalValue;
-      book.totalCopies = totalValue;
-      book.availableCopies = availableValue;
-    }
-
-    if (coverImageData) {
-      newCover = await storeBase64File({
-        base64: coverImageData,
-        originalName: coverImageName,
-        allowedMime: ['image/png', 'image/jpeg', 'image/webp'],
-        maxBytes: 5 * 1024 * 1024
-      });
-      oldCoverPath = book.coverImagePath;
-      book.coverImagePath = newCover.storedPath;
-      book.coverImageOriginalName = newCover.originalName;
-    }
-    if (pdfData) {
-      newPdf = await storeBase64File({
-        base64: pdfData,
-        originalName: pdfName,
-        allowedMime: ['application/pdf'],
-        maxBytes: 25 * 1024 * 1024
-      });
-      oldPdfPath = book.pdfPath;
-      book.pdfPath = newPdf.storedPath;
-      book.pdfOriginalName = newPdf.originalName;
-    }
-
-    if (tags !== undefined) {
-      book.tags = parseTagsInput(tags, nextGenre);
-    } else if (genre !== undefined) {
-      book.tags = parseTagsInput([], nextGenre);
-    }
-
-    await book.save();
-
-    if (newCover && oldCoverPath && oldCoverPath !== newCover.storedPath) {
-      await removeStoredFile(oldCoverPath);
-    }
-    if (newPdf && oldPdfPath && oldPdfPath !== newPdf.storedPath) {
-      await removeStoredFile(oldPdfPath);
-    }
-
-    res.json(book.toObject());
-  } catch (e) {
-    if (newCover) await removeStoredFile(newCover.storedPath);
-    if (newPdf) await removeStoredFile(newPdf.storedPath);
-    res.status(400).json({ error: e.message });
-  }
+    const item = await Book.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).lean();
+    if (!item) return res.status(404).json({ error: 'Not found' });
+    res.json(item);
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 app.delete('/api/books/:id', adminRequired, async (req, res) => {
@@ -1062,8 +1023,22 @@ app.get('/api/loans/active', adminRequired, async (_req, res) => {
 });
 
 app.get('/api/student/:id/borrowed', authRequired, async (req, res) => {
+  let userId;
+  try {
+    userId = new mongoose.Types.ObjectId(String(req.params.id));
+  } catch {
+    return res.status(400).json({ error: 'invalid user id' });
+  }
+
+  const requesterRole = req.user?.role;
+  const requesterId = String(req.user?.sub || '');
+  const isAdmin = requesterRole === 'admin' || requesterRole === 'librarian';
+  if (!isAdmin && requesterId !== String(userId)) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+
   const items = await Loan.aggregate([
-    { $match: { userId: new mongoose.Types.ObjectId(req.params.id), returnedAt: null } },
+    { $match: { userId, returnedAt: null } },
     { $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } },
     { $unwind: '$book' },
     { $project: { _id: 0, title: '$book.title', author: '$book.author', borrowedAt: 1, dueAt: 1 } }
