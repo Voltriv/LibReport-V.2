@@ -1,0 +1,102 @@
+import React from "react";
+import api from "../api";
+
+const StudentOverdueBooks = () => {
+  const [loading, setLoading] = React.useState(true);
+  const [books, setBooks] = React.useState([]);
+  const [error, setError] = React.useState("");
+
+  React.useEffect(() => {
+    const fetchOverdueBooks = async () => {
+      try {
+        setLoading(true);
+        const { data } = await api.get("/student/overdue-books");
+        setBooks(data.books || []);
+      } catch (err) {
+        setError("Failed to load your overdue books. Please try again later.");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOverdueBooks();
+  }, []);
+
+  return (
+    <div className="bg-slate-50">
+      <div className="relative overflow-hidden border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-12">
+          <h1 className="text-3xl font-semibold text-slate-900">Overdue Books</h1>
+          <p className="text-sm text-slate-600">
+            View and manage your overdue books that need to be returned to the library.
+          </p>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        {error && (
+          <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+        )}
+
+        {loading ? (
+          <div className="space-y-4">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="rounded-lg bg-white p-6 shadow-sm animate-pulse">
+                <div className="h-6 w-1/3 bg-slate-200 rounded mb-4"></div>
+                <div className="h-4 w-1/2 bg-slate-200 rounded mb-2"></div>
+                <div className="h-4 w-1/4 bg-slate-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+        ) : books.length > 0 ? (
+          <div className="space-y-4">
+            {books.map((book) => (
+              <div key={book.id} className="rounded-lg bg-white p-6 shadow-sm border-l-4 border-red-500">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">{book.title}</h2>
+                    <p className="text-sm text-slate-600">By {book.author}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
+                        Due: {new Date(book.dueDate).toLocaleDateString()}
+                      </span>
+                      <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
+                        Days Overdue: {book.daysOverdue}
+                      </span>
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                        Fine: ${book.fine.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      className="btn-student-primary btn-pill-sm"
+                      onClick={() => {/* Implement return functionality */}}
+                    >
+                      Return Now
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
+            <h3 className="text-lg font-medium text-slate-900">No overdue books</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Great job! You don't have any overdue books at the moment.
+            </p>
+            <div className="mt-6">
+              <a href="/student/borrowed-books" className="btn-student-primary">
+                View My Books
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default StudentOverdueBooks;

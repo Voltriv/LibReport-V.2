@@ -19,6 +19,9 @@ const StudentCatalog = lazy(() => import("./student/StudentCatalog"));
 const StudentSignIn = lazy(() => import("./student/StudentSignIn"));
 const StudentSignUp = lazy(() => import("./student/StudentSignUp"));
 const StudentAccount = lazy(() => import("./student/StudentAccount"));
+const StudentBorrowedBooks = lazy(() => import("./student/StudentBorrowedBooks"));
+const StudentOverdueBooks = lazy(() => import("./student/StudentOverdueBooks"));
+const StudentBorrowingHistory = lazy(() => import("./student/StudentBorrowingHistory"));
 
 function RequireAuth({ children }) {
   if (!hasStoredToken()) return <Navigate to="/signin" replace />;
@@ -98,6 +101,9 @@ function App() {
               <Route index element={<StudentLanding />} />
               <Route path="catalog" element={<RequireStudent><StudentCatalog /></RequireStudent>} />
               <Route path="account" element={<RequireStudent><StudentAccount /></RequireStudent>} />
+              <Route path="borrowed-books" element={<RequireStudent><StudentBorrowedBooks /></RequireStudent>} />
+              <Route path="overdue-books" element={<RequireStudent><StudentOverdueBooks /></RequireStudent>} />
+              <Route path="borrowing-history" element={<RequireStudent><StudentBorrowingHistory /></RequireStudent>} />
               <Route path="signin" element={<StudentPublicOnly><StudentSignIn /></StudentPublicOnly>} />
               <Route path="signup" element={<StudentPublicOnly><StudentSignUp /></StudentPublicOnly>} />
             </Route>

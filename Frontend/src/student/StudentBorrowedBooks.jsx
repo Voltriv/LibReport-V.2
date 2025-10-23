@@ -1,0 +1,105 @@
+import React from "react";
+import api from "../api";
+
+const StudentBorrowedBooks = () => {
+  const [loading, setLoading] = React.useState(true);
+  const [books, setBooks] = React.useState([]);
+  const [error, setError] = React.useState("");
+
+  React.useEffect(() => {
+    const fetchBorrowedBooks = async () => {
+      try {
+        setLoading(true);
+        const { data } = await api.get("/student/borrowed-books");
+        setBooks(data.books || []);
+      } catch (err) {
+        setError("Failed to load your borrowed books. Please try again later.");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBorrowedBooks();
+  }, []);
+
+  return (
+    <div className="bg-slate-50">
+      <div className="relative overflow-hidden border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-12">
+          <h1 className="text-3xl font-semibold text-slate-900">My Books</h1>
+          <p className="text-sm text-slate-600">
+            View and manage your currently borrowed books from the library.
+          </p>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        {error && (
+          <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+        )}
+
+        {loading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="rounded-lg bg-white p-6 shadow-sm animate-pulse">
+                <div className="h-6 w-1/3 bg-slate-200 rounded mb-4"></div>
+                <div className="h-4 w-1/2 bg-slate-200 rounded mb-2"></div>
+                <div className="h-4 w-1/4 bg-slate-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+        ) : books.length > 0 ? (
+          <div className="space-y-4">
+            {books.map((book) => (
+              <div key={book.id} className="rounded-lg bg-white p-6 shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">{book.title}</h2>
+                    <p className="text-sm text-slate-600">By {book.author}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className="inline-flex items-center rounded-full bg-brand-green-soft px-3 py-1 text-xs font-medium text-brand-green">
+                        Due: {new Date(book.dueDate).toLocaleDateString()}
+                      </span>
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                        Borrowed: {new Date(book.borrowDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      className="btn-student-outline btn-pill-sm"
+                      onClick={() => {/* Implement renew functionality */}}
+                    >
+                      Renew
+                    </button>
+                    <button 
+                      className="btn-student-primary btn-pill-sm"
+                      onClick={() => {/* Implement return functionality */}}
+                    >
+                      Return
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
+            <h3 className="text-lg font-medium text-slate-900">No books currently borrowed</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              You don't have any books checked out at the moment.
+            </p>
+            <div className="mt-6">
+              <a href="/student/catalog" className="btn-student-primary">
+                Browse Catalog
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default StudentBorrowedBooks;

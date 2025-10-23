@@ -18,7 +18,8 @@ const StudentLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = React.useState(false);
-
+  const [accountDropdown, setAccountDropdown] = React.useState(false);
+  
   const [user, setUser] = React.useState(() => getStoredUser());
   const [activeAnchor, setActiveAnchor] = React.useState("home");
 
@@ -137,13 +138,33 @@ const StudentLayout = () => {
               Catalog
             </Link>
             {isStudent ? (
-              <Link
-                to="/student/account"
-                className={`btn-student-primary btn-pill-sm ${isAccount ? "shadow-lg" : ""}`}
-              >
-
-                My Account
-              </Link>
+              <div className="relative">
+                <button
+                  onClick={() => setAccountDropdown(prev => !prev)}
+                  className={`btn-student-primary btn-pill-sm flex items-center gap-1 ${isAccount ? "shadow-lg" : ""}`}
+                >
+                  My Account
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m6 9 6 6 6-6"/>
+                  </svg>
+                </button>
+                {accountDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                    <Link to="/student/account" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" onClick={() => setAccountDropdown(false)}>
+                      My Account
+                    </Link>
+                    <Link to="/student/borrowed-books" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" onClick={() => setAccountDropdown(false)}>
+                      Borrowed Books
+                    </Link>
+                    <Link to="/student/overdue-books" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" onClick={() => setAccountDropdown(false)}>
+                      Overdue Books
+                    </Link>
+                    <Link to="/student/borrowing-history" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" onClick={() => setAccountDropdown(false)}>
+                      Borrowing History
+                    </Link>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="flex items-center gap-3">
 
@@ -195,17 +216,37 @@ const StudentLayout = () => {
                 Catalog
               </Link>
               {isStudent ? (
-                <Link
-                  to="/student/account"
-
-                  className={`student-nav-link w-full rounded-md px-3 py-2 hover:bg-slate-100 ${
-                    isAccount ? "is-active" : ""
-                  }`}
-
-                  onClick={() => setMenuOpen(false)}
-                >
-                  My Account
-                </Link>
+                <>
+                  <div className="px-3 py-2 font-medium text-slate-900">My Account</div>
+                  <Link
+                    to="/student/account"
+                    className="student-nav-link w-full rounded-md px-6 py-2 hover:bg-slate-100 text-slate-700"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Profile
+                  </Link>
+                  <Link
+                    to="/student/borrowed-books"
+                    className="student-nav-link w-full rounded-md px-6 py-2 hover:bg-slate-100 text-slate-700"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    My Books/Borrowed Books
+                  </Link>
+                  <Link
+                    to="/student/overdue-books"
+                    className="student-nav-link w-full rounded-md px-6 py-2 hover:bg-slate-100 text-slate-700"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Overdue Books
+                  </Link>
+                  <Link
+                    to="/student/borrowing-history"
+                    className="student-nav-link w-full rounded-md px-6 py-2 hover:bg-slate-100 text-slate-700"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Borrowing History
+                  </Link>
+                </>
               ) : (
                 <>
                   <Link
