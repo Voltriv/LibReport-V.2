@@ -297,8 +297,8 @@ const Admin = mongoose.model('Admin', adminSchema);
 
 async function ensureDefaultAdmin() {
   const email = (process.env.ADMIN_EMAIL || 'admin@example.com').toLowerCase();
-  const adminId = process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '00-0000-000000';
-  const fullName = process.env.ADMIN_NAME || 'System Librarian';
+  const adminId = process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '03-2324-032246';
+  const fullName = process.env.ADMIN_NAME || 'Librarian';
   const password = process.env.ADMIN_PASSWORD || 'Password123';
   const exists = await Admin.findOne({ adminId }).lean();
   if (exists) return;

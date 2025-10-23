@@ -50,7 +50,7 @@ async function main() {
 
   // bcrypt hash for "Password123" (cost 10)
   const demoHash = '$2b$10$vr7A1FNcgAQR/PmKzjVfMuCUWccdXVQqeA9M8I/VeEiFxLzAVtYoO';
-  const adminUser = { _id: new ObjectId(), adminId: '99-0000-000001', fullName: 'Sam Librarian', role: 'librarian', email: 'admin@example.com', passwordHash: demoHash };
+  const adminUser = { _id: new ObjectId(), adminId: '03-2324-032246', fullName: 'Librarian', role: 'librarian', email: 'admin@example.com', passwordHash: demoHash };
   await db.collection('admins').updateOne({ adminId: adminUser.adminId }, { $set: adminUser }, { upsert: true, bypassDocumentValidation: true });
 
   const bookDocs = [

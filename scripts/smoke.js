@@ -35,7 +35,7 @@ function log(ok, msg, extra) {
     log(h.status === 200 && !!h.json?.ok, 'Health ok', JSON.stringify(h.json));
     if (!(h.json?.ok)) process.exit(2);
 
-    const login = await jpost('/auth/login', { studentId: '00-0000-000000', password: 'Password123' });
+    const login = await jpost('/auth/login', { studentId: '03-2324-032246', password: 'Password123' });
     log(login.status === 200 && !!login.json?.token, 'Login ok', `status=${login.status}`);
     if (!login.json?.token) process.exit(3);
     const token = login.json.token;
