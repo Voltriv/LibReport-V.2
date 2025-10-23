@@ -544,8 +544,6 @@ const BooksManagement = () => {
   );
 };
 
-export default BooksManagement;
-
 function buildInitialBookForm(initialData, genreOptions) {
   const base = initialData || {};
   const tags = Array.isArray(base.tags) ? base.tags : [];
@@ -895,5 +893,3 @@ const DeleteConfirmModal = ({ open, onCancel, onConfirm, title, loading }) => {
     </div>
   );
 };
-
-export default BooksManagement;
