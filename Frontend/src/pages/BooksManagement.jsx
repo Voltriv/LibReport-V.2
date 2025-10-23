@@ -3,6 +3,8 @@ import Sidebar from "../components/Sidebar";
 import pfp from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
 import api, { resolveMediaUrl, clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
+import BookFormModal from '../components/BookFormModal';
+import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 // Default genre values
 const GENRE_DEFAULTS = [
@@ -14,12 +16,28 @@ const CUSTOM_GENRE_VALUE = '__custom__';
 const BooksManagement = () => {
   const [books, setBooks] = useState([]);
   const [toast, setToast] = useState(null); // { msg, type }
+  const toastTimeoutRef = useRef(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [userName, setUserName] = useState('Account');
   const [returnTarget, setReturnTarget] = useState(null);
   const [returnBusy, setReturnBusy] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false); // For Book Form Modal
+  const [editingBook, setEditingBook] = useState(null); // For editing book
+  const [deleteTarget, setDeleteTarget] = useState(null); // For book deletion
+  const [formBusy, setFormBusy] = useState(false); // For form submission state
+  const [deleteBusy, setDeleteBusy] = useState(false); // For delete state
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    setShowLogoutModal(false);
+    setIsDropdownOpen(false);
+    clearAuthSession();
+    broadcastAuthChange();
+    navigate("/signin", { replace: true });
+  };
+
+  const toggleDropdown = (id) => { setIsDropdownOpen(isDropdownOpen === id ? null : id); };
 
   const loadActiveLoans = useCallback(async () => {
     try {
@@ -80,6 +98,56 @@ const BooksManagement = () => {
       if (name) setUserName(name);
     }
   }, []);
+
+  // Create book
+  async function handleCreateBook(payload) {
+    setFormBusy(true);
+    try {
+      await api.post('/books', payload);
+      await loadCatalog();
+      setIsAddOpen(false);
+      showToast('Book added', 'success');
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to add book';
+      showToast(msg, 'error');
+    } finally {
+      setFormBusy(false);
+    }
+  }
+
+  // Update book
+  async function handleUpdateBook(payload) {
+    if (!editingBook) return;
+    setFormBusy(true);
+    try {
+      await api.patch(`/books/${editingBook.id}`, payload);
+      await loadCatalog();
+      setEditingBook(null);
+      showToast('Book updated', 'success');
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to update book';
+      showToast(msg, 'error');
+    } finally {
+      setFormBusy(false);
+    }
+  }
+
+  // Delete book
+  async function handleDeleteBook() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      await api.delete(`/books/${deleteTarget.id}`);
+      await loadCatalog();
+      showToast('Book deleted', 'success');
+      setDeleteTarget(null);
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to delete book';
+      showToast(msg, 'error');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
