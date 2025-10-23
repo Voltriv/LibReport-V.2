@@ -1,6 +1,10 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
+<<<<<<< ours
 import api, { setAuthToken } from "../api";
+=======
+import api, { clearAuthSession, broadcastAuthChange } from "../api";
+>>>>>>> theirs
 
 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -42,6 +46,7 @@ const StudentAccount = () => {
   }, [loadProfile, loadHours]);
 
   const onLogout = () => {
+<<<<<<< ours
     try {
       setAuthToken(null);
       localStorage.removeItem("lr_user");
@@ -49,6 +54,10 @@ const StudentAccount = () => {
     try {
       window.dispatchEvent(new Event("lr-auth-change"));
     } catch {}
+=======
+    clearAuthSession();
+    broadcastAuthChange();
+>>>>>>> theirs
     navigate("/student/signin", { replace: true });
   };
 
@@ -102,10 +111,14 @@ const StudentAccount = () => {
               <p className="mt-4 text-sm text-slate-500">No profile information available.</p>
             )}
             <div className="mt-6 flex flex-wrap items-center gap-3">
+<<<<<<< ours
               <Link
                 to="/student/catalog"
                 className="rounded-full bg-brand-green px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-greenDark"
               >
+=======
+              <Link to="/student/catalog" className="btn-student-primary">
+>>>>>>> theirs
                 Go to catalog
               </Link>
               <button

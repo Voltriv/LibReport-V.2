@@ -1,22 +1,249 @@
-﻿/* Theme variables */
+/* Theme variables */
 :root[data-theme='dark'] {
   --bg: #0b0f15;
   --panel: #0f172a;
   --text: #e5e7eb;
   --muted: #94a3b8;
-  --brand-green: #315a2a; /* sidebar gradient start */
-  --brand-greenDark: #274923; /* sidebar gradient end */
-  --brand-gold: #d9b44a;
+  --brand-green: #2f5d3a;
+  --brand-greenDark: #24432b;
+  --brand-gold: #d4a72c;
+  --brand-gold-ink: #8a6b16;
+  --brand-green-rgb: 47, 93, 58;
+  --brand-gold-rgb: 212, 167, 44;
 }
 
 :root[data-theme='light'] {
-  --bg: #f6f7f9;
+  --bg: #f6f7f4;
   --panel: #ffffff;
-  --text: #0f172a;
-  --muted: #475569;
-  --brand-green: #2e6d3b;
-  --brand-greenDark: #24522e;
-  --brand-gold: #c89d3a;
+  --text: #14212b;
+  --muted: #4a5a66;
+  --brand-green: #2f5d3a;
+  --brand-greenDark: #24432b;
+  --brand-gold: #d4a72c;
+  --brand-gold-ink: #8a6b16;
+  --brand-green-rgb: 47, 93, 58;
+  --brand-gold-rgb: 212, 167, 44;
 }
 
-body { background: var(--bg); color: var(--text); }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Lora', 'Merriweather', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Brand utility overrides to keep palette consistent between Tailwind CDN and custom CSS */
+.bg-brand-green { background-color: var(--brand-green) !important; }
+.bg-brand-greenDark { background-color: var(--brand-greenDark) !important; }
+.bg-brand-gold { background-color: var(--brand-gold) !important; }
+.text-brand-green { color: var(--brand-green) !important; }
+.text-brand-gold { color: var(--brand-gold) !important; }
+.text-brand-gold-ink { color: var(--brand-gold-ink) !important; }
+.border-brand-green { border-color: var(--brand-green) !important; }
+.border-brand-gold { border-color: var(--brand-gold) !important; }
+.bg-brand-green-soft { background-color: rgba(var(--brand-green-rgb), 0.15) !important; }
+.bg-brand-gold-soft { background-color: rgba(var(--brand-gold-rgb), 0.2) !important; }
+
+/* Student nav styling */
+.student-nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-bottom: 0.15rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition: color 160ms ease;
+}
+
+.student-nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -0.35rem;
+  width: 100%;
+  height: 2px;
+  border-radius: 9999px;
+  background: transparent;
+  opacity: 0;
+  transition: opacity 160ms ease, transform 160ms ease, background-color 160ms ease;
+  transform: translateY(4px);
+}
+
+.student-nav-link:hover {
+  color: var(--brand-green);
+}
+
+.student-nav-link:hover::after {
+  background: rgba(var(--brand-gold-rgb), 0.55);
+  opacity: 0.6;
+  transform: translateY(0);
+}
+
+.student-nav-link.is-active {
+  color: var(--brand-green);
+  font-weight: 600;
+}
+
+.student-nav-link.is-active::after {
+  background: var(--brand-gold);
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Student button system */
+.btn-student-primary,
+.btn-student-outline,
+.btn-student-inverse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.65rem 1.6rem;
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.btn-student-primary {
+  background-color: var(--brand-green);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(var(--brand-green-rgb), 0.22);
+}
+
+.btn-student-primary:hover {
+  background-color: var(--brand-greenDark);
+  transform: translateY(-1px);
+  box-shadow: 0 18px 30px rgba(var(--brand-green-rgb), 0.28);
+}
+
+.btn-student-primary:disabled {
+  opacity: 0.65;
+  transform: none;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.btn-student-outline {
+  background-color: transparent;
+  color: var(--brand-green);
+  border: 1px solid rgba(var(--brand-green-rgb), 0.45);
+  box-shadow: none;
+}
+
+.btn-student-outline:hover {
+  background-color: rgba(var(--brand-green-rgb), 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+}
+
+.btn-student-outline:disabled {
+  opacity: 0.65;
+  transform: none;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.btn-student-inverse {
+  background-color: transparent;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+}
+
+.btn-student-inverse:hover {
+  background-color: #ffffff;
+  color: var(--brand-green);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.18);
+}
+
+.btn-pill-sm {
+  border-radius: 9999px;
+  padding: 0.45rem 1.2rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* Catalog badges */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.badge-available {
+  background-color: rgba(var(--brand-green-rgb), 0.16);
+  color: var(--brand-green);
+}
+
+.badge-waitlist {
+  background-color: rgba(var(--brand-gold-rgb), 0.22);
+  color: var(--brand-gold-ink);
+}
+
+/* Authentication decorative helpers */
+.student-auth-surface {
+  position: relative;
+  isolation: isolate;
+}
+
+.student-auth-surface::before,
+.student-auth-surface::after {
+  content: '';
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+  opacity: 0.65;
+  z-index: -1;
+}
+
+.student-auth-surface::before {
+  width: 280px;
+  height: 280px;
+  top: -80px;
+  right: -120px;
+  background: radial-gradient(circle at 30% 30%, rgba(var(--brand-gold-rgb), 0.35), transparent 65%);
+}
+
+.student-auth-surface::after {
+  width: 360px;
+  height: 360px;
+  bottom: -140px;
+  left: -120px;
+  background: radial-gradient(circle at 40% 40%, rgba(var(--brand-green-rgb), 0.3), transparent 60%);
+}
+
+.student-check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.75rem;
+  width: 1.75rem;
+  border-radius: 9999px;
+  background: rgba(var(--brand-green-rgb), 0.16);
+  color: var(--brand-green);
+  font-weight: 600;
+}
+
+.student-inline-link {
+  color: var(--brand-green);
+  font-weight: 600;
+}
+
+.student-inline-link:hover {
+  text-decoration: underline;
+}
+
+.student-inline-link.text-white {
+  color: #ffffff;
+}

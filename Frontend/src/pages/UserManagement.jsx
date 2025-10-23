@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import pfp from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
-import api from "../api";
+import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
 const UserManagement = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -66,6 +66,7 @@ const UserManagement = () => {
   const handleLogout = () => {
     setShowLogoutModal(false);
     setIsDropdownOpen(false);
+<<<<<<< ours
     try {
       localStorage.removeItem("lr_token");
       localStorage.removeItem("lr_user");
@@ -73,18 +74,19 @@ const UserManagement = () => {
     try {
       window.dispatchEvent(new Event("lr-auth-change"));
     } catch {}
+=======
+    clearAuthSession();
+    broadcastAuthChange();
+>>>>>>> theirs
     navigate("/signin", { replace: true });
   };
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("lr_user");
-      if (raw) {
-        const u = JSON.parse(raw);
-        const name = u?.fullName || u?.name || (u?.email ? String(u.email).split("@")[0] : null);
-        if (name) setUserName(name);
-      }
-    } catch {}
+    const stored = getStoredUser();
+    if (stored) {
+      const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split("@")[0] : null);
+      if (name) setUserName(name);
+    }
   }, []);
 
   return (

@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import pfp from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
-import api from "../api";
+import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
 const Admins = () => {
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [creating, setCreating] = useState({ adminId: "", fullName: "", email: "", password: "" });
+  const [creating, setCreating] = useState({ adminId: "", fullName: "", email: "", password: "", role: "librarian_staff" });
   const [showDropdown, setShowDropdown] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [userName, setUserName] = useState("Account");
@@ -33,14 +33,11 @@ const Admins = () => {
   }, [load]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("lr_user");
-      if (raw) {
-        const u = JSON.parse(raw);
-        const name = u?.fullName || u?.name || (u?.email ? String(u.email).split("@")[0] : null);
-        if (name) setUserName(name);
-      }
-    } catch {}
+    const stored = getStoredUser();
+    if (stored) {
+      const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split("@")[0] : null);
+      if (name) setUserName(name);
+    }
   }, []);
 
   const onCreate = async (e) => {
@@ -48,7 +45,7 @@ const Admins = () => {
     setError("");
     try {
       await api.post("/admins", creating);
-      setCreating({ adminId: "", fullName: "", email: "", password: "" });
+      setCreating({ adminId: "", fullName: "", email: "", password: "", role: "librarian_staff" });
       load();
     } catch (e) {
       setError(e?.response?.data?.error || "Create failed");
@@ -66,6 +63,7 @@ const Admins = () => {
   const handleLogout = () => {
     setShowLogoutModal(false);
     setShowDropdown(false);
+<<<<<<< ours
     try {
       localStorage.removeItem("lr_token");
       localStorage.removeItem("lr_user");
@@ -73,6 +71,10 @@ const Admins = () => {
     try {
       window.dispatchEvent(new Event("lr-auth-change"));
     } catch {}
+=======
+    clearAuthSession();
+    broadcastAuthChange();
+>>>>>>> theirs
     navigate("/signin", { replace: true });
   };
 
@@ -108,7 +110,7 @@ const Admins = () => {
         <h2 className="mt-6 text-2xl font-semibold text-slate-900 dark:text-stone-100">Admins</h2>
 
         <form
-          className="mt-4 grid grid-cols-1 md:grid-cols-5 gap-3 p-4 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700"
+          className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-3 p-4 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700"
           onSubmit={onCreate}
         >
           <input
@@ -139,10 +141,19 @@ const Admins = () => {
             onChange={(e) => setCreating((s) => ({ ...s, password: e.target.value }))}
             required
           />
+          <select
+            className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2"
+            value={creating.role}
+            onChange={(e) => setCreating((s) => ({ ...s, role: e.target.value }))}
+            required
+          >
+            <option value="librarian">Librarian</option>
+            <option value="librarian_staff">Librarian Staffs</option>
+          </select>
           <button type="submit" className="rounded-lg btn-brand px-4 py-2 text-white">
             Add
           </button>
-          {error && <div className="md:col-span-5 text-sm text-red-600">{error}</div>}
+          {error && <div className="md:col-span-6 text-sm text-red-600">{error}</div>}
         </form>
 
         <div className="mt-6 p-4 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700">
@@ -174,7 +185,7 @@ const Admins = () => {
                     <td className="py-2 pr-4">{a.adminId}</td>
                     <td className="py-2 pr-4">{a.fullName}</td>
                     <td className="py-2 pr-4">{a.email || "-"}</td>
-                    <td className="py-2 pr-4">{a.role}</td>
+                    <td className="py-2 pr-4">{a.role === 'librarian' ? 'Librarian' : a.role === 'librarian_staff' ? 'Librarian Staffs' : a.role}</td>
                     <td className="py-2 pr-4 text-right">
                       <button
                         className="rounded px-3 py-1.5 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 mr-2"

@@ -1,12 +1,17 @@
 import React from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
+<<<<<<< ours
+=======
+import { getStoredUser } from "../api";
+>>>>>>> theirs
 
 const anchorSections = [
   { id: "home", label: "Home" },
   { id: "about", label: "About" },
   { id: "sections", label: "Library Sections" },
   { id: "services", label: "Library Services" },
+<<<<<<< ours
   { id: "resources", label: "Electronic Resources" },
   { id: "ebooks", label: "Ebook Collection" }
 ];
@@ -20,14 +25,28 @@ function readStoredUser() {
   }
 }
 
+=======
+  { id: "ebooks", label: "Ebook Collection" },
+  { id: "support", label: "Support" }
+];
+
+>>>>>>> theirs
 const StudentLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = React.useState(false);
+<<<<<<< ours
   const [user, setUser] = React.useState(() => readStoredUser());
 
   React.useEffect(() => {
     const updateUser = () => setUser(readStoredUser());
+=======
+  const [user, setUser] = React.useState(() => getStoredUser());
+  const [activeAnchor, setActiveAnchor] = React.useState("home");
+
+  React.useEffect(() => {
+    const updateUser = () => setUser(getStoredUser());
+>>>>>>> theirs
     window.addEventListener("storage", updateUser);
     window.addEventListener("lr-auth-change", updateUser);
     return () => {
@@ -38,9 +57,42 @@ const StudentLayout = () => {
 
   React.useEffect(() => {
     setMenuOpen(false);
+<<<<<<< ours
   }, [location.pathname]);
 
   const isStudent = user?.role === "student";
+=======
+    if (location.pathname !== "/student") {
+      setActiveAnchor("");
+    }
+  }, [location.pathname]);
+
+  React.useEffect(() => {
+    if (location.pathname !== "/student") return undefined;
+
+    const handleScroll = () => {
+      const offset = window.scrollY + 160;
+      let current = "home";
+      anchorSections.forEach((section) => {
+        const element = document.getElementById(section.id);
+        if (!element) return;
+        const top = element.getBoundingClientRect().top + window.scrollY;
+        if (top <= offset) {
+          current = section.id;
+        }
+      });
+      setActiveAnchor(current);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [location.pathname]);
+
+  const isStudent = user?.role === "student";
+  const isCatalog = location.pathname.startsWith("/student/catalog");
+  const isAccount = location.pathname.startsWith("/student/account");
+>>>>>>> theirs
 
   const scrollToSection = (target) => {
     const executeScroll = () => {
@@ -58,12 +110,20 @@ const StudentLayout = () => {
 
   const onAnchorClick = (target) => {
     setMenuOpen(false);
+<<<<<<< ours
+=======
+    setActiveAnchor(target);
+>>>>>>> theirs
     scrollToSection(target);
   };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
+<<<<<<< ours
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-slate-200">
+=======
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+>>>>>>> theirs
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 lg:px-6">
           <div className="flex items-center gap-3">
             <Link to="/student" className="flex items-center gap-2">
@@ -90,26 +150,57 @@ const StudentLayout = () => {
                 key={item.id}
                 type="button"
                 onClick={() => onAnchorClick(item.id)}
+<<<<<<< ours
                 className="transition hover:text-brand-green"
+=======
+                className={`student-nav-link ${
+                  location.pathname === "/student" && activeAnchor === item.id ? "is-active" : ""
+                }`}
+>>>>>>> theirs
               >
                 {item.label}
               </button>
             ))}
+<<<<<<< ours
             <Link to="/student/catalog" className="transition hover:text-brand-green">
               Catalog
             </Link>
             {isStudent ? (
               <Link to="/student/account" className="rounded-full bg-brand-green px-4 py-2 text-white shadow-sm transition hover:bg-brand-greenDark">
+=======
+            <Link
+              to="/student/catalog"
+              className={`student-nav-link ${isCatalog ? "is-active" : ""}`}
+            >
+              Catalog
+            </Link>
+            {isStudent ? (
+              <Link
+                to="/student/account"
+                className={`btn-student-primary btn-pill-sm ${isAccount ? "shadow-lg" : ""}`}
+              >
+>>>>>>> theirs
                 My Account
               </Link>
             ) : (
               <div className="flex items-center gap-3">
+<<<<<<< ours
                 <Link to="/student/signin" className="transition hover:text-brand-green">
+=======
+                <Link
+                  to="/student/signin"
+                  className="btn-student-outline btn-pill-sm"
+                >
+>>>>>>> theirs
                   Sign In
                 </Link>
                 <Link
                   to="/student/signup"
+<<<<<<< ours
                   className="rounded-full bg-brand-green px-4 py-2 text-white shadow-sm transition hover:bg-brand-greenDark"
+=======
+                  className="btn-student-primary btn-pill-sm"
+>>>>>>> theirs
                 >
                   Sign Up
                 </Link>
@@ -125,14 +216,26 @@ const StudentLayout = () => {
                   key={item.id}
                   type="button"
                   onClick={() => onAnchorClick(item.id)}
+<<<<<<< ours
                   className="w-full rounded-md px-3 py-2 text-left hover:bg-slate-100"
+=======
+                  className={`student-nav-link w-full rounded-md px-3 py-2 text-left hover:bg-slate-100 ${
+                    location.pathname === "/student" && activeAnchor === item.id ? "is-active" : ""
+                  }`}
+>>>>>>> theirs
                 >
                   {item.label}
                 </button>
               ))}
               <Link
                 to="/student/catalog"
+<<<<<<< ours
                 className="rounded-md px-3 py-2 hover:bg-slate-100"
+=======
+                className={`student-nav-link w-full rounded-md px-3 py-2 hover:bg-slate-100 ${
+                  isCatalog ? "is-active" : ""
+                }`}
+>>>>>>> theirs
                 onClick={() => setMenuOpen(false)}
               >
                 Catalog
@@ -140,7 +243,13 @@ const StudentLayout = () => {
               {isStudent ? (
                 <Link
                   to="/student/account"
+<<<<<<< ours
                   className="rounded-md px-3 py-2 hover:bg-slate-100"
+=======
+                  className={`student-nav-link w-full rounded-md px-3 py-2 hover:bg-slate-100 ${
+                    isAccount ? "is-active" : ""
+                  }`}
+>>>>>>> theirs
                   onClick={() => setMenuOpen(false)}
                 >
                   My Account
@@ -149,14 +258,22 @@ const StudentLayout = () => {
                 <>
                   <Link
                     to="/student/signin"
+<<<<<<< ours
                     className="rounded-md px-3 py-2 hover:bg-slate-100"
+=======
+                    className="btn-student-outline btn-pill-sm w-full justify-center"
+>>>>>>> theirs
                     onClick={() => setMenuOpen(false)}
                   >
                     Sign In
                   </Link>
                   <Link
                     to="/student/signup"
+<<<<<<< ours
                     className="rounded-md px-3 py-2 hover:bg-slate-100"
+=======
+                    className="btn-student-primary btn-pill-sm w-full justify-center"
+>>>>>>> theirs
                     onClick={() => setMenuOpen(false)}
                   >
                     Sign Up

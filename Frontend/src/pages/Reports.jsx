@@ -3,7 +3,7 @@ import Sidebar from "../components/Sidebar";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import profileImage from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
-import api from "../api";
+import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
 const TIME_RANGES = [
   { label: "Daily", value: "daily", days: 1 },
@@ -39,6 +39,7 @@ const Reports = () => {
   const handleLogout = () => {
     setShowLogoutModal(false);
     setShowDropdown(false);
+<<<<<<< ours
     try {
       localStorage.removeItem("lr_token");
       localStorage.removeItem("lr_user");
@@ -46,18 +47,19 @@ const Reports = () => {
     try {
       window.dispatchEvent(new Event("lr-auth-change"));
     } catch {}
+=======
+    clearAuthSession();
+    broadcastAuthChange();
+>>>>>>> theirs
     navigate("/signin", { replace: true });
   };
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("lr_user");
-      if (raw) {
-        const u = JSON.parse(raw);
-        const name = u?.fullName || u?.name || (u?.email ? String(u.email).split("@")[0] : null);
-        if (name) setUserName(name);
-      }
-    } catch {}
+    const stored = getStoredUser();
+    if (stored) {
+      const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split("@")[0] : null);
+      if (name) setUserName(name);
+    }
   }, []);
 
   useEffect(() => {

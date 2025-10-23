@@ -3,7 +3,25 @@ import React, { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import pfp from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
-import api from "../api";
+<<<<<<< ours
+import api, { resolveMediaUrl } from "../api";
+=======
+import api, { resolveMediaUrl, clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
+>>>>>>> theirs
+
+const GENRE_DEFAULTS = [
+  'Fiction',
+  'Non-fiction',
+  'Science',
+  'Technology',
+  'History',
+  'Arts',
+  'Education',
+  'Reference',
+  'Research',
+];
+
+const CUSTOM_GENRE_VALUE = '__custom__';
 
 const BooksManagement = () => {
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -19,7 +37,8 @@ const BooksManagement = () => {
   const handleLogout = () => {
     setShowLogoutModal(false);
     setIsDropdownOpen(false);
-    try { localStorage.removeItem('lr_token'); localStorage.removeItem('lr_user'); } catch {}
+    clearAuthSession();
+    broadcastAuthChange();
     navigate("/signin", { replace: true });
   };
 
@@ -118,6 +137,7 @@ const BooksManagement = () => {
   }
 
   useEffect(() => {
+<<<<<<< ours
     try {
       const raw = localStorage.getItem('lr_user');
       if (raw) {
@@ -126,19 +146,41 @@ const BooksManagement = () => {
         if (name) setUserName(name);
       }
     } catch {}
+=======
+    const stored = getStoredUser();
+    if (stored) {
+      const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split('@')[0] : null);
+      if (name) setUserName(name);
+    }
+>>>>>>> theirs
   }, []);
   // Load catalog list
   async function loadCatalog() {
     try {
       const { data } = await api.get('/books');
-      const items = (data || []).map(b => ({
-        id: b._id || b.id,
-        type: (b.tags && b.tags[0]) || 'Book',
-        title: b.title,
-        author: b.author,
-        totalCopies: b.totalCopies ?? 0,
-        availableCopies: b.availableCopies ?? 0,
-      }));
+      const items = (data || []).map((b) => {
+        const coverPath = resolveMediaUrl(b.coverImagePath || b.imageUrl || '');
+        const pdfPath = resolveMediaUrl(b.pdfPath || b.pdfUrl || '');
+        return {
+          id: b._id || b.id,
+          title: b.title,
+          author: b.author,
+          bookCode: b.bookCode || '',
+          genre: b.genre || (Array.isArray(b.tags) && b.tags[0]) || '',
+          totalCopies: b.totalCopies ?? 0,
+          availableCopies: b.availableCopies ?? 0,
+          coverImagePath: coverPath,
+          coverImageOriginalName: b.coverImageOriginalName || '',
+          pdfPath: pdfPath,
+          pdfOriginalName: b.pdfOriginalName || '',
+          createdAt: b.createdAt ? new Date(b.createdAt) : null,
+        };
+      });
+      items.sort((a, b) => {
+        const aTime = a.createdAt ? a.createdAt.getTime() : 0;
+        const bTime = b.createdAt ? b.createdAt.getTime() : 0;
+        return bTime - aTime;
+      });
       setCatalog(items);
     } catch (error) {
       setCatalog([]);
@@ -154,37 +196,56 @@ const BooksManagement = () => {
       await loadCatalog();
       setIsAddOpen(false);
       showToast('Book added', 'success');
-    } catch {}
+      return { ok: true };
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to add book';
+      showToast(msg, 'error');
+      const fieldErrors = {};
+      if (err?.response?.status === 409) {
+        fieldErrors.bookCode = 'This book code is already in use.';
+      }
+      return { ok: false, fieldErrors };
+    } finally {
+      setFormBusy(false);
+    }
   }
 
-  async function editCatalogItem() {
-    if (!catSelected) return;
+  async function handleUpdateBook(payload) {
+    if (!editingBook) return { ok: false };
+    setFormBusy(true);
     try {
-      const body = {
-        title: formCat.title || catSelected.title,
-        author: formCat.author || catSelected.author,
-        totalCopies: formCat.stock ? Number(formCat.stock) : undefined,
-        tags: formCat.type ? [formCat.type] : undefined,
-      };
-      const errs = validateForm({ title: body.title ?? '', author: body.author ?? '', stock: formCat.stock });
-      setFormErrors(errs);
-      if (Object.keys(errs).length) return;
-      await api.patch(`/books/${catSelected.id}`, body);
-      setIsEditOpen(false);
-      setFormCat({ type: "", title: "", author: "", stock: "" });
+      await api.patch(`/books/${editingBook.id}`, payload);
       await loadCatalog();
       setEditingBook(null);
       showToast('Book updated', 'success');
-    } catch {}
+      return { ok: true };
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to update book';
+      showToast(msg, 'error');
+      const fieldErrors = {};
+      if (err?.response?.status === 409) {
+        fieldErrors.bookCode = 'Another book already uses this code.';
+      }
+      return { ok: false, fieldErrors };
+    } finally {
+      setFormBusy(false);
+    }
   }
 
-  async function deleteCatalogItem() {
-    if (!catSelected) return;
-    try { await api.delete(`/books/${catSelected.id}`); } catch {}
-    setIsDeleteOpen(false);
-    setCatSelected(null);
-    await loadCatalog();
-    showToast('Book deleted', 'success');
+  async function handleDeleteBook() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      await api.delete(`/books/${deleteTarget.id}`);
+      await loadCatalog();
+      showToast('Book deleted', 'success');
+      setDeleteTarget(null);
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to delete book';
+      showToast(msg, 'error');
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   // Legacy books preview
@@ -258,9 +319,12 @@ const BooksManagement = () => {
               <div className="flex flex-wrap gap-2">
                 <button className="rounded-lg px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60" disabled={!uSel || !bSel || loanBusy} onClick={doBorrow}>Borrow 14d</button>
                 <button className="rounded-lg px-3 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60" disabled={!uSel || !bSel || loanBusy} onClick={doReturn}>Return</button>
+<<<<<<< ours
               </div>
               <div className="text-xs text-slate-600 dark:text-stone-300">
                 Camera-based scanning has been removed. Use the lookup fields above to search for users and books before borrowing or returning.
+=======
+>>>>>>> theirs
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                 <div className="rounded-lg ring-1 ring-slate-200 dark:ring-stone-700 p-2 bg-white dark:bg-stone-950"><h4 className="font-semibold">User</h4><pre>{JSON.stringify(uSel || {}, null, 2)}</pre></div>
@@ -448,8 +512,443 @@ const BooksManagement = () => {
 
 export default BooksManagement;
 
-// Catalog modals (co-located for simplicity)
-// Note: Using inline modals for add/edit/delete to manage catalog
+function buildInitialBookForm(initialData, genreOptions) {
+  const base = initialData || {};
+  const tags = Array.isArray(base.tags) ? base.tags : [];
+  const rawGenre = base.genre || tags[0] || '';
+  let genreValue = '';
+  let customGenre = '';
+  if (rawGenre) {
+    const match = (genreOptions || []).find((option) => String(option).toLowerCase() === String(rawGenre).toLowerCase());
+    if (match) genreValue = match;
+    else {
+      genreValue = CUSTOM_GENRE_VALUE;
+      customGenre = rawGenre;
+    }
+  }
+  return {
+    title: base.title || '',
+    author: base.author || '',
+    bookCode: base.bookCode || '',
+    totalCopies: base.totalCopies !== undefined && base.totalCopies !== null ? String(base.totalCopies) : '',
+    availableCopies: base.availableCopies !== undefined && base.availableCopies !== null ? String(base.availableCopies) : '',
+    genre: genreValue,
+    customGenre,
+    coverImageData: null,
+    coverImageName: '',
+    coverPreview: base.coverImagePath || '',
+    existingCoverName: base.coverImageOriginalName || '',
+    pdfData: null,
+    pdfName: '',
+    existingPdfName: base.pdfOriginalName || '',
+    existingPdfPath: base.pdfPath || '',
+  };
+}
 
+const BookFormModal = ({ open, mode, onCancel, onSubmit, submitting, genreOptions, initialData }) => {
+  const [form, setForm] = useState(() => buildInitialBookForm(initialData, genreOptions));
+  const [errors, setErrors] = useState({});
 
+  useEffect(() => {
+    if (open) {
+      setForm(buildInitialBookForm(initialData, genreOptions));
+      setErrors({});
+    }
+  }, [open, initialData, genreOptions]);
+<<<<<<< ours
 
+  if (!open) return null;
+
+  const heading = mode === 'edit' ? 'Edit Book' : 'Add Book';
+  const primaryLabel = mode === 'edit' ? 'Save Changes' : 'Add Book';
+  const resolvedGenre = form.genre === CUSTOM_GENRE_VALUE ? form.customGenre : form.genre;
+
+  const setField = (field) => (event) => {
+    const value = event.target.value;
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
+
+  const handleGenreChange = (event) => {
+    const value = event.target.value;
+    setForm((prev) => ({
+      ...prev,
+      genre: value,
+      customGenre: value === CUSTOM_GENRE_VALUE ? prev.customGenre : '',
+    }));
+  };
+
+  const handleCoverChange = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file && file.type && !file.type.startsWith('image/')) {
+      setErrors((prev) => ({ ...prev, coverImageData: 'Please choose an image file (PNG, JPG, WEBP)' }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({
+        ...prev,
+        coverImageData: reader.result,
+        coverImageName: file.name,
+        coverPreview: reader.result,
+      }));
+      setErrors((prev) => ({ ...prev, coverImageData: undefined }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePdfChange = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    const lowerName = file.name.toLowerCase();
+    if (file.type && file.type !== 'application/pdf' && !lowerName.endsWith('.pdf')) {
+      setErrors((prev) => ({ ...prev, pdfData: 'Please choose a PDF file' }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({
+        ...prev,
+        pdfData: reader.result,
+        pdfName: file.name,
+      }));
+      setErrors((prev) => ({ ...prev, pdfData: undefined }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async () => {
+    const nextErrors = {};
+    if (!form.title.trim()) nextErrors.title = 'Book title is required';
+    if (!form.author.trim()) nextErrors.author = 'Author is required';
+    if (!form.bookCode.trim()) nextErrors.bookCode = 'Book code is required';
+
+    const totalRaw = form.totalCopies.trim();
+    const totalNumber = totalRaw === '' ? 1 : Number(totalRaw);
+    let normalizedTotal = 0;
+    if (!Number.isFinite(totalNumber)) {
+      nextErrors.totalCopies = 'Total copies must be a number';
+    } else {
+      normalizedTotal = Math.max(0, Math.trunc(totalNumber));
+    }
+
+    const availableRaw = form.availableCopies.trim();
+    const availableNumber = availableRaw === '' ? normalizedTotal : Number(availableRaw);
+    let normalizedAvailable = normalizedTotal;
+    if (!Number.isFinite(availableNumber)) {
+      nextErrors.availableCopies = 'Available copies must be a number';
+    } else {
+      normalizedAvailable = Math.max(0, Math.trunc(availableNumber));
+    }
+
+=======
+
+  if (!open) return null;
+
+  const heading = mode === 'edit' ? 'Edit Book' : 'Add Book';
+  const primaryLabel = mode === 'edit' ? 'Save Changes' : 'Add Book';
+  const resolvedGenre = form.genre === CUSTOM_GENRE_VALUE ? form.customGenre : form.genre;
+
+  const setField = (field) => (event) => {
+    const value = event.target.value;
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
+
+  const handleGenreChange = (event) => {
+    const value = event.target.value;
+    setForm((prev) => ({
+      ...prev,
+      genre: value,
+      customGenre: value === CUSTOM_GENRE_VALUE ? prev.customGenre : '',
+    }));
+  };
+
+  const handleCoverChange = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file && file.type && !file.type.startsWith('image/')) {
+      setErrors((prev) => ({ ...prev, coverImageData: 'Please choose an image file (PNG, JPG, WEBP)' }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({
+        ...prev,
+        coverImageData: reader.result,
+        coverImageName: file.name,
+        coverPreview: reader.result,
+      }));
+      setErrors((prev) => ({ ...prev, coverImageData: undefined }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePdfChange = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    const lowerName = file.name.toLowerCase();
+    if (file.type && file.type !== 'application/pdf' && !lowerName.endsWith('.pdf')) {
+      setErrors((prev) => ({ ...prev, pdfData: 'Please choose a PDF file' }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({
+        ...prev,
+        pdfData: reader.result,
+        pdfName: file.name,
+      }));
+      setErrors((prev) => ({ ...prev, pdfData: undefined }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async () => {
+    const nextErrors = {};
+    if (!form.title.trim()) nextErrors.title = 'Book title is required';
+    if (!form.author.trim()) nextErrors.author = 'Author is required';
+    if (!form.bookCode.trim()) nextErrors.bookCode = 'Book code is required';
+
+    const totalRaw = form.totalCopies.trim();
+    const totalNumber = totalRaw === '' ? 1 : Number(totalRaw);
+    let normalizedTotal = 0;
+    if (!Number.isFinite(totalNumber)) {
+      nextErrors.totalCopies = 'Total copies must be a number';
+    } else {
+      normalizedTotal = Math.max(0, Math.trunc(totalNumber));
+    }
+
+    const availableRaw = form.availableCopies.trim();
+    const availableNumber = availableRaw === '' ? normalizedTotal : Number(availableRaw);
+    let normalizedAvailable = normalizedTotal;
+    if (!Number.isFinite(availableNumber)) {
+      nextErrors.availableCopies = 'Available copies must be a number';
+    } else {
+      normalizedAvailable = Math.max(0, Math.trunc(availableNumber));
+    }
+
+>>>>>>> theirs
+    if (!nextErrors.totalCopies && !nextErrors.availableCopies && normalizedAvailable > normalizedTotal) {
+      nextErrors.availableCopies = 'Available copies cannot exceed total copies';
+    }
+
+    if (form.genre === CUSTOM_GENRE_VALUE && !form.customGenre.trim()) {
+      nextErrors.customGenre = 'Please enter a category';
+    }
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).some((key) => nextErrors[key])) return;
+
+    const payload = {
+      title: form.title.trim(),
+      author: form.author.trim(),
+      bookCode: form.bookCode.trim(),
+      totalCopies: normalizedTotal,
+      availableCopies: Math.min(normalizedTotal, normalizedAvailable),
+    };
+
+    const normalizedGenre = resolvedGenre ? resolvedGenre.trim() : '';
+    if (normalizedGenre) {
+      payload.genre = normalizedGenre;
+      payload.tags = [normalizedGenre];
+    }
+
+    if (form.coverImageData) {
+      payload.coverImageData = form.coverImageData;
+      payload.coverImageName = form.coverImageName;
+    }
+    if (form.pdfData) {
+      payload.pdfData = form.pdfData;
+      payload.pdfName = form.pdfName;
+    }
+
+    const result = await onSubmit(payload);
+    if (result?.ok) {
+      setForm(buildInitialBookForm(null, genreOptions));
+      setErrors({});
+    } else if (result?.fieldErrors && Object.keys(result.fieldErrors).length > 0) {
+      setErrors((prev) => ({ ...prev, ...result.fieldErrors }));
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-[#6BAF7A] px-6 py-8 text-white shadow-xl">
+        <h3 className="text-center text-2xl font-semibold leading-tight">{heading}</h3>
+        <p className="mt-1 text-center text-sm text-white/80">
+          {mode === 'edit' ? 'Update the details below to keep the catalog accurate.' : 'Fill out the information below to add a new title to the catalog.'}
+        </p>
+
+        <div className="mt-5 space-y-3">
+          <div>
+            <input
+              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              placeholder="Book Title"
+              value={form.title}
+              onChange={setField('title')}
+            />
+            {errors.title && <p className="mt-1 text-xs text-rose-100">{errors.title}</p>}
+          </div>
+
+          <div>
+            <input
+              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              placeholder="Author"
+              value={form.author}
+              onChange={setField('author')}
+            />
+            {errors.author && <p className="mt-1 text-xs text-rose-100">{errors.author}</p>}
+          </div>
+
+          <div>
+            <input
+              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              placeholder="Book Code"
+              value={form.bookCode}
+              onChange={setField('bookCode')}
+            />
+            {errors.bookCode && <p className="mt-1 text-xs text-rose-100">{errors.bookCode}</p>}
+          </div>
+
+          <div>
+            <input
+              type="number"
+              min="0"
+              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              placeholder="Available Copies"
+              value={form.availableCopies}
+              onChange={setField('availableCopies')}
+            />
+            {errors.availableCopies && <p className="mt-1 text-xs text-rose-100">{errors.availableCopies}</p>}
+          </div>
+
+          <div>
+            <input
+              type="number"
+              min="0"
+              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              placeholder="Total Copies"
+              value={form.totalCopies}
+              onChange={setField('totalCopies')}
+            />
+            {errors.totalCopies && <p className="mt-1 text-xs text-rose-100">{errors.totalCopies}</p>}
+          </div>
+
+          <div>
+            <select
+              className="w-full appearance-none rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              value={form.genre || ''}
+              onChange={handleGenreChange}
+            >
+              <option value="">Select Genre</option>
+              {genreOptions?.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+              <option value={CUSTOM_GENRE_VALUE}>Custom...</option>
+            </select>
+            {form.genre === CUSTOM_GENRE_VALUE && (
+              <div className="mt-2">
+                <input
+                  className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+                  placeholder="Enter custom category"
+                  value={form.customGenre}
+                  onChange={setField('customGenre')}
+                />
+                {errors.customGenre && <p className="mt-1 text-xs text-rose-100">{errors.customGenre}</p>}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex w-full cursor-pointer items-center justify-center rounded-full border border-white/50 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20">
+              <input type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
+              Upload a photo
+            </label>
+            {(form.coverImageName || form.existingCoverName) && (
+              <p className="text-center text-xs text-white/80">
+                {form.coverImageName || `Current: ${form.existingCoverName}`}
+              </p>
+            )}
+            {errors.coverImageData && <p className="text-center text-xs text-rose-100">{errors.coverImageData}</p>}
+            {form.coverPreview && (
+              <div className="flex justify-center">
+                <img src={form.coverPreview} alt="Selected cover preview" className="mt-2 h-32 w-24 rounded-xl object-cover shadow" />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex w-full cursor-pointer items-center justify-center rounded-full border border-white/50 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20">
+              <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfChange} />
+              Upload a PDF
+            </label>
+            {form.pdfName && <p className="text-center text-xs text-white/80">Selected: {form.pdfName}</p>}
+            {!form.pdfName && form.existingPdfName && form.existingPdfPath && (
+              <p className="text-center text-xs text-white/80">
+                <a href={form.existingPdfPath} target="_blank" rel="noopener noreferrer" className="underline">
+                  Current: {form.existingPdfName}
+                </a>
+              </p>
+            )}
+            {errors.pdfData && <p className="text-center text-xs text-rose-100">{errors.pdfData}</p>}
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-2">
+          <button
+            type="button"
+            className="w-full rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-[#2d5a3a] shadow focus:outline-none disabled:opacity-70"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? (mode === 'edit' ? 'Saving...' : 'Adding...') : primaryLabel}
+          </button>
+          <button
+            type="button"
+            className="w-full rounded-full border border-white/70 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-70"
+            onClick={onCancel}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DeleteConfirmModal = ({ open, onCancel, onConfirm, title, loading }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-sm rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Delete this book?</h3>
+        <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">
+          {title ? `"${title}" will be removed from the catalog.` : 'The selected book will be removed from the catalog.'}
+        </p>
+        <div className="mt-6 flex items-center justify-end gap-3">
+          <button
+            className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            className="rounded-lg px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60"
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

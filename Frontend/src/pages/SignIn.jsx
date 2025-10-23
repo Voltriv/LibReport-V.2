@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
-import api, { setAuthToken } from "../api";
+import api, { persistAuthSession } from "../api";
 
 const inputClass =
   "mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent";
@@ -26,22 +26,14 @@ const SignIn = () => {
     try {
       setLoading(true);
       const { data } = await api.post("/auth/login", { studentId: email, password });
-      if (data?.token) setAuthToken(data.token);
+      persistAuthSession({ token: data?.token, user: data?.user });
       try {
         localStorage.setItem("lr_last_admin_id", email || "");
       } catch {}
       try {
         localStorage.setItem("lr_user", JSON.stringify(data.user || {}));
       } catch {}
-      try {
-        window.dispatchEvent(new Event("lr-auth-change"));
-      } catch {}
-      const role = data?.user?.role;
-      if (role === "librarian" || role === "admin") {
-        navigate("/dashboard");
-      } else {
-        navigate("/student/account");
-      }
+      navigate("/dashboard");
     } catch (err) {
       const status = err?.response?.status;
       const msg = err?.response?.data?.error || "Login failed";

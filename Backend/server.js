@@ -13,6 +13,8 @@ const bcrypt = require('bcryptjs');
 const validator = require('validator');
 const crypto = require('node:crypto');
 
+const STUDENT_ID_REGEX = /^\d{2}-\d{4}-\d{5,6}$/;
+
 const app = express();
 app.set('etag', 'strong');
 app.use(compression());
@@ -238,9 +240,9 @@ const userSchema = new mongoose.Schema(
       unique: true,
       trim: true,
       validate: {
-        // Format: 03-2324-032246 (2-4-6 digits with hyphens)
-        validator: v => /^\d{2}-\d{4}-\d{6}$/.test(v),
-        message: 'Student ID must match 00-0000-000000'
+        // Format: 03-2324-03224X (2-4-5/6 digits with hyphens)
+        validator: v => STUDENT_ID_REGEX.test(v),
+        message: 'Student ID must match 00-0000-00000 pattern'
       }
     },
     email: {
@@ -286,7 +288,7 @@ const adminSchema = new mongoose.Schema(
     email: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
     fullName: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ['librarian'], default: 'librarian' },
+    role: { type: String, enum: ['librarian', 'librarian_staff'], default: 'librarian_staff' },
     status: { type: String, enum: ['active','disabled','pending'], default: 'active' }
   },
   { timestamps: true }
@@ -509,7 +511,7 @@ function authRequired(req, res, next) {
 function adminRequired(req, res, next) {
   return authRequired(req, res, () => {
     const role = req.user?.role;
-    if (role !== 'admin' && role !== 'librarian') {
+    if (role !== 'admin' && role !== 'librarian' && role !== 'librarian_staff') {
       return res.status(403).json({ error: 'admin role required' });
     }
     return next();
@@ -519,7 +521,11 @@ function adminRequired(req, res, next) {
 function studentRequired(req, res, next) {
   return authRequired(req, res, () => {
     const role = req.user?.role;
+<<<<<<< ours
     if (role !== 'student' && role !== 'librarian' && role !== 'admin') {
+=======
+    if (role !== 'student' && role !== 'librarian' && role !== 'admin' && role !== 'librarian_staff') {
+>>>>>>> theirs
       return res.status(403).json({ error: 'student role required' });
     }
     return next();
@@ -547,8 +553,13 @@ app.post('/api/auth/signup', async (req, res) => {
     const emailNorm = String(email).trim().toLowerCase();
     const fullNameNorm = String(fullName).trim();
 
+<<<<<<< ours
     if (!/^\d{2}-\d{4}-\d{6}$/.test(studentIdNorm)) {
       return res.status(400).json({ error: 'Student ID must match 00-0000-000000' });
+=======
+    if (!STUDENT_ID_REGEX.test(studentIdNorm)) {
+      return res.status(400).json({ error: 'Student ID must match 00-0000-00000 pattern' });
+>>>>>>> theirs
     }
     if (!validator.isEmail(emailNorm)) {
       return res.status(400).json({ error: 'Email must be valid' });
@@ -607,7 +618,7 @@ app.post('/api/auth/admin-signup', async (req, res) => {
     const adminIdNorm = String(adminId).trim();
     const emailNorm = email ? String(email).trim().toLowerCase() : undefined;
     const fullNameNorm = String(fullName).trim();
-    if (!/^\d{2}-\d{4}-\d{6}$/.test(adminIdNorm)) return res.status(400).json({ error: 'Admin ID must match 00-0000-000000' });
+    if (!STUDENT_ID_REGEX.test(adminIdNorm)) return res.status(400).json({ error: 'Admin ID must match 00-0000-00000 pattern' });
     if (email && !validator.isEmail(emailNorm)) return res.status(400).json({ error: 'Email must be valid' });
 
     const exists = await Admin.findOne({ $or: [ { adminId: adminIdNorm }, emailNorm ? { email: emailNorm } : null ].filter(Boolean) }).lean();
@@ -635,7 +646,11 @@ app.post('/api/auth/login', async (req, res) => {
   let account = null;
   let isAdmin = false;
 
+<<<<<<< ours
   if (/^\d{2}-\d{4}-\d{6}$/.test(lookup)) {
+=======
+  if (STUDENT_ID_REGEX.test(lookup)) {
+>>>>>>> theirs
     account = await Admin.findOne({ adminId: lookup });
     if (account) isAdmin = true;
     if (!account) account = await User.findOne({ studentId: lookup });
@@ -705,12 +720,20 @@ app.get('/api/admins', adminRequired, async (req, res) => {
 
 app.post('/api/admins', adminRequired, async (req, res) => {
   try {
-    const { adminId, email, fullName, password } = req.body || {};
+    const { adminId, email, fullName, password, role } = req.body || {};
     if (!adminId || !fullName || !password) return res.status(400).json({ error: 'adminId, fullName, password required' });
-    const exists = await Admin.findOne({ $or: [ { adminId }, email ? { email: String(email).toLowerCase() } : null ].filter(Boolean) });
+    const adminIdNorm = String(adminId).trim();
+    const emailNorm = email ? String(email).trim().toLowerCase() : undefined;
+    const fullNameNorm = String(fullName).trim();
+    if (!STUDENT_ID_REGEX.test(adminIdNorm)) {
+      return res.status(400).json({ error: 'adminId must match 00-0000-00000 pattern' });
+    }
+    const exists = await Admin.findOne({ $or: [ { adminId: adminIdNorm }, emailNorm ? { email: emailNorm } : null ].filter(Boolean) });
     if (exists) return res.status(409).json({ error: 'adminId or email already exists' });
+    const allowedRoles = ['librarian', 'librarian_staff'];
+    const normalizedRole = allowedRoles.includes(role) ? role : 'librarian_staff';
     const passwordHash = await bcrypt.hash(String(password), 10);
-    const doc = await Admin.create({ adminId, email: email ? String(email).toLowerCase() : undefined, fullName, role: 'librarian', passwordHash });
+    const doc = await Admin.create({ adminId: adminIdNorm, email: emailNorm, fullName: fullNameNorm, role: normalizedRole, passwordHash });
     res.status(201).json({ id: String(doc._id), adminId: doc.adminId, fullName: doc.fullName, email: doc.email, role: doc.role });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -721,6 +744,13 @@ app.patch('/api/admins/:id', adminRequired, async (req, res) => {
     if (req.body.fullName) update.fullName = String(req.body.fullName);
     if (req.body.email !== undefined) update.email = req.body.email ? String(req.body.email).toLowerCase() : undefined;
     if (req.body.status) update.status = String(req.body.status);
+    if (req.body.role) {
+      const allowedRoles = ['librarian', 'librarian_staff'];
+      if (!allowedRoles.includes(req.body.role)) {
+        return res.status(400).json({ error: 'invalid role' });
+      }
+      update.role = req.body.role;
+    }
     if (req.body.newPassword) update.passwordHash = await bcrypt.hash(String(req.body.newPassword), 10);
     const doc = await Admin.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true }).lean();
     if (!doc) return res.status(404).json({ error: 'Not found' });
@@ -919,22 +949,124 @@ app.get('/api/books/library', authRequired, async (req, res) => {
   const skip = Math.max(Number(req.query.skip || 0), 0);
   const tag = String(req.query.tag || '').trim();
   const withPdf = String(req.query.withPdf || '').toLowerCase() === 'true';
-  const filter = q ? { $or: [ { title: new RegExp(q, 'i') }, { author: new RegExp(q, 'i') } ] } : {};
-  if (tag) filter.tags = tag;
-  if (withPdf) filter.pdfUrl = { $exists: true, $ne: '' };
-  const cursor = Book.find(filter).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).lean();
-  const items = await cursor.exec();
+
+  const filter = {};
+  if (q) {
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+    filter.$or = [{ title: regex }, { author: regex }, { bookCode: regex }, { isbn: regex }];
+  }
+  if (tag) {
+    filter.$and = filter.$and || [];
+    filter.$and.push({ $or: [{ genre: tag }, { tags: tag }] });
+  }
+  if (withPdf) {
+    filter.$and = filter.$and || [];
+    filter.$and.push({ pdfPath: { $exists: true, $ne: '' } });
+  }
+
+  const docs = await Book.find(filter)
+    .sort({ createdAt: -1, _id: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+
+  const items = docs.map((doc) => ({
+    ...doc,
+    imageUrl: doc.coverImagePath || null,
+    pdfUrl: doc.pdfPath || null
+  }));
+
   res.json({ items });
 });
 
 // --- Books CRUD (Admin)
 app.post('/api/books', adminRequired, async (req, res) => {
+  const {
+    title,
+    author,
+    isbn,
+    bookCode,
+    genre,
+    tags,
+    totalCopies,
+    availableCopies,
+    coverImageData,
+    coverImageName,
+    pdfData,
+    pdfName
+  } = req.body || {};
+
   try {
-    const { title, author, isbn, tags, totalCopies } = req.body || {};
-    if (!title || !author) return res.status(400).json({ error: 'title and author required' });
-    const book = await Book.create({ title, author, isbn, tags, totalCopies, availableCopies: totalCopies ?? 1 });
-    res.status(201).json(book);
-  } catch (e) { res.status(400).json({ error: e.message }); }
+    const normalizedTitle = String(title || '').trim();
+    const normalizedAuthor = String(author || '').trim();
+    const normalizedCode = String(bookCode || '').trim();
+    if (!normalizedTitle || !normalizedAuthor || !normalizedCode) {
+      return res.status(400).json({ error: 'title, author, and bookCode are required' });
+    }
+
+    const totalParsed = parseIntField(totalCopies, 'totalCopies');
+    const totalValue = totalParsed === null ? 1 : totalParsed;
+    const availableParsed = parseIntField(availableCopies, 'availableCopies');
+    let availableValue = availableParsed === null ? totalValue : availableParsed;
+    if (availableValue > totalValue) availableValue = totalValue;
+
+    const normalizedGenre = typeof genre === 'string' ? genre.trim() : '';
+    const tagList = parseTagsInput(tags, normalizedGenre);
+
+    const payload = {
+      title: normalizedTitle,
+      author: normalizedAuthor,
+      isbn: isbn ? String(isbn).trim() : undefined,
+      bookCode: normalizedCode,
+      genre: normalizedGenre || undefined,
+      totalCopies: totalValue,
+      availableCopies: availableValue,
+      tags: tagList
+    };
+
+    const storedPaths = [];
+    try {
+      if (coverImageData) {
+        const coverInfo = await storeBase64File({
+          base64: coverImageData,
+          originalName: coverImageName,
+          allowedMime: ['image/png', 'image/jpeg', 'image/webp'],
+          maxBytes: 5 * 1024 * 1024
+        });
+        payload.coverImagePath = coverInfo.storedPath;
+        payload.coverImageOriginalName = coverInfo.originalName;
+        storedPaths.push(coverInfo.storedPath);
+      }
+      if (pdfData) {
+        const pdfInfo = await storeBase64File({
+          base64: pdfData,
+          originalName: pdfName,
+          allowedMime: ['application/pdf'],
+          maxBytes: 25 * 1024 * 1024
+        });
+        payload.pdfPath = pdfInfo.storedPath;
+        payload.pdfOriginalName = pdfInfo.originalName;
+        storedPaths.push(pdfInfo.storedPath);
+      }
+
+      const book = await Book.create(payload);
+      res.status(201).json(book);
+    } catch (err) {
+      for (const pathRef of storedPaths) {
+        await removeStoredFile(pathRef);
+      }
+      throw err;
+    }
+  } catch (e) {
+    if (e && (e.code === 11000 || e.code === 11001)) {
+      const field = e?.keyPattern ? Object.keys(e.keyPattern)[0] : null;
+      if (field === 'bookCode') {
+        return res.status(409).json({ error: 'Book code already exists. Please choose a unique code.' });
+      }
+    }
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.get('/api/books', adminRequired, async (req, res) => {
@@ -958,11 +1090,122 @@ app.get('/api/books/:id', adminRequired, async (req, res) => {
 });
 
 app.patch('/api/books/:id', adminRequired, async (req, res) => {
+  const {
+    title,
+    author,
+    isbn,
+    bookCode,
+    genre,
+    tags,
+    totalCopies,
+    availableCopies,
+    coverImageData,
+    coverImageName,
+    pdfData,
+    pdfName
+  } = req.body || {};
+
+  let newCover;
+  let newPdf;
+  let oldCoverPath;
+  let oldPdfPath;
   try {
-    const item = await Book.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).lean();
-    if (!item) return res.status(404).json({ error: 'Not found' });
-    res.json(item);
-  } catch (e) { res.status(400).json({ error: e.message }); }
+    const book = await Book.findById(req.params.id);
+    if (!book) return res.status(404).json({ error: 'Not found' });
+
+    if (title !== undefined) {
+      const trimmed = String(title).trim();
+      if (!trimmed) throw new Error('title cannot be empty');
+      book.title = trimmed;
+    }
+    if (author !== undefined) {
+      const trimmed = String(author).trim();
+      if (!trimmed) throw new Error('author cannot be empty');
+      book.author = trimmed;
+    }
+    if (isbn !== undefined) {
+      const trimmed = String(isbn).trim();
+      book.isbn = trimmed || undefined;
+    }
+    if (bookCode !== undefined) {
+      const trimmed = String(bookCode).trim();
+      if (!trimmed) throw new Error('bookCode cannot be empty');
+      book.bookCode = trimmed;
+    }
+
+    let nextGenre = book.genre;
+    if (genre !== undefined) {
+      const trimmed = typeof genre === 'string' ? genre.trim() : '';
+      nextGenre = trimmed || undefined;
+      book.genre = nextGenre;
+    }
+
+    if (totalCopies !== undefined || availableCopies !== undefined) {
+      let totalValue = book.totalCopies;
+      let availableValue = book.availableCopies;
+      if (totalCopies !== undefined) {
+        const parsed = parseIntField(totalCopies, 'totalCopies');
+        if (parsed !== null) totalValue = parsed;
+      }
+      if (availableCopies !== undefined) {
+        const parsed = parseIntField(availableCopies, 'availableCopies');
+        if (parsed !== null) availableValue = parsed;
+      }
+      if (availableValue > totalValue) availableValue = totalValue;
+      book.totalCopies = totalValue;
+      book.availableCopies = availableValue;
+    }
+
+    if (coverImageData) {
+      newCover = await storeBase64File({
+        base64: coverImageData,
+        originalName: coverImageName,
+        allowedMime: ['image/png', 'image/jpeg', 'image/webp'],
+        maxBytes: 5 * 1024 * 1024
+      });
+      oldCoverPath = book.coverImagePath;
+      book.coverImagePath = newCover.storedPath;
+      book.coverImageOriginalName = newCover.originalName;
+    }
+    if (pdfData) {
+      newPdf = await storeBase64File({
+        base64: pdfData,
+        originalName: pdfName,
+        allowedMime: ['application/pdf'],
+        maxBytes: 25 * 1024 * 1024
+      });
+      oldPdfPath = book.pdfPath;
+      book.pdfPath = newPdf.storedPath;
+      book.pdfOriginalName = newPdf.originalName;
+    }
+
+    if (tags !== undefined) {
+      book.tags = parseTagsInput(tags, nextGenre);
+    } else if (genre !== undefined) {
+      book.tags = parseTagsInput([], nextGenre);
+    }
+
+    await book.save();
+
+    if (newCover && oldCoverPath && oldCoverPath !== newCover.storedPath) {
+      await removeStoredFile(oldCoverPath);
+    }
+    if (newPdf && oldPdfPath && oldPdfPath !== newPdf.storedPath) {
+      await removeStoredFile(oldPdfPath);
+    }
+
+    res.json(book.toObject());
+  } catch (e) {
+    if (newCover) await removeStoredFile(newCover.storedPath);
+    if (newPdf) await removeStoredFile(newPdf.storedPath);
+    if (e && (e.code === 11000 || e.code === 11001)) {
+      const field = e?.keyPattern ? Object.keys(e.keyPattern)[0] : null;
+      if (field === 'bookCode') {
+        return res.status(409).json({ error: 'Book code already exists. Please choose a unique code.' });
+      }
+    }
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.delete('/api/books/:id', adminRequired, async (req, res) => {

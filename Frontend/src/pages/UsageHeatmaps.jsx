@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import profileImage from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
-import api from "../api";
+import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
 const ranges = [
   { label: "Last 7 days", value: 7 },
@@ -49,14 +49,11 @@ const UsageHeatmaps = () => {
   }, [load, range]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("lr_user");
-      if (raw) {
-        const u = JSON.parse(raw);
-        const name = u?.fullName || u?.name || (u?.email ? String(u.email).split("@")[0] : null);
-        if (name) setUserName(name);
-      }
-    } catch {}
+    const stored = getStoredUser();
+    if (stored) {
+      const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split("@")[0] : null);
+      if (name) setUserName(name);
+    }
   }, []);
 
   const handleLogout = () => {
@@ -65,9 +62,6 @@ const UsageHeatmaps = () => {
     try {
       localStorage.removeItem("lr_token");
       localStorage.removeItem("lr_user");
-    } catch {}
-    try {
-      window.dispatchEvent(new Event("lr-auth-change"));
     } catch {}
     navigate("/signin", { replace: true });
   };

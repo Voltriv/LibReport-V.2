@@ -3,7 +3,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import profileImage from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
-import api from "../api";
+import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
+
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5,6}$/;
 
 const Tracker = () => {
   const [showDropdown, setShowDropdown] = useState(false);
@@ -14,7 +16,8 @@ const Tracker = () => {
   const handleLogout = () => {
     setShowLogoutModal(false);
     setShowDropdown(false);
-    try { localStorage.removeItem('lr_token'); localStorage.removeItem('lr_user'); } catch {}
+    clearAuthSession();
+    broadcastAuthChange();
     navigate("/signin", { replace: true });
   };
 
@@ -87,7 +90,7 @@ const Tracker = () => {
       try {
         const { data } = await api.get('/visits/recent', { params: { minutes: 180 } });
         setFeed((data.items || []).map(v => ({
-          name: v.name || v.studentId || v.barcode,
+          name: v.name || v.studentId,
           enteredAt: v.enteredAt ? new Date(v.enteredAt).toLocaleTimeString() : '-',
           exitedAt: v.exitedAt ? new Date(v.exitedAt).toLocaleTimeString() : null,
           branch: v.branch
@@ -115,25 +118,25 @@ const Tracker = () => {
   }
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('lr_user');
-      if (raw) {
-        const u = JSON.parse(raw);
-        const name = u?.fullName || u?.name || (u?.email ? String(u.email).split('@')[0] : null);
-        if (name) setUserName(name);
-      }
-    } catch {}
+    const stored = getStoredUser();
+    if (stored) {
+      const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split('@')[0] : null);
+      if (name) setUserName(name);
+    }
   }, []);
 
   function toPayload(code) {
     const s = String(code || '').trim();
-    if (!s) return null;
-    return (s.includes('@') || /\d{2}-\d{4}-\d{6}/.test(s)) ? { studentId: s } : { barcode: s };
+    if (!STUDENT_ID_PATTERN.test(s)) return null;
+    return { studentId: s };
   }
 
   async function doEnter() {
     const payload = toPayload(input);
-    if (!payload) return;
+    if (!payload) {
+      setMessage('Student ID must match 03-0000-00000');
+      return;
+    }
     setBusy(true); setMessage('');
     try {
       const { data } = await api.post('/visit/enter', payload);
@@ -146,7 +149,10 @@ const Tracker = () => {
   }
   async function doExit() {
     const payload = toPayload(input);
-    if (!payload) return;
+    if (!payload) {
+      setMessage('Student ID must match 03-0000-00000');
+      return;
+    }
     setBusy(true); setMessage('');
     try {
       const { data } = await api.post('/visit/exit', payload);
@@ -196,17 +202,14 @@ const Tracker = () => {
         {/* Manual entry */}
         <section className="mt-6 grid grid-cols-1 gap-4">
           <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
-            <label className="block text-sm font-medium text-slate-700 dark:text-stone-200">Scan or enter Student ID / Barcode</label>
-            <input value={input} onChange={e=>setInput(e.target.value)} placeholder="03-2324-000000 or barcode"
+            <label className="block text-sm font-medium text-slate-700 dark:text-stone-200">Enter Student ID</label>
+            <input value={input} onChange={e=>setInput(e.target.value)} placeholder="03-0000-00000"
                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
             <div className="mt-3 flex flex-wrap gap-2">
               <button className="rounded-lg px-3 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200" onClick={()=>setSoundOn(!soundOn)}>{soundOn ? 'Sound On' : 'Sound Off'}</button>
-              <button className="rounded-lg px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60" disabled={busy || !input} onClick={doEnter}>Enter</button>
-              <button className="rounded-lg px-3 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60" disabled={busy || !input} onClick={doExit}>Exit</button>
+              <button className="rounded-lg px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60" disabled={busy || !STUDENT_ID_PATTERN.test(String(input).trim())} onClick={doEnter}>Enter</button>
+              <button className="rounded-lg px-3 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60" disabled={busy || !STUDENT_ID_PATTERN.test(String(input).trim())} onClick={doExit}>Exit</button>
             </div>
-            <p className="mt-3 text-xs text-slate-600 dark:text-stone-300">
-              Camera scanning has been removed. Type a student ID or barcode to record entries and exits.
-            </p>
             {message && <div className="mt-3 text-sm text-slate-700 dark:text-stone-200">{message}</div>}
           </div>
         </section>

@@ -3,7 +3,7 @@ import Sidebar from "../components/Sidebar";
 import ReportModal from "../components/GenReports";
 import profileImage from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
-import api from "../api";
+import api, { getStoredUser, clearAuthSession, broadcastAuthChange } from "../api";
 import {
   LineChart,
   Line,
@@ -24,10 +24,8 @@ const Dashboard = () => {
   const handleLogout = () => {
     setShowLogoutModal(false);
     setShowDropdown(false);
-    try {
-      localStorage.removeItem('lr_token');
-      localStorage.removeItem('lr_user');
-    } catch {}
+    clearAuthSession();
+    broadcastAuthChange();
     navigate("/signin", { replace: true });
   };
 
@@ -55,14 +53,11 @@ const Dashboard = () => {
   }, [heat]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('lr_user');
-      if (raw) {
-        const u = JSON.parse(raw);
-        const name = u?.fullName || u?.name || (u?.email ? String(u.email).split('@')[0] : null);
-        if (name) setUserName(name);
-      }
-    } catch {}
+    const stored = getStoredUser();
+    if (stored) {
+      const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split('@')[0] : null);
+      if (name) setUserName(name);
+    }
   }, []);
 
   return (
