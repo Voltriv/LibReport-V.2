@@ -27,7 +27,6 @@ const Tracker = () => {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const [soundOn, setSoundOn] = useState(true);
 
   const refreshStats = useCallback(async () => {
     try {
@@ -75,16 +74,6 @@ const Tracker = () => {
   }, [refreshLogs]);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('lr_scan_sound');
-      if (saved !== null) setSoundOn(saved === '1');
-    } catch {}
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem('lr_scan_sound', soundOn ? '1' : '0'); } catch {}
-  }, [soundOn]);
-
-  useEffect(() => {
     let t;
     const tick = async () => {
       try {
@@ -103,7 +92,6 @@ const Tracker = () => {
   }, []);
 
   function beep() {
-    if (!soundOn) return;
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const o = ctx.createOscillator();
@@ -206,7 +194,6 @@ const Tracker = () => {
             <input value={input} onChange={e=>setInput(e.target.value)} placeholder="03-0000-00000"
                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
             <div className="mt-3 flex flex-wrap gap-2">
-              <button className="rounded-lg px-3 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200" onClick={()=>setSoundOn(!soundOn)}>{soundOn ? 'Sound On' : 'Sound Off'}</button>
               <button className="rounded-lg px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60" disabled={busy || !STUDENT_ID_PATTERN.test(String(input).trim())} onClick={doEnter}>Enter</button>
               <button className="rounded-lg px-3 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60" disabled={busy || !STUDENT_ID_PATTERN.test(String(input).trim())} onClick={doExit}>Exit</button>
             </div>

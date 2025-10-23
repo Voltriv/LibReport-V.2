@@ -1,6 +1,5 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-
 import api, { persistAuthSession } from "../api";
 
 const StudentSignIn = () => {
@@ -45,7 +44,7 @@ const StudentSignIn = () => {
       if (role === "librarian" || role === "admin") {
         navigate("/dashboard", { replace: true });
       } else {
-        navigate("/student/account", { replace: true });
+        navigate("/student/catalog", { replace: true });
       }
     } catch (e) {
       const msg = e?.response?.data?.error || "Unable to sign in. Please try again.";
@@ -156,7 +155,7 @@ const StudentSignIn = () => {
 
               Library staff can access the admin dashboard through the {" "}
               <Link to="/signin" className="student-inline-link">
-                librarian sign-in
+                Librarian Sign-In
               </Link>{" "}
               page.
 

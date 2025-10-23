@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import api, { persistAuthSession } from "../api";
 
-const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5,6}$/;
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
 
 const StudentSignUp = () => {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ const StudentSignUp = () => {
     const nextErrors = {};
 
     if (!STUDENT_ID_PATTERN.test(form.studentId.trim())) {
-      nextErrors.studentId = "Format must be 00-0000-00000";
+      nextErrors.studentId = "Format must be 00-0000-000000";
 
     }
     if (!form.email.includes("@")) {
@@ -116,7 +116,7 @@ const StudentSignUp = () => {
                   value={form.studentId}
                   onChange={onChange}
 
-                  placeholder="00-0000-00000"
+                  placeholder="00-0000-000000"
 
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                   required

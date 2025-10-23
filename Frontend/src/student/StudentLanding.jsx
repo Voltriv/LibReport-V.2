@@ -54,29 +54,6 @@ const ebooks = [
   },
 ];
 
-const highlights = [
-  {
-    value: "5,200+",
-    label: "Print & digital titles",
-    description: "Continuously refreshed across every college and program.",
-  },
-  {
-    value: "24/7",
-    label: "Portal availability",
-    description: "Search, reserve, and download even when the campus is closed.",
-  },
-  {
-    value: "12",
-    label: "Specialist zones",
-    description: "Quiet study rooms, group pods, media labs, and innovation hubs.",
-  },
-  {
-    value: "3",
-    label: "Ways to borrow",
-    description: "On-campus pickup, click-and-collect, and instant digital downloads.",
-  },
-];
-
 const howItWorks = [
   {
     title: "Create your student account",
@@ -107,21 +84,6 @@ const digitalHighlights = [
   {
     title: "Visit planning",
     description: "Log entry schedules and notify the librarian team before you arrive on campus.",
-  },
-];
-
-const testimonials = [
-  {
-    quote:
-      "The student portal helps me reserve thesis materials before my shift ends. Everything is ready when I arrive the next morning.",
-    name: "Elise M.",
-    role: "Library student assistant, CAHS",
-  },
-  {
-    quote:
-      "Having the ebook collection on my phone means I can review cases anywhere. The filters make it easy to find what my class needs.",
-    name: "Noah R.",
-    role: "3rd year Criminology student",
   },
 ];
 
@@ -197,23 +159,6 @@ const StudentLanding = () => {
 
               Create Student Account
             </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-white/90 py-12">
-        <div className="mx-auto max-w-6xl px-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {highlights.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-1 hover:shadow-lg"
-              >
-                <div className="text-3xl font-semibold text-brand-green">{item.value}</div>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{item.label}</p>
-                <p className="mt-2 text-sm text-slate-600">{item.description}</p>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -400,33 +345,6 @@ const StudentLanding = () => {
                 View Catalog
               </Link>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-slate-100 py-16">
-        <div className="mx-auto max-w-5xl px-4">
-          <h2 className="text-center text-3xl font-semibold text-slate-900">Student Stories</h2>
-          <p className="mt-2 text-center text-sm text-slate-600">
-            Hear how classmates use LibReport to balance campus life, coursework, and research.
-          </p>
-          <div className="mt-8 grid gap-6 md:grid-cols-2">
-            {testimonials.map((item) => (
-              <figure
-                key={item.name}
-                className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
-              >
-                <svg viewBox="0 0 24 24" className="h-6 w-6 text-brand-green">
-                  <path
-                    fill="currentColor"
-                    d="M10 3H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h1v4a1 1 0 0 0 1.64.77l3.08-2.57A4 4 0 0 0 12 12V5a2 2 0 0 0-2-2Zm11 0h-5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h1v4a1 1 0 0 0 1.64.77l3.08-2.57A4 4 0 0 0 23 12V5a2 2 0 0 0-2-2Z"
-                  />
-                </svg>
-                <blockquote className="mt-4 text-sm text-slate-700">“{item.quote}”</blockquote>
-                <figcaption className="mt-3 text-sm font-semibold text-slate-900">{item.name}</figcaption>
-                <p className="text-xs uppercase tracking-wide text-slate-500">{item.role}</p>
-              </figure>
-            ))}
           </div>
         </div>
       </section>

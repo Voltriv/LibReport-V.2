@@ -1207,6 +1207,23 @@ app.delete('/api/books/:id', adminRequired, async (req, res) => {
 });
 
 // --- Loans
+async function markLoanAsReturned(loan) {
+  if (!loan) {
+    return { ok: false, status: 404, message: 'Active loan not found' };
+  }
+  if (loan.returnedAt) {
+    return { ok: false, status: 400, message: 'Already returned' };
+  }
+
+  loan.returnedAt = new Date();
+  await loan.save();
+  if (loan.bookId) {
+    await Book.findByIdAndUpdate(loan.bookId, { $inc: { availableCopies: 1 } });
+  }
+
+  return { ok: true, loan };
+}
+
 app.post('/api/loans/borrow', adminRequired, async (req, res) => {
   const { userId, bookId, days = 14 } = req.body || {};
   if (!userId || !bookId) return res.status(400).json({ error: 'userId and bookId required' });
@@ -1224,14 +1241,29 @@ app.post('/api/loans/borrow', adminRequired, async (req, res) => {
 
 app.post('/api/loans/return', adminRequired, async (req, res) => {
   const { loanId, userId, bookId } = req.body || {};
-  const q = loanId ? { _id: loanId } : { userId, bookId, returnedAt: null };
-  const loan = await Loan.findOne(q);
-  if (!loan) return res.status(404).json({ error: 'Active loan not found' });
-  if (loan.returnedAt) return res.status(400).json({ error: 'Already returned' });
-  loan.returnedAt = new Date();
-  await loan.save();
-  await Book.findByIdAndUpdate(loan.bookId, { $inc: { availableCopies: 1 } });
-  res.json(loan);
+  const query = loanId ? { _id: loanId } : { userId, bookId, returnedAt: null };
+  if (!query._id && (!query.userId || !query.bookId)) {
+    return res.status(400).json({ error: 'loanId or userId/bookId required' });
+  }
+
+  const loan = await Loan.findOne(query);
+  const result = await markLoanAsReturned(loan);
+  if (!result.ok) return res.status(result.status).json({ error: result.message });
+  res.json(result.loan);
+});
+
+app.post('/api/loans/:id/return', adminRequired, async (req, res) => {
+  const { id } = req.params;
+  let loan;
+  try {
+    loan = await Loan.findById(id);
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid loan id' });
+  }
+
+  const result = await markLoanAsReturned(loan);
+  if (!result.ok) return res.status(result.status).json({ error: result.message });
+  res.json(result.loan);
 });
 
 app.delete('/api/loans/:id', adminRequired, async (req, res) => {

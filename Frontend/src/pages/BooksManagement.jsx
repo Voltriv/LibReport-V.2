@@ -21,7 +21,6 @@ const GENRE_DEFAULTS = [
 const CUSTOM_GENRE_VALUE = '__custom__';
 
 const BooksManagement = () => {
-  const [openDropdown, setOpenDropdown] = useState(null);
   const [books, setBooks] = useState([]);
 
   const [activeModal, setActiveModal] = useState(null); // 'return' | 'details' | 'delete'
@@ -29,6 +28,8 @@ const BooksManagement = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [userName, setUserName] = useState('Account');
+  const [returnTarget, setReturnTarget] = useState(null);
+  const [returnBusy, setReturnBusy] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -38,8 +39,6 @@ const BooksManagement = () => {
     broadcastAuthChange();
     navigate("/signin", { replace: true });
   };
-
-  const toggleDropdown = (id) => { setOpenDropdown(openDropdown === id ? null : id); };
 
   const loadActiveLoans = async () => {
     try {
@@ -58,12 +57,6 @@ const BooksManagement = () => {
   useEffect(() => { loadActiveLoans(); }, []);
 
   // Borrow/Return quick actions via lookup
-  const [uInput, setUInput] = useState('');
-  const [bInput, setBInput] = useState('');
-  const [uSel, setUSel] = useState(null);
-  const [bSel, setBSel] = useState(null);
-  const [loanBusy, setLoanBusy] = useState(false);
-  const [modalBusy, setModalBusy] = useState(false);
   // Catalog management (migrated from Material page)
   const [catalog, setCatalog] = useState([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -86,53 +79,6 @@ const BooksManagement = () => {
     });
     return Array.from(opts);
   }, [catalog]);
-
-  async function lookupUser() {
-    if (!uInput) return setUSel(null);
-    try {
-      const params = uInput.includes('@') ? { email: uInput } : (uInput.includes('-') ? { studentId: uInput } : { barcode: uInput });
-      const { data } = await api.get('/users/lookup', { params });
-      setUSel(data);
-    } catch { setUSel(null); }
-  }
-  async function lookupBook() {
-    if (!bInput) return setBSel(null);
-    try {
-      let found = null;
-      try {
-        const { data } = await api.get('/books/lookup', { params: { isbn: bInput } });
-        if (data.items && data.items[0]) found = data.items[0];
-      } catch {}
-      if (!found) {
-        const { data } = await api.get('/books/lookup', { params: { q: bInput } });
-        found = (data.items || [])[0] || null;
-      }
-      setBSel(found);
-    } catch { setBSel(null); }
-  }
-
-  async function doBorrow() {
-    if (!uSel || !bSel) return;
-    setLoanBusy(true);
-    try {
-      await api.post('/loans/borrow', { userId: uSel._id || uSel.id, bookId: bSel._id || bSel.id, days: 14 });
-      await loadActiveLoans();
-      await loadCatalog();
-      setUSel(null); setBSel(null); setUInput(''); setBInput('');
-    } catch {}
-    finally { setLoanBusy(false); }
-  }
-  async function doReturn() {
-    if (!uSel || !bSel) return;
-    setLoanBusy(true);
-    try {
-      await api.post('/loans/return', { userId: uSel._id || uSel.id, bookId: bSel._id || bSel.id });
-      await loadActiveLoans();
-      await loadCatalog();
-      setUSel(null); setBSel(null); setUInput(''); setBInput('');
-    } catch {}
-    finally { setLoanBusy(false); }
-  }
 
   useEffect(() => {
 
@@ -256,55 +202,25 @@ const BooksManagement = () => {
     }
     setOpenDropdown(null);
   };
-  const closeModal = () => { setActiveModal(null); setSelectedBook(null); };
-  const handleModalCancel = () => {
-    if (modalBusy) return;
-    closeModal();
+  const cancelReturn = () => {
+    if (returnBusy) return;
+    setReturnTarget(null);
   };
   const confirmReturn = async () => {
-    if (!selectedBook) return;
-    setModalBusy(true);
+    if (!returnTarget) return;
+    setReturnBusy(true);
     try {
       await api.post('/loans/return', { loanId: selectedBook.id });
       await Promise.all([loadActiveLoans(), loadCatalog()]);
       showToast('Loan marked as returned', 'success');
-      closeModal();
+      setReturnTarget(null);
     } catch (error) {
       const msg = error?.response?.data?.error || 'Failed to mark loan as returned';
       showToast(msg, 'error');
     } finally {
-      setModalBusy(false);
+      setReturnBusy(false);
     }
   };
-  const confirmDelete = async () => {
-    if (!selectedBook) return;
-    setModalBusy(true);
-    try {
-      await api.delete(`/loans/${selectedBook.id}`);
-      await Promise.all([loadActiveLoans(), loadCatalog()]);
-      showToast('Loan record deleted', 'success');
-      closeModal();
-    } catch (error) {
-      const msg = error?.response?.data?.error || 'Failed to delete loan record';
-      showToast(msg, 'error');
-    } finally {
-      setModalBusy(false);
-    }
-  };
-
-  function renderDropdownOptions(status, book) {
-    return (
-      <div className="flex flex-col">
-        {(status === 'On Time' || status === 'Overdue') && (
-          <>
-            <button className="text-left rounded px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-white/10" onClick={() => handleAction('Mark as Returned', book)}>Mark as Returned</button>
-            <button className="text-left rounded px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-white/10" onClick={() => handleAction('Borrow Details', book)}>Borrow Details</button>
-            <button className="text-left rounded px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-white/10" onClick={() => handleAction('Delete Record', book)}>Delete Record</button>
-          </>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
@@ -375,21 +291,20 @@ const BooksManagement = () => {
               Add Book
             </button>
           </div>
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-xs uppercase tracking-wide text-slate-500 dark:text-stone-400 bg-slate-100/60 dark:bg-stone-800/60">
-                  <th className="px-4 py-3 text-left font-semibold">Book Cover</th>
-                  <th className="px-4 py-3 text-left font-semibold">Title</th>
-                  <th className="px-4 py-3 text-left font-semibold">Author</th>
-                  <th className="px-4 py-3 text-left font-semibold">Book Code</th>
-                  <th className="px-4 py-3 text-left font-semibold">Available Copies</th>
-                  <th className="px-4 py-3 text-left font-semibold">Total Copies</th>
-                  <th className="px-4 py-3 text-left font-semibold">Category</th>
-                  <th className="px-4 py-3 text-left font-semibold">Book PDF</th>
-                  <th className="px-4 py-3 text-left font-semibold">Actions</th>
-                </tr>
-              </thead>
+          <div className="overflow-x-auto mt-6">
+              <table className="w-full table-auto border-collapse">
+                <thead>
+                  <tr className="bg-gray-200 dark:bg-stone-800 text-stone-900 dark:text-stone-100">
+                    <th className="px-4 py-2 font-bold text-left">Book Cover</th>
+                    <th className="px-4 py-2 font-bold text-left">Author</th>
+                    <th className="px-4 py-2 font-bold text-left">Book Code</th>
+                    <th className="px-4 py-2 font-bold text-left">Available Copies</th>
+                    <th className="px-4 py-2 font-bold text-left">Total Copies</th>
+                    <th className="px-4 py-2 font-bold text-left">Category</th>
+                    <th className="px-4 py-2 font-bold text-left">Book PDF</th>
+                    <th className="px-4 py-2 font-bold text-left">Actions</th>
+                  </tr>
+                </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-stone-700">
                 {catalog.map((book) => (
                   <tr key={book.id} className="bg-white dark:bg-stone-900/70 transition-colors hover:bg-slate-50 dark:hover:bg-stone-800/70">
@@ -455,7 +370,7 @@ const BooksManagement = () => {
             </table>
           </div>
         </section>
-          
+
 
         {activeModal && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
@@ -464,30 +379,19 @@ const BooksManagement = () => {
               <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">Selected Book: {selectedBook?.title}</p>
               <div className="mt-6 flex items-center justify-end gap-3">
                 <button
-                  className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 disabled:opacity-60"
-                  onClick={handleModalCancel}
-                  disabled={modalBusy}
+                  className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 transition hover:bg-slate-50 dark:hover:bg-stone-800 disabled:opacity-60"
+                  onClick={cancelReturn}
+                  disabled={returnBusy}
                 >
                   Cancel
                 </button>
-                {activeModal === 'return' && (
-                  <button
-                    className="rounded-lg px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60"
-                    onClick={confirmReturn}
-                    disabled={modalBusy}
-                  >
-                    {modalBusy ? 'Processing...' : 'Confirm Return'}
-                  </button>
-                )}
-                {activeModal === 'delete' && (
-                  <button
-                    className="rounded-lg px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60"
-                    onClick={confirmDelete}
-                    disabled={modalBusy}
-                  >
-                    {modalBusy ? 'Deleting...' : 'Delete Record'}
-                  </button>
-                )}
+                <button
+                  className="rounded-lg px-4 py-2 bg-emerald-600 text-white transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-1 disabled:opacity-60"
+                  onClick={confirmReturn}
+                  disabled={returnBusy}
+                >
+                  {returnBusy ? 'Processing...' : 'Confirm Return'}
+                </button>
               </div>
             </div>
           </div>
@@ -593,6 +497,8 @@ const BookFormModal = ({ open, mode, onCancel, onSubmit, submitting, genreOption
   const heading = mode === 'edit' ? 'Edit Book' : 'Add Book';
   const primaryLabel = mode === 'edit' ? 'Save Changes' : 'Add Book';
   const resolvedGenre = form.genre === CUSTOM_GENRE_VALUE ? form.customGenre : form.genre;
+  const inputClasses = 'w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-2.5 text-sm text-slate-800 dark:text-stone-100 placeholder-slate-400 dark:placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400';
+  const errorClasses = 'text-xs text-rose-500 dark:text-rose-300';
 
   const setField = (field) => (event) => {
     const value = event.target.value;
@@ -719,71 +625,91 @@ const BookFormModal = ({ open, mode, onCancel, onSubmit, submitting, genreOption
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-[#6BAF7A] px-6 py-8 text-white shadow-xl">
-        <h3 className="text-center text-2xl font-semibold leading-tight">{heading}</h3>
-        <p className="mt-1 text-center text-sm text-white/80">
-          {mode === 'edit' ? 'Update the details below to keep the catalog accurate.' : 'Fill out the information below to add a new title to the catalog.'}
-        </p>
-
-        <div className="mt-5 space-y-3">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4 py-6">
+      <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-xl">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
+            <h3 className="text-xl font-semibold text-slate-900 dark:text-stone-100">{heading}</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-stone-400">
+              {mode === 'edit' ? 'Update the details below to keep the catalog accurate.' : 'Fill out the information below to add a new title to the catalog.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="self-start rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-500 transition hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700 dark:focus:ring-stone-600"
+            onClick={onCancel}
+            disabled={submitting}
+            aria-label="Close form"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700 dark:text-stone-200">Book Title</label>
             <input
-              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              className={inputClasses}
               placeholder="Book Title"
               value={form.title}
               onChange={setField('title')}
             />
-            {errors.title && <p className="mt-1 text-xs text-rose-100">{errors.title}</p>}
+            {errors.title && <p className={errorClasses}>{errors.title}</p>}
           </div>
 
-          <div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700 dark:text-stone-200">Author</label>
             <input
-              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              className={inputClasses}
               placeholder="Author"
               value={form.author}
               onChange={setField('author')}
             />
-            {errors.author && <p className="mt-1 text-xs text-rose-100">{errors.author}</p>}
+            {errors.author && <p className={errorClasses}>{errors.author}</p>}
           </div>
 
-          <div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700 dark:text-stone-200">Book Code</label>
             <input
-              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              className={inputClasses}
               placeholder="Book Code"
               value={form.bookCode}
               onChange={setField('bookCode')}
             />
-            {errors.bookCode && <p className="mt-1 text-xs text-rose-100">{errors.bookCode}</p>}
+            {errors.bookCode && <p className={errorClasses}>{errors.bookCode}</p>}
           </div>
 
-          <div>
-            <input
-              type="number"
-              min="0"
-              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
-              placeholder="Available Copies"
-              value={form.availableCopies}
-              onChange={setField('availableCopies')}
-            />
-            {errors.availableCopies && <p className="mt-1 text-xs text-rose-100">{errors.availableCopies}</p>}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-slate-700 dark:text-stone-200">Available Copies</label>
+              <input
+                type="number"
+                min="0"
+                className={inputClasses}
+                placeholder="Available Copies"
+                value={form.availableCopies}
+                onChange={setField('availableCopies')}
+              />
+              {errors.availableCopies && <p className={errorClasses}>{errors.availableCopies}</p>}
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-slate-700 dark:text-stone-200">Total Copies</label>
+              <input
+                type="number"
+                min="0"
+                className={inputClasses}
+                placeholder="Total Copies"
+                value={form.totalCopies}
+                onChange={setField('totalCopies')}
+              />
+              {errors.totalCopies && <p className={errorClasses}>{errors.totalCopies}</p>}
+            </div>
           </div>
 
-          <div>
-            <input
-              type="number"
-              min="0"
-              className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
-              placeholder="Total Copies"
-              value={form.totalCopies}
-              onChange={setField('totalCopies')}
-            />
-            {errors.totalCopies && <p className="mt-1 text-xs text-rose-100">{errors.totalCopies}</p>}
-          </div>
-
-          <div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700 dark:text-stone-200">Category</label>
             <select
-              className="w-full appearance-none rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+              className={inputClasses}
               value={form.genre || ''}
               onChange={handleGenreChange}
             >
@@ -791,60 +717,65 @@ const BookFormModal = ({ open, mode, onCancel, onSubmit, submitting, genreOption
               {genreOptions?.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
-              <option value={CUSTOM_GENRE_VALUE}>Custom...</option>
+              <option value={CUSTOM_GENRE_VALUE}>Custom…</option>
             </select>
             {form.genre === CUSTOM_GENRE_VALUE && (
-              <div className="mt-2">
+              <div className="mt-3 flex flex-col gap-1">
+                <label className="text-sm font-medium text-slate-700 dark:text-stone-200">Custom Category</label>
                 <input
-                  className="w-full rounded-full border-none bg-white/95 px-4 py-2.5 text-sm text-stone-700 placeholder-stone-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-white"
+                  className={inputClasses}
                   placeholder="Enter custom category"
                   value={form.customGenre}
                   onChange={setField('customGenre')}
                 />
-                {errors.customGenre && <p className="mt-1 text-xs text-rose-100">{errors.customGenre}</p>}
+                {errors.customGenre && <p className={errorClasses}>{errors.customGenre}</p>}
               </div>
             )}
           </div>
 
-          <div className="space-y-2">
-            <label className="flex w-full cursor-pointer items-center justify-center rounded-full border border-white/50 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20">
-              <input type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
-              Upload a photo
-            </label>
-            {(form.coverImageName || form.existingCoverName) && (
-              <p className="text-center text-xs text-white/80">
-                {form.coverImageName || `Current: ${form.existingCoverName}`}
-              </p>
-            )}
-            {errors.coverImageData && <p className="text-center text-xs text-rose-100">{errors.coverImageData}</p>}
-            {form.coverPreview && (
-              <div className="flex justify-center">
-                <img src={form.coverPreview} alt="Selected cover preview" className="mt-2 h-32 w-24 rounded-xl object-cover shadow" />
-              </div>
-            )}
-          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-slate-700 dark:text-stone-200">Cover Image</span>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-emerald-500 hover:text-emerald-600 dark:border-stone-600 dark:bg-stone-950 dark:text-stone-300 dark:hover:border-emerald-500 dark:hover:text-emerald-400">
+                <input type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
+                Upload a photo
+              </label>
+              {(form.coverImageName || form.existingCoverName) && (
+                <p className="text-xs text-slate-500 dark:text-stone-400">
+                  {form.coverImageName || `Current: ${form.existingCoverName}`}
+                </p>
+              )}
+              {errors.coverImageData && <p className={errorClasses}>{errors.coverImageData}</p>}
+              {form.coverPreview && (
+                <div className="flex justify-center pt-2">
+                  <img src={form.coverPreview} alt="Selected cover preview" className="h-32 w-24 rounded-lg object-cover shadow" />
+                </div>
+              )}
+            </div>
 
-          <div className="space-y-2">
-            <label className="flex w-full cursor-pointer items-center justify-center rounded-full border border-white/50 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20">
-              <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfChange} />
-              Upload a PDF
-            </label>
-            {form.pdfName && <p className="text-center text-xs text-white/80">Selected: {form.pdfName}</p>}
-            {!form.pdfName && form.existingPdfName && form.existingPdfPath && (
-              <p className="text-center text-xs text-white/80">
-                <a href={form.existingPdfPath} target="_blank" rel="noopener noreferrer" className="underline">
-                  Current: {form.existingPdfName}
-                </a>
-              </p>
-            )}
-            {errors.pdfData && <p className="text-center text-xs text-rose-100">{errors.pdfData}</p>}
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-slate-700 dark:text-stone-200">Book PDF</span>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-emerald-500 hover:text-emerald-600 dark:border-stone-600 dark:bg-stone-950 dark:text-stone-300 dark:hover:border-emerald-500 dark:hover:text-emerald-400">
+                <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfChange} />
+                Upload a PDF
+              </label>
+              {form.pdfName && <p className="text-xs text-slate-500 dark:text-stone-400">Selected: {form.pdfName}</p>}
+              {!form.pdfName && form.existingPdfName && form.existingPdfPath && (
+                <p className="text-xs text-slate-500 dark:text-stone-400">
+                  <a href={form.existingPdfPath} target="_blank" rel="noopener noreferrer" className="text-emerald-600 underline dark:text-emerald-400">
+                    Current: {form.existingPdfName}
+                  </a>
+                </p>
+              )}
+              {errors.pdfData && <p className={errorClasses}>{errors.pdfData}</p>}
+            </div>
           </div>
         </div>
 
-        <div className="mt-6 space-y-2">
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="w-full rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-[#2d5a3a] shadow focus:outline-none disabled:opacity-70"
+            className="inline-flex w-full items-center justify-center rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-1 disabled:opacity-70 sm:w-auto"
             onClick={handleSubmit}
             disabled={submitting}
           >
@@ -852,7 +783,7 @@ const BookFormModal = ({ open, mode, onCancel, onSubmit, submitting, genreOption
           </button>
           <button
             type="button"
-            className="w-full rounded-full border border-white/70 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-70"
+            className="inline-flex w-full items-center justify-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-1 disabled:opacity-70 dark:border-stone-600 dark:text-stone-200 dark:hover:bg-stone-800 dark:focus:ring-stone-600 sm:w-auto"
             onClick={onCancel}
             disabled={submitting}
           >
@@ -868,21 +799,21 @@ const DeleteConfirmModal = ({ open, onCancel, onConfirm, title, loading }) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-sm rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
+      <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-xl">
         <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Delete this book?</h3>
         <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">
           {title ? `"${title}" will be removed from the catalog.` : 'The selected book will be removed from the catalog.'}
         </p>
         <div className="mt-6 flex items-center justify-end gap-3">
           <button
-            className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700"
+            className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 transition hover:bg-slate-50 dark:hover:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-stone-600"
             onClick={onCancel}
             disabled={loading}
           >
             Cancel
           </button>
           <button
-            className="rounded-lg px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60"
+            className="rounded-lg px-4 py-2 bg-rose-600 text-white transition hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-1 disabled:opacity-60"
             onClick={onConfirm}
             disabled={loading}
           >
@@ -893,3 +824,5 @@ const DeleteConfirmModal = ({ open, onCancel, onConfirm, title, loading }) => {
     </div>
   );
 };
+
+export default BooksManagement;

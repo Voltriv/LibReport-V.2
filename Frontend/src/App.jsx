@@ -5,55 +5,64 @@ import "./styles/Auth.css";
 import { initTheme, applyTheme } from "./theme";
 import { getStoredUser, hasStoredToken } from "./api";
 
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const UsageHeatmaps = lazy(() => import("./pages/UsageHeatmaps"));
-const Tracker = lazy(() => import("./pages/Tracker"));
-const Reports = lazy(() => import("./pages/Reports"));
-const UserManagement = lazy(() => import("./pages/UserManagement"));
-const BooksManagement = lazy(() => import("./pages/BooksManagement"));
-const BooksLibrary = lazy(() => import("./pages/BooksLibrary"));
-const Admins = lazy(() => import("./pages/Admins"));
-const StudentLayout = lazy(() => import("./student/StudentLayout"));
-const StudentLanding = lazy(() => import("./student/StudentLanding"));
-const StudentCatalog = lazy(() => import("./student/StudentCatalog"));
-const StudentSignIn = lazy(() => import("./student/StudentSignIn"));
-const StudentSignUp = lazy(() => import("./student/StudentSignUp"));
-const StudentAccount = lazy(() => import("./student/StudentAccount"));
+// === Safe Lazy Loader ===
+const safeLazy = (importFunc) =>
+  lazy(async () => {
+    const module = await importFunc();
+    if (!module?.default) {
+      console.error("Lazy import missing default export:", importFunc.toString());
+      return { default: () => <div>Error: Component failed to load</div> };
+    }
+    return module;
+  });
 
+// === Lazy Imports ===
+const Dashboard = safeLazy(() => import("./pages/Dashboard"));
+const UsageHeatmaps = safeLazy(() => import("./pages/UsageHeatmaps"));
+const Tracker = safeLazy(() => import("./pages/Tracker"));
+const Reports = safeLazy(() => import("./pages/Reports"));
+const UserManagement = safeLazy(() => import("./pages/UserManagement"));
+const BooksManagement = safeLazy(() => import("./pages/BooksManagement"));
+const BooksLibrary = safeLazy(() => import("./pages/BooksLibrary"));
+const Admins = safeLazy(() => import("./pages/Admins"));
+
+// === Student Pages ===
+const StudentLayout = safeLazy(() => import("./student/StudentLayout"));
+const StudentLanding = safeLazy(() => import("./student/StudentLanding"));
+const StudentCatalog = safeLazy(() => import("./student/StudentCatalog"));
+const StudentSignIn = safeLazy(() => import("./student/StudentSignIn"));
+const StudentSignUp = safeLazy(() => import("./student/StudentSignUp"));
+const StudentAccount = safeLazy(() => import("./student/StudentAccount"));
+
+// === Route Guards ===
 function RequireAuth({ children }) {
   if (!hasStoredToken()) return <Navigate to="/signin" replace />;
   const user = getStoredUser();
   if (!user) return <Navigate to="/signin" replace />;
-  if (user.role !== "librarian" && user.role !== "admin" && user.role !== "librarian_staff") {
+  if (!["librarian", "admin", "librarian_staff"].includes(user.role))
     return <Navigate to="/student/account" replace />;
-  }
   return children;
 }
 
 function RequireAdmin({ children }) {
   const user = getStoredUser();
-  if (!user || (user.role !== "librarian" && user.role !== "admin" && user.role !== "librarian_staff")) {
+  if (!user || !["librarian", "admin", "librarian_staff"].includes(user.role))
     return <Navigate to="/signin" replace />;
-
-  }
   return children;
 }
 
 function RequireStudent({ children }) {
   if (!hasStoredToken()) return <Navigate to="/student/signin" replace />;
   const user = getStoredUser();
-  if (!user || (user.role !== "student" && user.role !== "librarian" && user.role !== "admin" && user.role !== "librarian_staff")) {
-
+  if (!user || !["student", "librarian", "admin", "librarian_staff"].includes(user.role))
     return <Navigate to="/student/signin" replace />;
-  }
   return children;
 }
 
 function PublicOnly({ children }) {
   const user = getStoredUser();
-
-  if (user?.role === "librarian" || user?.role === "admin" || user?.role === "librarian_staff") return <Navigate to="/dashboard" replace />;
-
+  if (["librarian", "admin", "librarian_staff"].includes(user?.role))
+    return <Navigate to="/dashboard" replace />;
   if (user?.role === "student") return <Navigate to="/student/account" replace />;
   if (hasStoredToken()) return <Navigate to="/dashboard" replace />;
   return children;
@@ -67,25 +76,23 @@ function StudentPublicOnly({ children }) {
 
 function DefaultRedirect() {
   const user = getStoredUser();
-
-  if (user?.role === "librarian" || user?.role === "admin" || user?.role === "librarian_staff") return <Navigate to="/dashboard" replace />;
+  if (["librarian", "admin", "librarian_staff"].includes(user?.role))
+    return <Navigate to="/dashboard" replace />;
   if (user?.role === "student") return <Navigate to="/student/account" replace />;
   return <Navigate to="/student/signin" replace />;
-
 }
 
+// === Main App ===
 function App() {
+  // Initialize Theme on Mount
   useEffect(() => {
     initTheme();
   }, []);
 
+  // Expose global theme setter
   useEffect(() => {
-    window.__setTheme = (t) => {
-      applyTheme(t);
-    };
-    return () => {
-      delete window.__setTheme;
-    };
+    window.__setTheme = (t) => applyTheme(t);
+    return () => delete window.__setTheme;
   }, []);
 
   return (
@@ -93,101 +100,142 @@ function App() {
       <div className="App">
         <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Loading...</div>}>
           <Routes>
+            {/* Default Redirect */}
             <Route path="/" element={<DefaultRedirect />} />
+
+            {/* === Student Routes === */}
             <Route path="/student/*" element={<StudentLayout />}>
               <Route index element={<StudentLanding />} />
-              <Route path="catalog" element={<RequireStudent><StudentCatalog /></RequireStudent>} />
-              <Route path="account" element={<RequireStudent><StudentAccount /></RequireStudent>} />
-              <Route path="signin" element={<StudentPublicOnly><StudentSignIn /></StudentPublicOnly>} />
-              <Route path="signup" element={<StudentPublicOnly><StudentSignUp /></StudentPublicOnly>} />
+              <Route
+                path="catalog"
+                element={
+                  <RequireStudent>
+                    <StudentCatalog />
+                  </RequireStudent>
+                }
+              />
+              <Route
+                path="account"
+                element={
+                  <RequireStudent>
+                    <StudentAccount />
+                  </RequireStudent>
+                }
+              />
+              <Route
+                path="signin"
+                element={
+                  <StudentPublicOnly>
+                    <StudentSignIn />
+                  </StudentPublicOnly>
+                }
+              />
+              <Route
+                path="signup"
+                element={
+                  <StudentPublicOnly>
+                    <StudentSignUp />
+                  </StudentPublicOnly>
+                }
+              />
             </Route>
-            <Route path="/signin" element={<PublicOnly><SignIn /></PublicOnly>} />
-            <Route path="/forgot" element={<Navigate to="/signin" replace />} />
-            <Route path="/reset" element={<Navigate to="/signin" replace />} />
+
+            {/* === Admin & Librarian Routes === */}
             <Route
               path="/dashboard"
-              element={(
+              element={
                 <RequireAuth>
                   <RequireAdmin>
                     <Dashboard />
                   </RequireAdmin>
                 </RequireAuth>
-              )}
+              }
             />
             <Route
               path="/usage-heatmaps"
-              element={(
+              element={
                 <RequireAuth>
                   <RequireAdmin>
                     <UsageHeatmaps />
                   </RequireAdmin>
                 </RequireAuth>
-              )}
+              }
             />
             <Route
               path="/tracker"
-              element={(
+              element={
                 <RequireAuth>
                   <RequireAdmin>
                     <Tracker />
                   </RequireAdmin>
                 </RequireAuth>
-              )}
+              }
             />
-            {/* Legacy PHP route removed: app is React + Tailwind only */}
             <Route
               path="/reports"
-              element={(
+              element={
                 <RequireAuth>
                   <RequireAdmin>
                     <Reports />
                   </RequireAdmin>
                 </RequireAuth>
-              )}
+              }
             />
             <Route
               path="/library"
-              element={(
+              element={
                 <RequireAuth>
                   <RequireAdmin>
                     <BooksLibrary />
                   </RequireAdmin>
                 </RequireAuth>
-              )}
-            />
-            <Route
-              path="/usermanagement"
-              element={(
-                <RequireAuth>
-                  <RequireAdmin>
-                    <UserManagement />
-                  </RequireAdmin>
-                </RequireAuth>
-              )}
+              }
             />
             <Route
               path="/booksmanagement"
-              element={(
+              element={
                 <RequireAuth>
                   <RequireAdmin>
                     <BooksManagement />
                   </RequireAdmin>
                 </RequireAuth>
-              )}
+              }
+            />
+            <Route
+              path="/usermanagement"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <UserManagement />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
             />
             <Route
               path="/admins"
-              element={(
+              element={
                 <RequireAuth>
                   <RequireAdmin>
                     <Admins />
                   </RequireAdmin>
                 </RequireAuth>
-              )}
+              }
             />
 
-            <Route path="*" element={<Navigate to="/student/signin" replace />} />
+            {/* === Public Routes === */}
+            <Route
+              path="/signin"
+              element={
+                <PublicOnly>
+                  <SignIn />
+                </PublicOnly>
+              }
+            />
+            <Route path="/forgot" element={<Navigate to="/signin" replace />} />
+            <Route path="/reset" element={<Navigate to="/signin" replace />} />
 
+            {/* === Catch All === */}
+            <Route path="*" element={<Navigate to="/student/signin" replace />} />
           </Routes>
         </Suspense>
       </div>
