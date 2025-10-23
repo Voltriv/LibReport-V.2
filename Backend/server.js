@@ -460,7 +460,6 @@ app.use((req, res, next) => {
   next();
 });
 
-
 // --- Admin-only global guard for API (except health and auth)
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api')) return next();
@@ -521,11 +520,9 @@ function adminRequired(req, res, next) {
 function studentRequired(req, res, next) {
   return authRequired(req, res, () => {
     const role = req.user?.role;
-<<<<<<< ours
-    if (role !== 'student' && role !== 'librarian' && role !== 'admin') {
-=======
+
     if (role !== 'student' && role !== 'librarian' && role !== 'admin' && role !== 'librarian_staff') {
->>>>>>> theirs
+
       return res.status(403).json({ error: 'student role required' });
     }
     return next();
@@ -553,13 +550,9 @@ app.post('/api/auth/signup', async (req, res) => {
     const emailNorm = String(email).trim().toLowerCase();
     const fullNameNorm = String(fullName).trim();
 
-<<<<<<< ours
-    if (!/^\d{2}-\d{4}-\d{6}$/.test(studentIdNorm)) {
-      return res.status(400).json({ error: 'Student ID must match 00-0000-000000' });
-=======
     if (!STUDENT_ID_REGEX.test(studentIdNorm)) {
       return res.status(400).json({ error: 'Student ID must match 00-0000-00000 pattern' });
->>>>>>> theirs
+
     }
     if (!validator.isEmail(emailNorm)) {
       return res.status(400).json({ error: 'Email must be valid' });
@@ -646,11 +639,8 @@ app.post('/api/auth/login', async (req, res) => {
   let account = null;
   let isAdmin = false;
 
-<<<<<<< ours
-  if (/^\d{2}-\d{4}-\d{6}$/.test(lookup)) {
-=======
   if (STUDENT_ID_REGEX.test(lookup)) {
->>>>>>> theirs
+
     account = await Admin.findOne({ adminId: lookup });
     if (account) isAdmin = true;
     if (!account) account = await User.findOne({ studentId: lookup });
@@ -1399,10 +1389,4 @@ app.get('/api/books/lookup', authRequired, async (req, res) => {
 
 const PORT = process.env.BACKEND_PORT || 4000;
 app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));
-
-
-
-
-
-
 

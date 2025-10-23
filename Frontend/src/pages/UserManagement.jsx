@@ -66,18 +66,10 @@ const UserManagement = () => {
   const handleLogout = () => {
     setShowLogoutModal(false);
     setIsDropdownOpen(false);
-<<<<<<< ours
-    try {
-      localStorage.removeItem("lr_token");
-      localStorage.removeItem("lr_user");
-    } catch {}
-    try {
-      window.dispatchEvent(new Event("lr-auth-change"));
-    } catch {}
-=======
+
     clearAuthSession();
     broadcastAuthChange();
->>>>>>> theirs
+
     navigate("/signin", { replace: true });
   };
 

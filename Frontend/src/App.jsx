@@ -20,33 +20,6 @@ const StudentSignIn = lazy(() => import("./student/StudentSignIn"));
 const StudentSignUp = lazy(() => import("./student/StudentSignUp"));
 const StudentAccount = lazy(() => import("./student/StudentAccount"));
 
-<<<<<<< ours
-function hasStoredToken() {
-  if (typeof window === "undefined") return false;
-  try {
-    return !!localStorage.getItem("lr_token");
-  } catch {
-    return false;
-  }
-}
-
-function getStoredUser() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem("lr_user");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function RequireAuth({ children }) {
-  if (!hasStoredToken()) return <Navigate to="/signin" replace />;
-  const user = getStoredUser();
-  if (!user) return <Navigate to="/signin" replace />;
-  if (user.role !== "librarian" && user.role !== "admin") {
-    return <Navigate to="/student/account" replace />;
-=======
 function RequireAuth({ children }) {
   if (!hasStoredToken()) return <Navigate to="/signin" replace />;
   const user = getStoredUser();
@@ -61,30 +34,16 @@ function RequireAdmin({ children }) {
   const user = getStoredUser();
   if (!user || (user.role !== "librarian" && user.role !== "admin" && user.role !== "librarian_staff")) {
     return <Navigate to="/signin" replace />;
->>>>>>> theirs
+
   }
   return children;
 }
 
-<<<<<<< ours
-function RequireAdmin({ children }) {
-  const user = getStoredUser();
-  if (!user || (user.role !== "librarian" && user.role !== "admin")) {
-    return <Navigate to="/signin" replace />;
-  }
-  return children;
-}
-
-function RequireStudent({ children }) {
-  if (!hasStoredToken()) return <Navigate to="/student/signin" replace />;
-  const user = getStoredUser();
-  if (!user || (user.role !== "student" && user.role !== "librarian" && user.role !== "admin")) {
-=======
 function RequireStudent({ children }) {
   if (!hasStoredToken()) return <Navigate to="/student/signin" replace />;
   const user = getStoredUser();
   if (!user || (user.role !== "student" && user.role !== "librarian" && user.role !== "admin" && user.role !== "librarian_staff")) {
->>>>>>> theirs
+
     return <Navigate to="/student/signin" replace />;
   }
   return children;
@@ -92,11 +51,9 @@ function RequireStudent({ children }) {
 
 function PublicOnly({ children }) {
   const user = getStoredUser();
-<<<<<<< ours
-  if (user?.role === "librarian" || user?.role === "admin") return <Navigate to="/dashboard" replace />;
-=======
+
   if (user?.role === "librarian" || user?.role === "admin" || user?.role === "librarian_staff") return <Navigate to="/dashboard" replace />;
->>>>>>> theirs
+
   if (user?.role === "student") return <Navigate to="/student/account" replace />;
   if (hasStoredToken()) return <Navigate to="/dashboard" replace />;
   return children;
@@ -110,15 +67,11 @@ function StudentPublicOnly({ children }) {
 
 function DefaultRedirect() {
   const user = getStoredUser();
-<<<<<<< ours
-  if (user?.role === "librarian" || user?.role === "admin") return <Navigate to="/dashboard" replace />;
-  if (user?.role === "student") return <Navigate to="/student/account" replace />;
-  return <Navigate to="/student" replace />;
-=======
+
   if (user?.role === "librarian" || user?.role === "admin" || user?.role === "librarian_staff") return <Navigate to="/dashboard" replace />;
   if (user?.role === "student") return <Navigate to="/student/account" replace />;
   return <Navigate to="/student/signin" replace />;
->>>>>>> theirs
+
 }
 
 function App() {
@@ -232,11 +185,9 @@ function App() {
                 </RequireAuth>
               )}
             />
-<<<<<<< ours
-            <Route path="*" element={<Navigate to="/student" replace />} />
-=======
+
             <Route path="*" element={<Navigate to="/student/signin" replace />} />
->>>>>>> theirs
+
           </Routes>
         </Suspense>
       </div>

@@ -1,12 +1,9 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-<<<<<<< ours
-import api, { setAuthToken } from "../api";
-=======
+
 import api, { persistAuthSession } from "../api";
 
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5,6}$/;
->>>>>>> theirs
 
 const StudentSignUp = () => {
   const navigate = useNavigate();
@@ -28,13 +25,10 @@ const StudentSignUp = () => {
 
   const validate = () => {
     const nextErrors = {};
-<<<<<<< ours
-    if (!/^\d{2}-\d{4}-\d{6}$/.test(form.studentId.trim())) {
-      nextErrors.studentId = "Format must be 00-0000-000000";
-=======
+
     if (!STUDENT_ID_PATTERN.test(form.studentId.trim())) {
       nextErrors.studentId = "Format must be 00-0000-00000";
->>>>>>> theirs
+
     }
     if (!form.email.includes("@")) {
       nextErrors.email = "Please enter a valid email";
@@ -62,19 +56,9 @@ const StudentSignUp = () => {
     try {
       setLoading(true);
       const { data } = await api.post("/auth/signup", form);
-<<<<<<< ours
-      if (data?.token) {
-        setAuthToken(data.token);
-      }
-      try {
-        localStorage.setItem("lr_user", JSON.stringify(data?.user || {}));
-      } catch {}
-      try {
-        window.dispatchEvent(new Event("lr-auth-change"));
-      } catch {}
-=======
+
       persistAuthSession({ token: data?.token, user: data?.user });
->>>>>>> theirs
+
       navigate("/student/account", { replace: true });
     } catch (e) {
       const msg = e?.response?.data?.error || "Unable to sign up right now. Please try again.";
@@ -94,19 +78,13 @@ const StudentSignUp = () => {
     <div className="flex min-h-[70vh] items-center justify-center bg-slate-50 px-4 py-16">
       <div className="w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-slate-200">
         <div className="grid grid-cols-1 md:grid-cols-2">
-<<<<<<< ours
-          <div className="relative hidden bg-gradient-to-br from-brand-green via-brand-greenDark to-brand-green md:flex md:flex-col md:justify-between">
-            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=900&q=80')] bg-cover bg-center opacity-30" />
-            <div className="relative flex h-full flex-col justify-between p-10 text-white">
-              <div>
-                <span className="rounded-full border border-white/40 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/80">
-=======
+
           <div className="relative hidden bg-gradient-to-br from-brand-green via-brand-greenDark to-[#183321] md:flex md:flex-col md:justify-between">
             <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=900&q=80')] bg-cover bg-center opacity-30" />
             <div className="relative flex h-full flex-col justify-between p-10 text-white">
               <div className="space-y-4">
                 <span className="btn-pill-sm bg-white/15 text-white/85">
->>>>>>> theirs
+
                   Join the library community
                 </span>
                 <h2 className="mt-4 text-2xl font-semibold">Create your LibReport student account</h2>
@@ -114,16 +92,13 @@ const StudentSignUp = () => {
                   Register to save catalog searches, download ebooks, and request services tailored to your program.
                 </p>
               </div>
-<<<<<<< ours
-              <div className="text-xs text-white/70">
-                Already part of the team? <Link to="/signin" className="font-semibold text-white">Librarian sign-in</Link>
-=======
+
               <div className="text-xs text-white/75">
                 Already part of the team?{" "}
                 <Link to="/signin" className="student-inline-link text-white">
                   Librarian sign-in
                 </Link>
->>>>>>> theirs
+
               </div>
             </div>
           </div>
@@ -140,11 +115,9 @@ const StudentSignUp = () => {
                   name="studentId"
                   value={form.studentId}
                   onChange={onChange}
-<<<<<<< ours
-                  placeholder="00-0000-000000"
-=======
+
                   placeholder="00-0000-00000"
->>>>>>> theirs
+
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                   required
                 />
@@ -201,27 +174,19 @@ const StudentSignUp = () => {
                 />
                 {errors.confirmPassword && <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>}
               </div>
-<<<<<<< ours
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-full bg-brand-green px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-greenDark disabled:cursor-not-allowed disabled:opacity-70"
-              >
-=======
+
               <button type="submit" disabled={loading} className="btn-student-primary w-full">
->>>>>>> theirs
+
                 {loading ? "Creating account..." : "Sign Up"}
               </button>
             </form>
             <p className="mt-6 text-center text-sm text-slate-600">
-<<<<<<< ours
-              Already have an account? <Link to="/student/signin" className="text-brand-green hover:underline">Sign in</Link>
-=======
+
               Already have an account?{" "}
               <Link to="/student/signin" className="student-inline-link">
                 Sign in
               </Link>
->>>>>>> theirs
+
             </p>
           </div>
         </div>

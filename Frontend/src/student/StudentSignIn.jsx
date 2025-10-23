@@ -1,10 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-<<<<<<< ours
-import api, { setAuthToken } from "../api";
-=======
+
 import api, { persistAuthSession } from "../api";
->>>>>>> theirs
 
 const StudentSignIn = () => {
   const navigate = useNavigate();
@@ -12,8 +9,7 @@ const StudentSignIn = () => {
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(false);
-<<<<<<< ours
-=======
+
   const highlights = React.useMemo(
     () => [
       {
@@ -31,7 +27,6 @@ const StudentSignIn = () => {
     ],
     []
   );
->>>>>>> theirs
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -43,19 +38,9 @@ const StudentSignIn = () => {
     try {
       setLoading(true);
       const { data } = await api.post("/auth/login", { studentId: identifier.trim(), password });
-<<<<<<< ours
-      if (data?.token) {
-        setAuthToken(data.token);
-      }
-      try {
-        localStorage.setItem("lr_user", JSON.stringify(data?.user || {}));
-      } catch {}
-      try {
-        window.dispatchEvent(new Event("lr-auth-change"));
-      } catch {}
-=======
+
       persistAuthSession({ token: data?.token, user: data?.user });
->>>>>>> theirs
+
       const role = data?.user?.role;
       if (role === "librarian" || role === "admin") {
         navigate("/dashboard", { replace: true });
@@ -71,24 +56,7 @@ const StudentSignIn = () => {
   };
 
   return (
-<<<<<<< ours
-    <div className="flex min-h-[70vh] items-center justify-center bg-slate-50 px-4 py-16">
-      <div className="w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-2">
-          <div className="relative hidden bg-gradient-to-br from-brand-green via-brand-greenDark to-brand-green lg:block">
-            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1529158062015-cad636e69505?auto=format&fit=crop&w=800&q=80')] bg-cover bg-center opacity-40" />
-            <div className="relative flex h-full flex-col items-start justify-end gap-4 p-10 text-white">
-              <h2 className="text-2xl font-semibold">Welcome back!</h2>
-              <p className="text-sm text-white/80">
-                Sign in with your LibReport student account to explore the digital library, request services, and manage your visit
-                history.
-              </p>
-            </div>
-          </div>
-          <div className="p-8 sm:p-10">
-            <h1 className="text-2xl font-semibold text-slate-900">Student Sign In</h1>
-            <p className="mt-1 text-sm text-slate-500">Use your student ID (00-0000-000000) or registered email.</p>
-=======
+
     <div className="relative overflow-hidden bg-slate-50 px-4 py-16 sm:py-24">
       <div className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-brand-green/15 to-transparent" aria-hidden="true" />
       <div className="relative mx-auto flex max-w-4xl flex-col items-center gap-4 text-center">
@@ -132,7 +100,7 @@ const StudentSignIn = () => {
               <h2 className="text-2xl font-semibold text-slate-900">Student Sign In</h2>
               <p className="mt-1 text-sm text-slate-500">Use your student ID (00-0000-00000) or your registered email address.</p>
             </div>
->>>>>>> theirs
+
             {error && (
               <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
             )}
@@ -143,11 +111,9 @@ const StudentSignIn = () => {
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   type="text"
-<<<<<<< ours
-                  placeholder="e.g. 03-2324-032246 or you@example.edu"
-=======
+
                   placeholder="e.g. 03-2324-03224 or you@example.edu"
->>>>>>> theirs
+
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                 />
               </div>
@@ -161,19 +127,7 @@ const StudentSignIn = () => {
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                 />
               </div>
-<<<<<<< ours
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-full bg-brand-green px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-greenDark disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {loading ? "Signing in..." : "Sign In"}
-              </button>
-            </form>
-            <p className="mt-6 text-center text-sm text-slate-600">
-              Need an account?{" "}
-              <Link to="/student/signup" className="text-brand-green hover:underline">
-=======
+
               <button type="submit" disabled={loading} className="btn-student-primary w-full">
                 {loading ? "Signing in..." : "Sign In"}
               </button>
@@ -194,20 +148,18 @@ const StudentSignIn = () => {
             <p className="mt-6 text-center text-sm text-slate-600">
               Need an account? {" "}
               <Link to="/student/signup" className="student-inline-link">
->>>>>>> theirs
+
                 Sign up now
               </Link>
             </p>
             <p className="mt-2 text-center text-xs text-slate-500">
-<<<<<<< ours
-              Library staff can access the admin dashboard through the <Link to="/signin" className="text-brand-green hover:underline">librarian sign-in</Link> page.
-=======
+
               Library staff can access the admin dashboard through the {" "}
               <Link to="/signin" className="student-inline-link">
                 librarian sign-in
               </Link>{" "}
               page.
->>>>>>> theirs
+
             </p>
           </div>
         </div>

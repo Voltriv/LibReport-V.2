@@ -13,26 +13,7 @@ const StudentCatalog = () => {
   const [hasMore, setHasMore] = React.useState(true);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
-<<<<<<< ours
 
-  const load = React.useCallback(
-    async (reset = false) => {
-      if (loading) return;
-      setLoading(true);
-      if (reset) setError("");
-      try {
-        const params = {
-          limit,
-          skip: reset ? 0 : skip,
-        };
-        if (query.trim()) params.q = query.trim();
-        if (tag) params.tag = tag;
-        if (withPdf) params.withPdf = true;
-        const { data } = await api.get("/books/library", { params });
-        const newItems = (data?.items || []).map((item) => {
-          const coverRaw = item.imageUrl || item.coverImagePath || '';
-          const pdfRaw = item.pdfUrl || item.pdfPath || '';
-=======
   const [initialLoading, setInitialLoading] = React.useState(true);
   const [resultCount, setResultCount] = React.useState(0);
   const [lastUpdated, setLastUpdated] = React.useState(null);
@@ -65,20 +46,13 @@ const StudentCatalog = () => {
         const newItems = (data?.items || []).map((item) => {
           const coverRaw = item.imageUrl || item.coverImagePath || "";
           const pdfRaw = item.pdfUrl || item.pdfPath || "";
->>>>>>> theirs
+
           const imageUrl = resolveMediaUrl(coverRaw);
           const pdfUrl = resolveMediaUrl(pdfRaw);
           return {
             ...item,
             imageUrl: imageUrl || null,
-<<<<<<< ours
-            pdfUrl: pdfUrl || null
-          };
-        });
-        setItems((prev) => (reset ? newItems : [...prev, ...newItems]));
-        setSkip((prev) => (reset ? newItems.length : prev + newItems.length));
-        setHasMore(newItems.length === limit);
-=======
+
             pdfUrl: pdfUrl || null,
           };
         });
@@ -91,7 +65,7 @@ const StudentCatalog = () => {
           setResultCount((prev) => prev + newItems.length);
         }
         setLastUpdated(new Date());
->>>>>>> theirs
+
         if (reset && newItems.length === 0) {
           setError("No books matched your filters. Try another keyword or department.");
         }
@@ -102,25 +76,7 @@ const StudentCatalog = () => {
           setItems([]);
           setSkip(0);
           setHasMore(false);
-<<<<<<< ours
-        }
-      } finally {
-        setLoading(false);
-      }
-    },
-    [loading, query, tag, withPdf, skip]
-  );
 
-  React.useEffect(() => {
-    load(true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const onSubmit = (e) => {
-    e.preventDefault();
-    load(true);
-  };
-
-=======
           setResultCount(0);
           setLastUpdated(null);
         }
@@ -181,7 +137,6 @@ const StudentCatalog = () => {
   const baseLabel = totalToShow === 1 ? "title" : "titles";
   const filterLabel = filterSummary ? ` for ${filterSummary}` : " across the library";
 
->>>>>>> theirs
   return (
     <div className="bg-slate-50">
       <div className="relative overflow-hidden border-b border-slate-200 bg-white">
@@ -236,15 +191,9 @@ const StudentCatalog = () => {
             </label>
           </div>
           <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-<<<<<<< ours
-            <button
-              type="submit"
-              disabled={loading}
-              className="rounded-full bg-brand-green px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-greenDark disabled:cursor-not-allowed disabled:opacity-70"
-            >
-=======
+
             <button type="submit" disabled={loading} className="btn-student-primary">
->>>>>>> theirs
+
               {loading ? "Searching..." : "Search Catalog"}
             </button>
             <button
@@ -253,20 +202,7 @@ const StudentCatalog = () => {
                 setQuery("");
                 setTag("");
                 setWithPdf(false);
-<<<<<<< ours
-                load(true);
-              }}
-              className="rounded-full border border-slate-300 px-5 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
-            >
-              Reset Filters
-            </button>
-            {error && <span className="text-sm text-red-600">{error}</span>}
-          </div>
-        </form>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => {
-=======
                 load({ reset: true, overrideQuery: "", overrideTag: "", overrideWithPdf: false });
               }}
               className="btn-student-outline"
@@ -329,20 +265,16 @@ const StudentCatalog = () => {
             ))}
 
           {!showSkeleton && items.map((item) => {
->>>>>>> theirs
+
             const parseCount = (value) => {
               const num = Number(value);
               return Number.isFinite(num) ? num : null;
             };
-<<<<<<< ours
-            const copiesLabel = (() => {
-              const total = parseCount(item.totalCopies);
-              const available = parseCount(item.availableCopies);
-=======
+
             const total = parseCount(item.totalCopies);
             const available = parseCount(item.availableCopies);
             const copiesLabel = (() => {
->>>>>>> theirs
+
               if (total === null && available === null) return null;
               if (total !== null && available !== null) return `${available} of ${total} copies available`;
               if (available !== null) return `${available} copies available`;
@@ -351,34 +283,26 @@ const StudentCatalog = () => {
 
             return (
               <article key={item._id} className="flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-<<<<<<< ours
-                <div className="aspect-[3/4] bg-slate-100">
-=======
+
                 <div className="relative aspect-[3/4] overflow-hidden bg-slate-100">
->>>>>>> theirs
+
                   {item.imageUrl ? (
                     <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">No cover available</div>
                   )}
-<<<<<<< ours
-=======
+
                   {item.pdfUrl && (
                     <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand-green shadow">
                       PDF
                     </span>
                   )}
->>>>>>> theirs
+
                 </div>
                 <div className="flex flex-1 flex-col gap-2 p-4">
                   <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
                     <span className="font-medium uppercase tracking-wide text-brand-green/80">{item.bookCode || "--"}</span>
-<<<<<<< ours
-                    {copiesLabel && <span>{copiesLabel}</span>}
-                  </div>
-                  <h3 className="text-base font-semibold text-slate-900">{item.title}</h3>
-                  <p className="text-sm text-slate-600">{item.author}</p>
-=======
+
                     {copiesLabel && (
                       <span
                         className={`badge-pill ${
@@ -392,7 +316,7 @@ const StudentCatalog = () => {
                   <h3 className="text-base font-semibold text-slate-900">{item.title}</h3>
                   <p className="text-sm text-slate-600">{item.author}</p>
                   {copiesLabel && <p className="text-xs text-slate-500">{copiesLabel}</p>}
->>>>>>> theirs
+
                   <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-slate-500">
                     {item.genre && <span className="rounded-full bg-slate-100 px-3 py-1">{item.genre}</span>}
                     {item.tags?.slice(0, 2).map((t) => (
@@ -406,11 +330,9 @@ const StudentCatalog = () => {
                       href={item.pdfUrl}
                       target="_blank"
                       rel="noreferrer"
-<<<<<<< ours
-                      className="inline-flex items-center justify-center rounded-full bg-brand-green px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-greenDark"
-=======
+
                       className="btn-student-primary"
->>>>>>> theirs
+
                     >
                       Open PDF
                     </a>
@@ -419,8 +341,6 @@ const StudentCatalog = () => {
               </article>
             );
           })}
-<<<<<<< ours
-=======
 
           {!showSkeleton && loading && (
             <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -432,7 +352,7 @@ const StudentCatalog = () => {
               </div>
             </div>
           )}
->>>>>>> theirs
+
         </div>
 
         {items.length === 0 && !loading && !error && (
@@ -441,15 +361,6 @@ const StudentCatalog = () => {
           </div>
         )}
 
-<<<<<<< ours
-        {hasMore && items.length > 0 && (
-          <div className="mt-8 flex justify-center">
-            <button
-              type="button"
-              onClick={() => load(false)}
-              disabled={loading}
-              className="rounded-full border border-brand-green px-5 py-2 text-sm font-semibold text-brand-green transition hover:bg-brand-green hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
-=======
         {hasMore && items.length > 0 && !showSkeleton && (
           <div className="mt-8 flex justify-center">
             <button
@@ -457,7 +368,7 @@ const StudentCatalog = () => {
               onClick={() => load()}
               disabled={loading}
               className="btn-student-outline"
->>>>>>> theirs
+
             >
               {loading ? "Loading..." : "Load more"}
             </button>

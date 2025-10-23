@@ -53,27 +53,17 @@ export function setAuthToken(token) {
   }
 }
 
-<<<<<<< ours
-function getStoredRole() {
-  try {
-    const raw = localStorage.getItem('lr_user');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.role || null;
-=======
 export function getStoredUser() {
   try {
     const raw = localStorage.getItem('lr_user');
     if (!raw) return null;
     return JSON.parse(raw);
->>>>>>> theirs
+
   } catch {
     return null;
   }
 }
 
-<<<<<<< ours
-=======
 export function setStoredUser(user) {
   try {
     if (!user) {
@@ -118,7 +108,6 @@ function getStoredRole() {
   return user?.role || null;
 }
 
->>>>>>> theirs
 // Load token on boot if present
 try {
   const t = localStorage.getItem('lr_token');
@@ -148,16 +137,10 @@ api.interceptors.response.use(
       if (status === 401 || status === 403) {
         const role = getStoredRole();
         const target = role === 'student' ? '/student/signin' : '/signin';
-<<<<<<< ours
-        try {
-          setAuthToken(null);
-          localStorage.removeItem('lr_user');
-          window.dispatchEvent(new Event('lr-auth-change'));
-        } catch {}
-=======
+
         clearAuthSession();
         broadcastAuthChange();
->>>>>>> theirs
+
         if (!at(target)) window.location.replace(target);
       }
     }

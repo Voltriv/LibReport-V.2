@@ -39,35 +39,6 @@ const services = [
   },
 ];
 
-<<<<<<< ours
-const resources = [
-  {
-    title: "Open Access Books",
-    blurb: "Browse curated open textbooks and monographs available for unlimited use.",
-  },
-  {
-    title: "Open Access Journals",
-    blurb: "Discover peer-reviewed journals and conference proceedings across major academic fields.",
-  },
-  {
-    title: "Open Educational Repositories",
-    blurb: "Search institutional repositories and OER directories for multimedia study aids.",
-  },
-];
-
-const ebooks = [
-  {
-    title: "LibReport E-Library",
-    blurb: "Search the growing catalogue of locally digitized books, theses, and institutional publications.",
-  },
-  {
-    title: "Partner Platforms",
-    blurb: "Access licensed collections through our partner universities and national library subscriptions.",
-  },
-  {
-    title: "Download & Read Anywhere",
-    blurb: "Borrow PDFs for limited-time offline use and sync highlights across your devices.",
-=======
 const ebooks = [
   {
     title: "LibReport E-Library",
@@ -172,7 +143,7 @@ const supportChannels = [
     title: "On-campus Help Desk",
     description: "Visit the circulation desk for ID validation, loan pickups, and technical assistance.",
     contact: "Ground Floor · Learning Resource Center",
->>>>>>> theirs
+
   },
 ];
 
@@ -205,11 +176,9 @@ const StudentLanding = () => {
           <div className="absolute inset-0 bg-slate-900/70" />
         </div>
         <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-24 text-center text-white lg:py-32">
-<<<<<<< ours
-          <span className="rounded-full border border-white/30 px-4 py-1 text-xs uppercase tracking-[0.3em] text-white/80">
-=======
+
           <span className="btn-pill-sm bg-white/20 text-white/85">
->>>>>>> theirs
+
             Welcome to the LibReport Student Portal
           </span>
           <h1 className="text-3xl font-semibold leading-tight sm:text-4xl lg:text-5xl">
@@ -220,31 +189,18 @@ const StudentLanding = () => {
             students of every program.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
-<<<<<<< ours
-            <Link
-              to="/student/catalog"
-              className="rounded-full bg-brand-green px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg transition hover:bg-brand-greenDark"
-            >
-              Explore Catalog
-            </Link>
-            <Link
-              to="/student/signup"
-              className="rounded-full border border-white/60 px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-brand-green"
-            >
-=======
+
             <Link to="/student/catalog" className="btn-student-primary btn-pill-sm">
               Explore Catalog
             </Link>
             <Link to="/student/signup" className="btn-student-inverse btn-pill-sm">
->>>>>>> theirs
+
               Create Student Account
             </Link>
           </div>
         </div>
       </section>
 
-<<<<<<< ours
-=======
       <section className="bg-white/90 py-12">
         <div className="mx-auto max-w-6xl px-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -328,7 +284,6 @@ const StudentLanding = () => {
         </div>
       </section>
 
->>>>>>> theirs
       <section id="about" className="mx-auto max-w-5xl space-y-6 px-4 py-16 lg:px-0">
         <h2 className="text-center text-3xl font-semibold text-slate-900">About the Library</h2>
         <p className="text-center text-base text-slate-600">
@@ -406,46 +361,15 @@ const StudentLanding = () => {
               Log visits through the LibReport tracker to save time at the lobby, or request a remote consultation with a subject
               specialist. Your student account connects all services seamlessly.
             </p>
-<<<<<<< ours
-            <Link
-              to="/student/signup"
-              className="mt-6 inline-flex items-center justify-center rounded-full bg-brand-green px-5 py-2 text-white shadow-sm transition hover:bg-brand-greenDark"
-            >
-=======
+
             <Link to="/student/signup" className="mt-6 inline-flex justify-center btn-student-primary">
->>>>>>> theirs
+
               Sign up now
             </Link>
           </div>
         </div>
       </section>
 
-<<<<<<< ours
-      <section id="resources" className="bg-slate-900 py-16 text-slate-100">
-        <div className="mx-auto max-w-6xl px-4">
-          <h2 className="text-center text-3xl font-semibold">Electronic Resources</h2>
-          <p className="mt-3 text-center text-base text-slate-300">
-            Access scholarly content anytime through the library's trusted digital gateways.
-          </p>
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
-            {resources.map((item) => (
-              <div key={item.title} className="rounded-2xl bg-slate-800/70 p-6 shadow-lg ring-1 ring-slate-700">
-                <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                <p className="mt-2 text-sm text-slate-300">{item.blurb}</p>
-                <a
-                  href="#resources"
-                  className="mt-4 inline-flex items-center text-sm font-semibold text-brand-gold hover:text-white"
-                >
-                  View directories →
-                </a>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-=======
->>>>>>> theirs
       <section id="ebooks" className="mx-auto max-w-6xl px-4 py-16">
         <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
           <div>
@@ -470,14 +394,9 @@ const StudentLanding = () => {
               <p className="text-sm text-white/90">
                 Sign in with your student account to unlock personalized recommendations, saved searches, and offline access.
               </p>
-<<<<<<< ours
-              <Link
-                to="/student/catalog"
-                className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-brand-green hover:bg-brand-gold hover:text-white"
-              >
-=======
+
               <Link to="/student/catalog" className="btn-student-outline bg-white text-brand-green">
->>>>>>> theirs
+
                 View Catalog
               </Link>
             </div>
@@ -485,8 +404,6 @@ const StudentLanding = () => {
         </div>
       </section>
 
-<<<<<<< ours
-=======
       <section className="bg-slate-100 py-16">
         <div className="mx-auto max-w-5xl px-4">
           <h2 className="text-center text-3xl font-semibold text-slate-900">Student Stories</h2>
@@ -568,7 +485,6 @@ const StudentLanding = () => {
         </div>
       </section>
 
->>>>>>> theirs
       <section className="border-y border-slate-200 bg-white py-16">
         <div className="mx-auto max-w-4xl space-y-4 px-4 text-center">
           <h2 className="text-2xl font-semibold text-slate-900">Check our Library Catalog</h2>
@@ -576,29 +492,21 @@ const StudentLanding = () => {
             Sign in with your LibReport student account to search for available titles, place holds, and download digital copies.
           </p>
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-<<<<<<< ours
-            <Link
-              to="/student/signin"
-              className="rounded-full bg-brand-green px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-greenDark"
-            >
-=======
+
             <Link to="/student/signin" className="btn-student-primary">
->>>>>>> theirs
+
               Student Sign In
             </Link>
             <Link
               to="/student/signup"
-<<<<<<< ours
-              className="rounded-full border border-brand-green px-5 py-2 text-sm font-semibold text-brand-green transition hover:bg-brand-green hover:text-white"
-=======
+
               className="btn-student-outline"
->>>>>>> theirs
+
             >
               Create Account
             </Link>
           </div>
-<<<<<<< ours
-=======
+
           <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-2xl bg-slate-50 p-4 text-left text-sm text-slate-600 ring-1 ring-slate-200 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-semibold text-slate-900">Need help getting started?</p>
@@ -608,7 +516,7 @@ const StudentLanding = () => {
               Browse Titles
             </Link>
           </div>
->>>>>>> theirs
+
         </div>
       </section>
     </div>
