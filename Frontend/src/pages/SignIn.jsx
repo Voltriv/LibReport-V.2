@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
 import api, { persistAuthSession } from "../api";
+import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
 
 const inputClass =
   "mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent";
@@ -12,6 +13,7 @@ const SignIn = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     try {
@@ -46,25 +48,36 @@ const SignIn = () => {
   return (
     <div className="min-h-screen w-full bg-stone-50 dark:bg-stone-950 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 overflow-hidden rounded-2xl shadow-lg bg-white/90 dark:bg-stone-900/70 ring-1 ring-slate-200 dark:ring-stone-700">
+        {/* LEFT SIDE */}
         <div className="hidden md:flex flex-col items-center justify-center gap-6 p-10 bg-gradient-to-br from-brand-green to-brand-greenDark text-white">
           <img src={logo} alt="University Logo" className="h-24 w-24 rounded-full shadow-md" />
           <h1 className="text-3xl font-semibold tracking-tight">LibReport</h1>
-          <p className="text-white/90 text-center max-w-xs">Library tracking, usage, and reporting made simple.</p>
+          <p className="text-white/90 text-center max-w-xs">
+            Library tracking, usage, and reporting made simple.
+          </p>
         </div>
 
+        {/* RIGHT SIDE */}
         <div className="p-8 sm:p-10">
           <div className="mb-8">
-            <h2 className="text-2xl font-semibold text-slate-900 dark:text-stone-100">Sign in to LibReport</h2>
+            <h2 className="text-2xl font-semibold text-slate-900 dark:text-stone-100">
+              Sign in to LibReport
+            </h2>
             <p className="text-slate-600 dark:text-stone-300 mt-1">Log in to your account</p>
           </div>
 
           {error && (
-            <div className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>
+            <div className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-700 px-3 py-2 text-sm">
+              {error}
+            </div>
           )}
 
           <form className="space-y-4" onSubmit={handleLogin}>
+            {/* EMAIL / ID */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-stone-200">Admin ID</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-stone-200">
+                Admin ID
+              </label>
               <input
                 type="text"
                 value={email}
@@ -77,22 +90,32 @@ const SignIn = () => {
               />
             </div>
 
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-slate-700 dark:text-stone-200">Password</label>
-                <span />
+            {/* PASSWORD FIELD */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 dark:text-stone-200 mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className={`${inputClass} pr-10`} // make space for icon
+                  placeholder="Password"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-stone-200"
+                >
+                  {showPassword ? <AiOutlineEyeInvisible size={22} /> : <AiOutlineEye size={22} />}
+                </button>
               </div>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className={inputClass}
-                placeholder="Password"
-                autoComplete="current-password"
-              />
             </div>
 
+            {/* SUBMIT BUTTON */}
             <button
               type="submit"
               disabled={loading}

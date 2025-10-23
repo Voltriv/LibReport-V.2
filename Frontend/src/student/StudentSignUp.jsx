@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
 
 import api, { persistAuthSession } from "../api";
 
@@ -18,6 +19,10 @@ const StudentSignUp = () => {
   const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(false);
 
+  // 👁️ Password visibility toggles
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
+
   const onChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -28,7 +33,6 @@ const StudentSignUp = () => {
 
     if (!STUDENT_ID_PATTERN.test(form.studentId.trim())) {
       nextErrors.studentId = "Format must be 00-0000-00000";
-
     }
     if (!form.email.includes("@")) {
       nextErrors.email = "Please enter a valid email";
@@ -78,51 +82,61 @@ const StudentSignUp = () => {
     <div className="flex min-h-[70vh] items-center justify-center bg-slate-50 px-4 py-16">
       <div className="w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-slate-200">
         <div className="grid grid-cols-1 md:grid-cols-2">
-
+          {/* Left side */}
           <div className="relative hidden bg-gradient-to-br from-brand-green via-brand-greenDark to-[#183321] md:flex md:flex-col md:justify-between">
             <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=900&q=80')] bg-cover bg-center opacity-30" />
             <div className="relative flex h-full flex-col justify-between p-10 text-white">
               <div className="space-y-4">
                 <span className="btn-pill-sm bg-white/15 text-white/85">
-
                   Join the library community
                 </span>
-                <h2 className="mt-4 text-2xl font-semibold">Create your LibReport student account</h2>
+                <h2 className="mt-4 text-2xl font-semibold">
+                  Create your LibReport student account
+                </h2>
                 <p className="mt-3 text-sm text-white/80">
                   Register to save catalog searches, download ebooks, and request services tailored to your program.
                 </p>
               </div>
-
               <div className="text-xs text-white/75">
                 Already part of the team?{" "}
                 <Link to="/signin" className="student-inline-link text-white">
                   Librarian sign-in
                 </Link>
-
               </div>
             </div>
           </div>
+
+          {/* Right side (Form) */}
           <div className="p-8 sm:p-10">
             <h1 className="text-2xl font-semibold text-slate-900">Student Sign Up</h1>
-            <p className="mt-1 text-sm text-slate-500">Fill in your details to activate the student portal.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Fill in your details to activate the student portal.
+            </p>
+
             {error && (
-              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {error}
+              </div>
             )}
+
             <form className="mt-6 space-y-4" onSubmit={onSubmit}>
+              {/* Student ID */}
               <div>
                 <label className="text-sm font-medium text-slate-700">Student ID</label>
                 <input
                   name="studentId"
                   value={form.studentId}
                   onChange={onChange}
-
                   placeholder="00-0000-00000"
-
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                   required
                 />
-                {errors.studentId && <p className="mt-1 text-xs text-red-600">{errors.studentId}</p>}
+                {errors.studentId && (
+                  <p className="mt-1 text-xs text-red-600">{errors.studentId}</p>
+                )}
               </div>
+
+              {/* Email */}
               <div>
                 <label className="text-sm font-medium text-slate-700">Email</label>
                 <input
@@ -134,8 +148,12 @@ const StudentSignUp = () => {
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                   required
                 />
-                {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+                {errors.email && (
+                  <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+                )}
               </div>
+
+              {/* Full Name */}
               <div>
                 <label className="text-sm font-medium text-slate-700">Full Name</label>
                 <input
@@ -146,47 +164,81 @@ const StudentSignUp = () => {
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                   required
                 />
-                {errors.fullName && <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>}
+                {errors.fullName && (
+                  <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>
+                )}
               </div>
-              <div>
+
+              {/* Password */}
+              <div className="relative">
                 <label className="text-sm font-medium text-slate-700">Password</label>
                 <input
                   name="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={form.password}
                   onChange={onChange}
                   placeholder="Minimum 8 characters with letters and numbers"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 pr-10 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                   required
                 />
-                {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-[38px] text-slate-500 hover:text-slate-700"
+                >
+                  {showPassword ? (
+                    <AiOutlineEyeInvisible size={22} />
+                  ) : (
+                    <AiOutlineEye size={22} />
+                  )}
+                </button>
+                {errors.password && (
+                  <p className="mt-1 text-xs text-red-600">{errors.password}</p>
+                )}
               </div>
-              <div>
+
+              {/* Confirm Password */}
+              <div className="relative">
                 <label className="text-sm font-medium text-slate-700">Confirm Password</label>
                 <input
                   name="confirmPassword"
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   value={form.confirmPassword}
                   onChange={onChange}
                   placeholder="Re-enter your password"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 pr-10 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                   required
                 />
-                {errors.confirmPassword && <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>}
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute right-3 top-[38px] text-slate-500 hover:text-slate-700"
+                >
+                  {showConfirmPassword ? (
+                    <AiOutlineEyeInvisible size={22} />
+                  ) : (
+                    <AiOutlineEye size={22} />
+                  )}
+                </button>
+                {errors.confirmPassword && (
+                  <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>
+                )}
               </div>
 
-              <button type="submit" disabled={loading} className="btn-student-primary w-full">
-
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-student-primary w-full"
+              >
                 {loading ? "Creating account..." : "Sign Up"}
               </button>
             </form>
-            <p className="mt-6 text-center text-sm text-slate-600">
 
+            <p className="mt-6 text-center text-sm text-slate-600">
               Already have an account?{" "}
               <Link to="/student/signin" className="student-inline-link">
                 Sign in
               </Link>
-
             </p>
           </div>
         </div>
@@ -196,3 +248,4 @@ const StudentSignUp = () => {
 };
 
 export default StudentSignUp;
+
