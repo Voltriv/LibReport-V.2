@@ -1,6 +1,5 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-
 import api, { persistAuthSession } from "../api";
 
 const StudentSignIn = () => {
@@ -156,7 +155,7 @@ const StudentSignIn = () => {
 
               Library staff can access the admin dashboard through the {" "}
               <Link to="/signin" className="student-inline-link">
-                librarian sign-in
+                Librarian Sign-In
               </Link>{" "}
               page.
 

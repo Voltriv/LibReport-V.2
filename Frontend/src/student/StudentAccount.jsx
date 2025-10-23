@@ -1,6 +1,5 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-
 import api, { clearAuthSession, broadcastAuthChange } from "../api";
 
 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -68,7 +67,7 @@ const StudentAccount = () => {
 
         <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h2 className="text-lg font-semibold text-slate-900">Profile details</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Profile Details</h2>
             {loadingProfile ? (
               <div className="mt-4 space-y-3 text-sm text-slate-500">Loading your information...</div>
             ) : profile ? (
@@ -78,7 +77,7 @@ const StudentAccount = () => {
                   <dd className="col-span-2 text-slate-900">{profile.studentId}</dd>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <dt className="font-medium text-slate-500">Full name</dt>
+                  <dt className="font-medium text-slate-500">Full Name</dt>
                   <dd className="col-span-2 text-slate-900">{profile.fullName}</dd>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -90,7 +89,7 @@ const StudentAccount = () => {
                   <dd className="col-span-2 capitalize text-slate-900">{profile.status}</dd>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <dt className="font-medium text-slate-500">Member since</dt>
+                  <dt className="font-medium text-slate-500">Member Since</dt>
                   <dd className="col-span-2 text-slate-900">
                     {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "--"}
                   </dd>

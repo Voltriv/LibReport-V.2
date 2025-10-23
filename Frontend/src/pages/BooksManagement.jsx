@@ -338,7 +338,7 @@ const BooksManagement = () => {
                 <button className="rounded-lg px-3 py-2 bg-brand-gold text-white hover:opacity-90" onClick={lookupBook}>Lookup Book</button>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button className="rounded-lg px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60" disabled={!uSel || !bSel || loanBusy} onClick={doBorrow}>Borrow 14d</button>
+                <button className="rounded-lg px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60" disabled={!uSel || !bSel || loanBusy} onClick={doBorrow}>Borrow Id</button>
                 <button className="rounded-lg px-3 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60" disabled={!uSel || !bSel || loanBusy} onClick={doReturn}>Return</button>
 
               </div>
@@ -375,21 +375,20 @@ const BooksManagement = () => {
               Add Book
             </button>
           </div>
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-xs uppercase tracking-wide text-slate-500 dark:text-stone-400 bg-slate-100/60 dark:bg-stone-800/60">
-                  <th className="px-4 py-3 text-left font-semibold">Book Cover</th>
-                  <th className="px-4 py-3 text-left font-semibold">Title</th>
-                  <th className="px-4 py-3 text-left font-semibold">Author</th>
-                  <th className="px-4 py-3 text-left font-semibold">Book Code</th>
-                  <th className="px-4 py-3 text-left font-semibold">Available Copies</th>
-                  <th className="px-4 py-3 text-left font-semibold">Total Copies</th>
-                  <th className="px-4 py-3 text-left font-semibold">Category</th>
-                  <th className="px-4 py-3 text-left font-semibold">Book PDF</th>
-                  <th className="px-4 py-3 text-left font-semibold">Actions</th>
-                </tr>
-              </thead>
+          <div className="overflow-x-auto mt-6">
+              <table className="w-full table-auto border-collapse">
+                <thead>
+                  <tr className="bg-gray-200 dark:bg-stone-800 text-stone-900 dark:text-stone-100">
+                    <th className="px-4 py-2 font-bold text-left">Book Cover</th>
+                    <th className="px-4 py-2 font-bold text-left">Author</th>
+                    <th className="px-4 py-2 font-bold text-left">Book Code</th>
+                    <th className="px-4 py-2 font-bold text-left">Available Copies</th>
+                    <th className="px-4 py-2 font-bold text-left">Total Copies</th>
+                    <th className="px-4 py-2 font-bold text-left">Category</th>
+                    <th className="px-4 py-2 font-bold text-left">Book PDF</th>
+                    <th className="px-4 py-2 font-bold text-left">Actions</th>
+                  </tr>
+                </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-stone-700">
                 {catalog.map((book) => (
                   <tr key={book.id} className="bg-white dark:bg-stone-900/70 transition-colors hover:bg-slate-50 dark:hover:bg-stone-800/70">
@@ -893,3 +892,5 @@ const DeleteConfirmModal = ({ open, onCancel, onConfirm, title, loading }) => {
     </div>
   );
 };
+
+export default BooksManagement;

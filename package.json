@@ -22,7 +22,6 @@
     "demo:start:memory": "concurrently -k -n backend,frontend -c blue,magenta \"npm:demo:backend:memory\" \"npm:dev:frontend\"",
     "demo": "npm run demo:seed:memory && npm run demo:start:memory",
     "free:3000": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-port-3000.ps1",
-    
     "smoke": "node scripts/smoke.js",
     "smoke:full": "node scripts/wait-for-health.js && node scripts/smoke.js --full",
     "wait": "node scripts/wait-for-health.js",
@@ -31,7 +30,7 @@
     "start:guided": "node scripts/start-guided.js"
   },
   "devDependencies": {
-    "concurrently": "^9.0.1",
+    "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
     "rimraf": "^5.0.5"
   }

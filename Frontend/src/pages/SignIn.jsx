@@ -53,6 +53,16 @@ const SignIn = () => {
         </div>
 
         <div className="p-8 sm:p-10">
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={() => navigate("/student-landing")}
+              className="inline-flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-stone-100 hover:underline"
+            >
+              ← Back
+            </button>
+          </div>
+
           <div className="mb-8">
             <h2 className="text-2xl font-semibold text-slate-900 dark:text-stone-100">Sign in to LibReport</h2>
             <p className="text-slate-600 dark:text-stone-300 mt-1">Log in to your account</p>
