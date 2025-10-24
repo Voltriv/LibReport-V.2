@@ -1239,6 +1239,42 @@ app.post('/api/loans/borrow', adminRequired, async (req, res) => {
   res.status(201).json(loan);
 });
 
+// Student self-service borrowing
+app.post('/api/student/borrow', studentRequired, async (req, res) => {
+  const { bookId, days = 14 } = req.body || {};
+  if (!bookId) return res.status(400).json({ error: 'bookId required' });
+  
+  const userId = req.user.sub;
+  const [user, book] = await Promise.all([
+    User.findById(userId),
+    Book.findById(bookId)
+  ]);
+  
+  if (!user || !book) return res.status(404).json({ error: 'User or Book not found' });
+  if (book.availableCopies <= 0) return res.status(400).json({ error: 'No available copies' });
+  
+  // Check if student already has this book borrowed
+  const existingLoan = await Loan.findOne({ 
+    userId: user._id, 
+    bookId: book._id, 
+    returnedAt: null 
+  });
+  if (existingLoan) return res.status(400).json({ error: 'You already have this book borrowed' });
+  
+  const dueAt = new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000);
+  const loan = await Loan.create({ userId: user._id, bookId: book._id, dueAt });
+  await Book.findByIdAndUpdate(book._id, { $inc: { availableCopies: -1 } });
+  
+  res.status(201).json({
+    id: loan._id,
+    bookId: book._id,
+    title: book.title,
+    author: book.author,
+    borrowedAt: loan.borrowedAt,
+    dueAt: loan.dueAt
+  });
+});
+
 app.post('/api/loans/return', adminRequired, async (req, res) => {
   const { loanId, userId, bookId } = req.body || {};
   const query = loanId ? { _id: loanId } : { userId, bookId, returnedAt: null };
@@ -1264,6 +1300,28 @@ app.post('/api/loans/:id/return', adminRequired, async (req, res) => {
   const result = await markLoanAsReturned(loan);
   if (!result.ok) return res.status(result.status).json({ error: result.message });
   res.json(result.loan);
+});
+
+// Student self-service return
+app.post('/api/student/return', studentRequired, async (req, res) => {
+  const { bookId } = req.body || {};
+  if (!bookId) return res.status(400).json({ error: 'bookId required' });
+  
+  const userId = req.user.sub;
+  const loan = await Loan.findOne({ 
+    userId: new mongoose.Types.ObjectId(userId), 
+    bookId: new mongoose.Types.ObjectId(bookId), 
+    returnedAt: null 
+  });
+  
+  const result = await markLoanAsReturned(loan);
+  if (!result.ok) return res.status(result.status).json({ error: result.message });
+  
+  res.status(200).json({
+    message: 'Book returned successfully',
+    bookId: bookId,
+    returnedAt: result.loan.returnedAt
+  });
 });
 
 app.delete('/api/loans/:id', adminRequired, async (req, res) => {
@@ -1331,6 +1389,104 @@ app.get('/api/student/:id/borrowed', authRequired, async (req, res) => {
     { $project: { _id: 0, title: '$book.title', author: '$book.author', borrowedAt: 1, dueAt: 1 } }
   ]);
   res.json({ items });
+});
+
+// Student self-service borrowed books
+app.get('/api/student/borrowed', studentRequired, async (req, res) => {
+  const userId = req.user.sub;
+  
+  const items = await Loan.aggregate([
+    { $match: { userId: new mongoose.Types.ObjectId(userId), returnedAt: null } },
+    { $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } },
+    { $unwind: '$book' },
+    { $project: { 
+      _id: 1,
+      bookId: '$book._id',
+      title: '$book.title', 
+      author: '$book.author',
+      bookCode: '$book.bookCode',
+      borrowedAt: 1, 
+      dueAt: 1 
+    } }
+  ]);
+  res.json({ books: items });
+});
+
+// Student self-service overdue books
+app.get('/api/student/overdue-books', studentRequired, async (req, res) => {
+  const userId = req.user.sub;
+  const now = new Date();
+  
+  const items = await Loan.aggregate([
+    { 
+      $match: { 
+        userId: new mongoose.Types.ObjectId(userId), 
+        returnedAt: null,
+        dueAt: { $lt: now }
+      } 
+    },
+    { $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } },
+    { $unwind: '$book' },
+    { 
+      $project: { 
+        _id: 1,
+        bookId: '$book._id',
+        title: '$book.title', 
+        author: '$book.author',
+        bookCode: '$book.bookCode',
+        borrowedAt: 1, 
+        dueAt: 1,
+        daysOverdue: { $floor: { $divide: [{ $subtract: [now, '$dueAt'] }, 86400000] } }
+      } 
+    }
+  ]);
+  
+  // Add fine calculation (example: $1 per day overdue)
+  const booksWithFines = items.map(book => ({
+    ...book,
+    fine: Math.max(0, book.daysOverdue * 1.00)
+  }));
+  
+  res.json({ books: booksWithFines });
+});
+
+// Student self-service borrowing history
+app.get('/api/student/borrowing-history', studentRequired, async (req, res) => {
+  const userId = req.user.sub;
+  
+  const items = await Loan.aggregate([
+    { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+    { $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } },
+    { $unwind: '$book' },
+    { $sort: { borrowedAt: -1 } },
+    { 
+      $project: { 
+        _id: 1,
+        bookId: '$book._id',
+        title: '$book.title', 
+        author: '$book.author',
+        bookCode: '$book.bookCode',
+        borrowedAt: 1, 
+        dueAt: 1,
+        returnedAt: 1,
+        status: {
+          $cond: {
+            if: { $ne: ['$returnedAt', null] },
+            then: 'Returned',
+            else: {
+              $cond: {
+                if: { $lt: ['$dueAt', new Date()] },
+                then: 'Overdue',
+                else: 'Active'
+              }
+            }
+          }
+        }
+      } 
+    }
+  ]);
+  
+  res.json({ history: items });
 });
 
 // --- Reports

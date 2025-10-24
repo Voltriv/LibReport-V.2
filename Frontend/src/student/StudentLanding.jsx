@@ -135,28 +135,27 @@ const StudentLanding = () => {
             alt="Library interior"
             className="h-full w-full object-cover"
           />
-          <div className="absolute inset-0 bg-slate-900/70" />
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900/80 via-slate-900/70 to-slate-900/80" />
         </div>
-        <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-24 text-center text-white lg:py-32">
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-slate-900/20" />
+        <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-8 px-4 py-32 text-center text-white lg:py-40">
 
-          <span className="btn-pill-sm bg-white/20 text-white/85">
-
+          <span className="btn-pill-sm bg-white/20 backdrop-blur-sm text-white/90 border border-white/20">
             Welcome to the LibReport Student Portal
           </span>
-          <h1 className="text-3xl font-semibold leading-tight sm:text-4xl lg:text-5xl">
+          <h1 className="text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl bg-gradient-to-r from-white via-white to-white/90 bg-clip-text text-transparent">
             Discover resources, services, and spaces that power your learning.
           </h1>
-          <p className="max-w-2xl text-base text-white/90 sm:text-lg">
+          <p className="max-w-3xl text-lg text-white/90 sm:text-xl leading-relaxed">
             Explore the library, access digital collections, and manage your visits in one connected experience designed for
             students of every program.
           </p>
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
 
-            <Link to="/student/catalog" className="btn-student-primary btn-pill-sm">
+            <Link to="/student/catalog" className="btn-student-primary btn-pill-sm text-lg px-8 py-4 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105">
               Explore Catalog
             </Link>
-            <Link to="/student/signup" className="btn-student-inverse btn-pill-sm">
-
+            <Link to="/student/signup" className="btn-student-inverse btn-pill-sm text-lg px-8 py-4 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105">
               Create Student Account
             </Link>
           </div>
@@ -172,22 +171,29 @@ const StudentLanding = () => {
               From creating your profile to checking out ebooks, the LibReport portal keeps every touchpoint in sync so you can
               focus on your coursework.
             </p>
-            <div className="mt-8 space-y-4">
+            <div className="mt-8 space-y-6">
               {howItWorks.map((item, index) => (
                 <div
                   key={item.title}
-                  className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                  className="group rounded-3xl border border-slate-200/60 bg-white/95 backdrop-blur-sm p-6 shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:border-brand-green/20"
                 >
-                  <div className="flex items-start gap-4">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-green-soft text-sm font-semibold text-brand-green">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <div className="space-y-1">
-                      <h3 className="text-lg font-semibold text-slate-900">{item.title}</h3>
-                      <p className="text-sm text-slate-600">{item.description}</p>
+                  <div className="flex items-start gap-6">
+                    <div className="relative">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-green to-brand-greenDark text-sm font-bold text-white shadow-lg">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-brand-green to-brand-greenDark opacity-0 blur transition-opacity duration-300 group-hover:opacity-20"></div>
+                    </div>
+                    <div className="space-y-3 flex-1">
+                      <h3 className="text-xl font-bold text-slate-900">{item.title}</h3>
+                      <p className="text-slate-600 leading-relaxed">{item.description}</p>
                       {item.action && (
-                        <Link to={item.action.to} className="student-inline-link">
+                        <Link to={item.action.to} className="inline-flex items-center gap-2 text-brand-green font-semibold hover:text-brand-greenDark transition-colors">
                           {item.action.label}
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M7 17L17 7"/>
+                            <path d="M7 7h10v10"/>
+                          </svg>
                         </Link>
                       )}
                     </div>
@@ -270,13 +276,23 @@ const StudentLanding = () => {
             Each section is designed to meet a specific study need—from curated reference materials to multimedia creation hubs.
           </p>
           <div className="mt-8 grid gap-6 md:grid-cols-2">
-            {sections.map((section) => (
+            {sections.map((section, index) => (
               <div
                 key={section.title}
-                className="rounded-2xl bg-slate-50 p-6 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-1 hover:shadow-lg"
+                className="group rounded-3xl bg-white/80 backdrop-blur-sm p-8 shadow-sm ring-1 ring-slate-200/60 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:ring-brand-green/20"
               >
-                <h3 className="text-xl font-semibold text-slate-900">{section.title}</h3>
-                <p className="mt-3 text-sm text-slate-600">{section.description}</p>
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-green-soft to-brand-gold-soft text-brand-green shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-slate-900 mb-3">{section.title}</h3>
+                    <p className="text-slate-600 leading-relaxed">{section.description}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>

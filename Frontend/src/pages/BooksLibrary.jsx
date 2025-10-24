@@ -64,8 +64,14 @@ const BooksLibrary = () => {
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <Sidebar />
-      <main className="px-4 md:pl-6 lg:pl-8 pr-4 py-6 md:ml-72">
-        <h2 className="text-2xl font-semibold text-slate-900 dark:text-stone-100">Library</h2>
+      <main className="px-6 md:pl-8 lg:pl-10 pr-6 py-8 md:ml-80">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Library</h1>
+            <p className="text-slate-600 dark:text-stone-400 mt-1">Browse and search the library collection</p>
+          </div>
+        </div>
         <div className="mt-4 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search title or author"

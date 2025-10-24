@@ -7,19 +7,19 @@ const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   const baseLink =
-    "block rounded-lg px-3 py-2 text-sm font-medium text-white/90 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80";
-  const activeLink = "bg-white/20 text-brand-gold shadow-inner";
+    "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 group";
+  const activeLink = "bg-white/20 text-white shadow-lg ring-1 ring-white/20";
   const primaryNav = [
-    { to: "/dashboard", label: "Dashboard" },
-    { to: "/tracker", label: "Tracker" },
-    { to: "/usage-heatmaps", label: "Usage Heatmaps" },
-    { to: "/reports", label: "Reports" },
-    { to: "/library", label: "Library" },
+    { to: "/dashboard", label: "Dashboard", icon: "📊" },
+    { to: "/tracker", label: "Tracker", icon: "📍" },
+    { to: "/usage-heatmaps", label: "Usage Heatmaps", icon: "🔥" },
+    { to: "/reports", label: "Reports", icon: "📈" },
+    { to: "/library", label: "Library", icon: "📚" },
   ];
   const managementNav = [
-    { to: "/usermanagement", label: "User Management" },
-    { to: "/booksmanagement", label: "Books Management" },
-    { to: "/admins", label: "Admins" },
+    { to: "/usermanagement", label: "User Management", icon: "👥" },
+    { to: "/booksmanagement", label: "Books Management", icon: "📖" },
+    { to: "/admins", label: "Admins", icon: "👤" },
   ];
 
   return (
@@ -35,17 +35,24 @@ const Sidebar = () => {
         </svg>
       </button>
 
-      <aside className={`fixed top-0 left-0 h-full w-72 transform transition-transform duration-200 ease-out bg-gradient-to-b from-brand-green to-brand-greenDark text-white shadow-xl z-40 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
-        <div className="flex items-center justify-between gap-3 p-4 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="Logo" className="h-10 w-10 rounded" />
-            <span className="text-lg font-semibold">LibReport</span>
+      <aside className={`fixed top-0 left-0 h-full w-80 transform transition-all duration-300 ease-out bg-gradient-to-br from-brand-green via-brand-green to-brand-greenDark text-white shadow-2xl z-40 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+        <div className="flex items-center justify-between gap-4 p-6 border-b border-white/20 backdrop-blur-sm">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <img src={logo} alt="Logo" className="h-12 w-12 rounded-xl shadow-lg" />
+              <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-brand-gold shadow-sm"></div>
+            </div>
+            <div>
+              <span className="text-xl font-bold">LibReport</span>
+              <div className="text-xs text-white/70 font-medium">Admin Portal</div>
+            </div>
           </div>
           <ThemeToggle />
         </div>
 
-        <nav className="p-4 space-y-4 overflow-y-auto h-[calc(100%-4.5rem)]">
-          <div className="space-y-1">
+        <nav className="p-6 space-y-6 overflow-y-auto h-[calc(100%-5rem)]">
+          <div className="space-y-2">
+            <h3 className="px-4 py-2 text-xs font-bold text-white/60 uppercase tracking-wider">Overview</h3>
             {primaryNav.map((item) => (
               <NavLink
                 key={item.to}
@@ -53,14 +60,15 @@ const Sidebar = () => {
                 onClick={() => setIsOpen(false)}
                 className={({ isActive }) => `${baseLink} ${isActive ? activeLink : ""}`}
               >
+                <span className="text-lg group-hover:scale-110 transition-transform duration-200">{item.icon}</span>
                 {item.label}
               </NavLink>
             ))}
           </div>
 
-          <div>
-            <p className="px-3 text-xs uppercase tracking-wide text-white/60">Management</p>
-            <div className="mt-2 space-y-1">
+          <div className="border-t border-white/20 pt-6">
+            <h3 className="px-4 py-2 text-xs font-bold text-white/60 uppercase tracking-wider">Management</h3>
+            <div className="space-y-2">
               {managementNav.map((item) => (
                 <NavLink
                   key={item.to}
@@ -68,6 +76,7 @@ const Sidebar = () => {
                   onClick={() => setIsOpen(false)}
                   className={({ isActive }) => `${baseLink} ${isActive ? activeLink : ""}`}
                 >
+                  <span className="text-lg group-hover:scale-110 transition-transform duration-200">{item.icon}</span>
                   {item.label}
                 </NavLink>
               ))}
@@ -77,7 +86,7 @@ const Sidebar = () => {
       </aside>
 
       {/* Spacer for layout on md+ */}
-      <div className="hidden md:block w-72 shrink-0" />
+      <div className="hidden md:block w-80 shrink-0" />
     </>
   );
 };

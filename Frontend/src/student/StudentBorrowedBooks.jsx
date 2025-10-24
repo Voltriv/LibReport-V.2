@@ -5,12 +5,14 @@ const StudentBorrowedBooks = () => {
   const [loading, setLoading] = React.useState(true);
   const [books, setBooks] = React.useState([]);
   const [error, setError] = React.useState("");
+  const [returning, setReturning] = React.useState(false);
+  const [returnSuccess, setReturnSuccess] = React.useState(null);
 
   React.useEffect(() => {
     const fetchBorrowedBooks = async () => {
       try {
         setLoading(true);
-        const { data } = await api.get("/student/borrowed-books");
+        const { data } = await api.get("/student/borrowed");
         setBooks(data.books || []);
       } catch (err) {
         setError("Failed to load your borrowed books. Please try again later.");
@@ -22,6 +24,30 @@ const StudentBorrowedBooks = () => {
 
     fetchBorrowedBooks();
   }, []);
+
+  const handleReturnBook = React.useCallback(async (bookId, bookTitle) => {
+    if (returning) return;
+    
+    setReturning(true);
+    setError("");
+    
+    try {
+      await api.post('/student/return', { bookId });
+      
+      setReturnSuccess({
+        title: bookTitle
+      });
+      
+      // Refresh the borrowed books list
+      const { data } = await api.get("/student/borrowed");
+      setBooks(data.books || []);
+      
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to return book. Please try again.');
+    } finally {
+      setReturning(false);
+    }
+  }, [returning]);
 
   return (
     <div className="bg-slate-50">
@@ -37,6 +63,26 @@ const StudentBorrowedBooks = () => {
       <div className="mx-auto max-w-5xl px-4 py-10">
         {error && (
           <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+        )}
+
+        {returnSuccess && (
+          <div className="mb-6 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22,4 12,14.01 9,11.01"/>
+              </svg>
+              <span>
+                <strong>Success!</strong> You have returned "{returnSuccess.title}".
+              </span>
+            </div>
+            <button
+              onClick={() => setReturnSuccess(null)}
+              className="mt-2 text-green-600 hover:text-green-800 underline"
+            >
+              Dismiss
+            </button>
+          </div>
         )}
 
         {loading ? (
@@ -59,10 +105,10 @@ const StudentBorrowedBooks = () => {
                     <p className="text-sm text-slate-600">By {book.author}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <span className="inline-flex items-center rounded-full bg-brand-green-soft px-3 py-1 text-xs font-medium text-brand-green">
-                        Due: {new Date(book.dueDate).toLocaleDateString()}
+                        Due: {new Date(book.dueAt).toLocaleDateString()}
                       </span>
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        Borrowed: {new Date(book.borrowDate).toLocaleDateString()}
+                        Borrowed: {new Date(book.borrowedAt).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
@@ -74,10 +120,11 @@ const StudentBorrowedBooks = () => {
                       Renew
                     </button>
                     <button 
-                      className="btn-student-primary btn-pill-sm"
-                      onClick={() => {/* Implement return functionality */}}
+                      className="btn-student-primary btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => handleReturnBook(book.bookId, book.title)}
+                      disabled={returning}
                     >
-                      Return
+                      {returning ? 'Returning...' : 'Return'}
                     </button>
                   </div>
                 </div>

@@ -76,10 +76,10 @@ const StudentBorrowingHistory = () => {
                       <div className="text-sm text-slate-500">{item.author}</div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
-                      {new Date(item.borrowDate).toLocaleDateString()}
+                      {new Date(item.borrowedAt).toLocaleDateString()}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
-                      {item.returnDate ? new Date(item.returnDate).toLocaleDateString() : "N/A"}
+                      {item.returnedAt ? new Date(item.returnedAt).toLocaleDateString() : "N/A"}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${

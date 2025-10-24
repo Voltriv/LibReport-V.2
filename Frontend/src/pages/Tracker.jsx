@@ -156,46 +156,135 @@ const Tracker = () => {
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <Sidebar />
 
-      <main className="px-4 md:pl-6 lg:pl-8 pr-4 py-6 md:ml-72">
-        {/* Topbar */}
-        <div className="flex items-center justify-end">
-          <div className="relative">
-            <button onClick={() => setShowDropdown(!showDropdown)} className="inline-flex items-center gap-2 rounded-full bg-white/80 dark:bg-stone-900/60 ring-1 ring-slate-200 dark:ring-stone-700 px-2 py-1 shadow hover:shadow-md">
-              <img src={profileImage} alt="Profile" className="h-8 w-8 rounded-full" />
-              <span className="text-sm text-slate-700 dark:text-stone-200 max-w-[12rem] truncate" title={userName}>{userName}</span>
+      <main className="px-6 md:pl-8 lg:pl-10 pr-6 py-8 md:ml-80">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Tracker</h1>
+            <p className="text-slate-600 dark:text-stone-400 mt-1">Monitor library visits and user activity</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
             </button>
-            {showDropdown && (
-              <div className="absolute right-0 mt-2 w-40 rounded-md bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg p-1">
-                <button className="w-full text-left rounded px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => setShowLogoutModal(true)}>Logout</button>
-              </div>
-            )}
+            <div className="relative">
+              <button onClick={() => setShowDropdown(!showDropdown)} className="inline-flex items-center gap-3 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200">
+                <img src={profileImage} alt="Profile" className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20" />
+                <span className="text-sm font-medium text-slate-700 dark:text-stone-200 max-w-[12rem] truncate" title={userName}>{userName}</span>
+                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showDropdown && (
+                <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                  <button className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2" onClick={() => setShowLogoutModal(true)}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Cards */}
-        <section className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Stats Cards */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
           {[
-            { label: 'Outbound', value: stats.outbound },
-            { label: 'Inbound', value: stats.inbound },
-            { label: 'Overdue', value: stats.overdue },
-            { label: 'Active Visits', value: stats.active }
+            { label: 'Outbound', value: stats.outbound, color: 'blue', icon: '📤' },
+            { label: 'Inbound', value: stats.inbound, color: 'green', icon: '📥' },
+            { label: 'Overdue', value: stats.overdue, color: 'red', icon: '⚠️' },
+            { label: 'Active Visits', value: stats.active, color: 'purple', icon: '👥' }
           ].map((c) => (
-            <div key={c.label} className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
-              <p className="text-sm text-slate-500 dark:text-stone-300">{c.label}</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-stone-100">{c.value}</p>
+            <div key={c.label} className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${
+              c.color === 'blue' ? 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800' :
+              c.color === 'green' ? 'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800' :
+              c.color === 'red' ? 'from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 ring-1 ring-red-200 dark:ring-red-800' :
+              'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 ring-1 ring-purple-200 dark:ring-purple-800'
+            } p-6 hover:shadow-xl transition-all duration-300`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-sm font-medium ${
+                    c.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
+                    c.color === 'green' ? 'text-green-600 dark:text-green-400' :
+                    c.color === 'red' ? 'text-red-600 dark:text-red-400' :
+                    'text-purple-600 dark:text-purple-400'
+                  }`}>{c.label}</p>
+                  <p className={`mt-2 text-3xl font-bold ${
+                    c.color === 'blue' ? 'text-blue-900 dark:text-blue-100' :
+                    c.color === 'green' ? 'text-green-900 dark:text-green-100' :
+                    c.color === 'red' ? 'text-red-900 dark:text-red-100' :
+                    'text-purple-900 dark:text-purple-100'
+                  }`}>{c.value}</p>
+                </div>
+                <div className={`h-12 w-12 rounded-xl ${
+                  c.color === 'blue' ? 'bg-blue-500' :
+                  c.color === 'green' ? 'bg-green-500' :
+                  c.color === 'red' ? 'bg-red-500' :
+                  'bg-purple-500'
+                } flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
+                  <span className="text-2xl">{c.icon}</span>
+                </div>
+              </div>
             </div>
           ))}
         </section>
 
-        {/* Manual entry */}
-        <section className="mt-6 grid grid-cols-1 gap-4">
-          <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
-            <label className="block text-sm font-medium text-slate-700 dark:text-stone-200">Enter Student ID</label>
-            <input value={input} onChange={e=>setInput(e.target.value)} placeholder="03-0000-00000"
-                   className="mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button className="rounded-lg px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60" disabled={busy || !STUDENT_ID_PATTERN.test(String(input).trim())} onClick={doEnter}>Enter</button>
-              <button className="rounded-lg px-3 py-2 bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-60" disabled={busy || !STUDENT_ID_PATTERN.test(String(input).trim())} onClick={doExit}>Exit</button>
+        {/* Manual Entry */}
+        <section className="grid grid-cols-1 gap-6 mb-8">
+          <div className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-10 w-10 rounded-xl bg-brand-green flex items-center justify-center">
+                <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Manual Entry</h3>
+                <p className="text-sm text-slate-600 dark:text-stone-400">Track student visits manually</p>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Enter Student ID</label>
+                <input 
+                  value={input} 
+                  onChange={e=>setInput(e.target.value)} 
+                  placeholder="03-0000-00000"
+                  className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 font-mono" 
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button 
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200 font-medium" 
+                  disabled={busy || !STUDENT_ID_PATTERN.test(String(input).trim())} 
+                  onClick={doEnter}
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Enter Library
+                </button>
+                <button 
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200 font-medium" 
+                  disabled={busy || !STUDENT_ID_PATTERN.test(String(input).trim())} 
+                  onClick={doExit}
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Exit Library
+                </button>
+              </div>
             </div>
             {message && <div className="mt-3 text-sm text-slate-700 dark:text-stone-200">{message}</div>}
           </div>
