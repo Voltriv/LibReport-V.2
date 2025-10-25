@@ -13,7 +13,7 @@ const bcrypt = require('bcryptjs');
 const validator = require('validator');
 const crypto = require('node:crypto');
 
-const STUDENT_ID_REGEX = /^\d{2}-\d{4}-\d{5,6}$/;
+const STUDENT_ID_REGEX = /^\d{2}-\d{4}-\d{5}$/;
 
 const app = express();
 app.set('etag', 'strong');
@@ -323,7 +323,7 @@ const userSchema = new mongoose.Schema(
       unique: true,
       trim: true,
       validate: {
-        // Format: 03-2324-03224X (2-4-5/6 digits with hyphens)
+        // Format: 03-2324-03224 (2 digits - 4 digits - 5 digits with hyphens)
         validator: v => STUDENT_ID_REGEX.test(v),
         message: 'Student ID must match 00-0000-00000 pattern'
       }
@@ -381,7 +381,7 @@ const Admin = mongoose.model('Admin', adminSchema);
 async function ensureDefaultAdmin() {
   const rawEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
   const email = rawEmail ? String(rawEmail).trim().toLowerCase() : '';
-  const adminId = String(process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '03-2324-032246').trim();
+  const adminId = String(process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '03-2324-03224').trim();
   const fullName = String(process.env.ADMIN_NAME || 'Librarian').trim() || 'Librarian';
   const password = process.env.ADMIN_PASSWORD || 'Password123';
 
@@ -394,6 +394,9 @@ async function ensureDefaultAdmin() {
     const updates = {};
     if (email && !existing.email) updates.email = email;
     if (existing.role !== 'librarian') updates.role = 'librarian';
+    if (adminId && existing.adminId !== adminId && STUDENT_ID_REGEX.test(adminId)) {
+      updates.adminId = adminId;
+    }
     if (Object.keys(updates).length) {
       await Admin.updateOne({ _id: existing._id }, { $set: updates });
     }
@@ -772,10 +775,18 @@ app.post('/api/auth/login', async (req, res) => {
   }
   if (!account) {
     // Final fallback: allow admins to log in with legacy studentId without dashes
-    const normalized = lookup.replace(/[^0-9]/g, '');
-    account = await Admin.findOne({ adminId: normalized });
-    if (account) isAdmin = true;
-    if (!account) account = await User.findOne({ studentId: normalized });
+    const digitsOnly = lookup.replace(/[^0-9]/g, '');
+    if (digitsOnly.length === 11) {
+      const dashed = `${digitsOnly.slice(0, 2)}-${digitsOnly.slice(2, 6)}-${digitsOnly.slice(6)}`;
+      account = await Admin.findOne({ adminId: dashed });
+      if (account) isAdmin = true;
+      if (!account) account = await User.findOne({ studentId: dashed });
+    }
+    if (!account) {
+      account = await Admin.findOne({ adminId: digitsOnly });
+      if (account) isAdmin = true;
+      if (!account) account = await User.findOne({ studentId: digitsOnly });
+    }
   }
   if (!account) return res.status(401).json({ error: 'invalid credentials' });
 

@@ -9,18 +9,28 @@ let mem;
 let client;
 
 async function ensureIndexes(db) {
-  await db.collection('books').createIndexes([
+  const safeCreate = async (collection, indexes) => {
+    try {
+      await db.collection(collection).createIndexes(indexes);
+    } catch (err) {
+      if (!(err && (err.code === 85 || err.codeName === 'IndexOptionsConflict'))) {
+        throw err;
+      }
+    }
+  };
+
+  await safeCreate('books', [
     { key: { title: 'text', author: 'text' }, name: 'books_text' }
   ]);
-  await db.collection('loans').createIndexes([
+  await safeCreate('loans', [
     { key: { userId: 1, returnedAt: 1 }, name: 'loans_user_returned' },
     { key: { dueAt: 1 }, name: 'loans_due' },
     { key: { bookId: 1 }, name: 'loans_book' }
   ]);
-  await db.collection('users').createIndexes([
+  await safeCreate('users', [
     { key: { role: 1, name: 1 }, name: 'users_role_name' }
   ]);
-  await db.collection('hours').createIndexes([
+  await safeCreate('hours', [
     { key: { branch: 1, dayOfWeek: 1 }, name: 'hours_branch_dow', unique: true }
   ]);
 }
@@ -50,8 +60,21 @@ async function main() {
 
   // bcrypt hash for "Password123" (cost 10)
   const demoHash = '$2b$10$vr7A1FNcgAQR/PmKzjVfMuCUWccdXVQqeA9M8I/VeEiFxLzAVtYoO';
-  const adminUser = { _id: new ObjectId(), adminId: '03-2324-032246', fullName: 'Librarian', role: 'librarian', email: 'admin@example.com', passwordHash: demoHash };
-  await db.collection('admins').updateOne({ adminId: adminUser.adminId }, { $set: adminUser }, { upsert: true, bypassDocumentValidation: true });
+  const adminUser = { _id: new ObjectId(), adminId: '03-2324-03224', fullName: 'Librarian', role: 'librarian', email: 'admin@example.com', passwordHash: demoHash };
+  await db.collection('admins').updateOne(
+    { adminId: adminUser.adminId },
+    {
+      $set: {
+        adminId: adminUser.adminId,
+        fullName: adminUser.fullName,
+        email: adminUser.email,
+        role: adminUser.role,
+        passwordHash: adminUser.passwordHash
+      },
+      $setOnInsert: { _id: adminUser._id }
+    },
+    { upsert: true, bypassDocumentValidation: true }
+  );
 
   const bookDocs = [
     {
@@ -94,7 +117,7 @@ async function main() {
   const userDocs = [
     {
       _id: new ObjectId(),
-      studentId: '03-2324-000101',
+      studentId: '03-2324-00101',
       email: 'alice.villanueva@example.com',
       fullName: 'Alice Villanueva',
       barcode: 'LR-000101',
@@ -104,7 +127,7 @@ async function main() {
     },
     {
       _id: new ObjectId(),
-      studentId: '03-2324-000102',
+      studentId: '03-2324-00102',
       email: 'ben.santos@example.com',
       fullName: 'Ben Santos',
       barcode: 'LR-000102',
@@ -114,7 +137,7 @@ async function main() {
     },
     {
       _id: new ObjectId(),
-      studentId: '03-2324-000103',
+      studentId: '03-2324-00103',
       email: 'cara.delacruz@example.com',
       fullName: 'Cara Dela Cruz',
       barcode: 'LR-000103',

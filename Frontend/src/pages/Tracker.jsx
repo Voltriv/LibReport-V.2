@@ -5,7 +5,15 @@ import profileImage from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
 import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
-const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5,6}$/;
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5}$/;
+
+function formatStudentId(raw) {
+  const digits = String(raw || '').replace(/\D/g, '').slice(0, 11);
+  const part1 = digits.slice(0, 2);
+  const part2 = digits.slice(2, 6);
+  const part3 = digits.slice(6, 11);
+  return [part1, part2, part3].filter(Boolean).join('-');
+}
 
 const Tracker = () => {
   const [showDropdown, setShowDropdown] = useState(false);
@@ -114,17 +122,18 @@ const Tracker = () => {
   }, []);
 
   function toPayload(code) {
-    const s = String(code || '').trim();
-    if (!STUDENT_ID_PATTERN.test(s)) return null;
-    return { studentId: s };
+    const normalized = formatStudentId(code);
+    if (!STUDENT_ID_PATTERN.test(normalized)) return null;
+    return { studentId: normalized };
   }
 
   async function doEnter() {
     const payload = toPayload(input);
     if (!payload) {
-      setMessage('Student ID must match 03-0000-00000');
+      setMessage('Student ID must match 00-0000-00000');
       return;
     }
+    setInput(payload.studentId);
     setBusy(true); setMessage('');
     try {
       const { data } = await api.post('/visit/enter', payload);
@@ -138,9 +147,10 @@ const Tracker = () => {
   async function doExit() {
     const payload = toPayload(input);
     if (!payload) {
-      setMessage('Student ID must match 03-0000-00000');
+      setMessage('Student ID must match 00-0000-00000');
       return;
     }
+    setInput(payload.studentId);
     setBusy(true); setMessage('');
     try {
       const { data } = await api.post('/visit/exit', payload);
@@ -257,7 +267,18 @@ const Tracker = () => {
                 <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Enter Student ID</label>
                 <input 
                   value={input} 
-                  onChange={e=>setInput(e.target.value)} 
+                  onChange={(e) => {
+                    const formatted = formatStudentId(e.target.value);
+                    setInput(formatted);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      doEnter();
+                    }
+                  }}
+                  inputMode="numeric"
+                  maxLength={13}
                   placeholder="03-0000-00000"
                   className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 font-mono" 
                 />

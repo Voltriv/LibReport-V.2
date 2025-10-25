@@ -3,7 +3,15 @@ import { Link, useNavigate } from "react-router-dom";
 
 import api, { persistAuthSession } from "../api";
 
-const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5}$/;
+
+function formatStudentId(raw) {
+  const digits = String(raw || '').replace(/\D/g, '').slice(0, 11);
+  const part1 = digits.slice(0, 2);
+  const part2 = digits.slice(2, 6);
+  const part3 = digits.slice(6, 11);
+  return [part1, part2, part3].filter(Boolean).join('-');
+}
 
 const StudentSignUp = () => {
   const navigate = useNavigate();
@@ -20,14 +28,18 @@ const StudentSignUp = () => {
 
   const onChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    let nextValue = value;
+    if (name === "studentId") {
+      nextValue = formatStudentId(value);
+    }
+    setForm((prev) => ({ ...prev, [name]: nextValue }));
   };
 
   const validate = () => {
     const nextErrors = {};
 
     if (!STUDENT_ID_PATTERN.test(form.studentId.trim())) {
-      nextErrors.studentId = "Format must be 00-0000-000000";
+      nextErrors.studentId = "Format must be 00-0000-00000";
 
     }
     if (!form.email.includes("@")) {
@@ -115,9 +127,9 @@ const StudentSignUp = () => {
                   name="studentId"
                   value={form.studentId}
                   onChange={onChange}
-
-                  placeholder="00-0000-000000"
-
+                  placeholder="00-0000-00000"
+                  maxLength={13}
+                  inputMode="numeric"
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                   required
                 />

@@ -4,6 +4,16 @@ import pfp from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
 import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5}$/;
+
+function formatStudentId(raw) {
+  const digits = String(raw || "").replace(/\D/g, "").slice(0, 11);
+  const part1 = digits.slice(0, 2);
+  const part2 = digits.slice(2, 6);
+  const part3 = digits.slice(6, 11);
+  return [part1, part2, part3].filter(Boolean).join("-");
+}
+
 const Admins = () => {
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
@@ -43,8 +53,13 @@ const Admins = () => {
   const onCreate = async (e) => {
     e.preventDefault();
     setError("");
+    const adminId = formatStudentId(creating.adminId);
+    if (!STUDENT_ID_PATTERN.test(adminId)) {
+      setError("Admin ID must match 00-0000-00000");
+      return;
+    }
     try {
-      await api.post("/admins", creating);
+      await api.post("/admins", { ...creating, adminId });
       setCreating({ adminId: "", fullName: "", email: "", password: "", role: "librarian_staff" });
       load();
     } catch (e) {
@@ -131,7 +146,11 @@ const Admins = () => {
             className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2"
             placeholder="Admin ID"
             value={creating.adminId}
-            onChange={(e) => setCreating((s) => ({ ...s, adminId: e.target.value }))}
+            onChange={(e) =>
+              setCreating((s) => ({ ...s, adminId: formatStudentId(e.target.value) }))
+            }
+            maxLength={13}
+            inputMode="numeric"
             required
           />
           <input
