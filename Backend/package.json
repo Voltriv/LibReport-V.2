@@ -10,7 +10,11 @@
     "db:indexes": "node scripts/indexes.js",
     "db:seed": "node scripts/seed.js",
     "db:bootstrap": "npm run db:indexes && npm run db:seed",
-    "db:check:admins": "node scripts/check_admins.js"
+    "db:check:admins": "node scripts/check_admins.js",
+    "import:books": "node scripts/import_books.js",
+    "export:books": "node scripts/books_export.js",
+    "validate:books": "node scripts/books_validate.js",
+    "import:books:data": "node scripts/import_books.js data/books.template.csv"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

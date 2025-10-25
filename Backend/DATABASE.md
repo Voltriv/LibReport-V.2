@@ -91,6 +91,8 @@ Tracks borrowing activity between students and books.
 - `{ bookId: 1, returnedAt: 1 }`
 - `{ dueAt: 1 }`
 
+Default borrowing period: The backend uses an environment-configurable default for loan durations. If a client does not provide `days` when creating a loan, `LOAN_DAYS_DEFAULT` is applied. The example `.env` sets this to `28`, doubling the previous 14‑day window.
+
 ### `visits`
 Lobby tracker for student entry and exit logs.
 

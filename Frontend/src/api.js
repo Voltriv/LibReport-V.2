@@ -26,7 +26,9 @@ export function directBackendBase() {
 
     const normalizedPort = String(port || '').replace(/^:+/, '');
     const shouldIncludePort = normalizedPort && normalizedPort !== '80' && normalizedPort !== '443';
-    return `${protocol}//${hostname}${shouldIncludePort ? `:${normalizedPort}` : ''}`;
+    // Prefer 127.0.0.1 over localhost to avoid IPv6 (::1) quirks on Windows
+    const hostOut = hostname === 'localhost' ? '127.0.0.1' : hostname;
+    return `${protocol}//${hostOut}${shouldIncludePort ? `:${normalizedPort}` : ''}`;
   } catch {
     return 'http://localhost:4000';
   }

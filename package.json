@@ -26,6 +26,7 @@
     "smoke:full": "node scripts/wait-for-health.js && node scripts/smoke.js --full",
     "wait": "node scripts/wait-for-health.js",
     "smoke:wait": "node scripts/wait-for-health.js && node scripts/smoke.js",
+    "report:unused:frontend": "node scripts/find-unused-frontend.js",
     "prestart:guided": "npm run free:3000",
     "start:guided": "node scripts/start-guided.js"
   },

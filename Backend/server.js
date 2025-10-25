@@ -248,6 +248,8 @@ const { uri: MONGO_URI_INIT, dbName: DB_NAME } = resolveMongoConfig();
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const NO_DB = String(process.env.NO_DB || process.env.BACKEND_NO_DB || '').toLowerCase() === 'true';
 const USE_MEMORY_DB = String(process.env.USE_MEMORY_DB || process.env.BACKEND_INMEMORY_DB || '').toLowerCase() === 'true';
+// Default borrowing period in days. Can be overridden via environment.
+const DEFAULT_LOAN_DAYS = Number(process.env.LOAN_DAYS_DEFAULT || 28);
 
 let MONGO_URI = MONGO_URI_INIT;
 if (!MONGO_URI && !NO_DB && !USE_MEMORY_DB) {
@@ -425,7 +427,8 @@ const bookSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     author: { type: String, required: true, trim: true },
     isbn: { type: String, trim: true },
-    bookCode: { type: String, trim: true, unique: true, sparse: true },
+    // Unique index for bookCode is defined below via schema.index to avoid duplicate-index warnings
+    bookCode: { type: String, trim: true },
     genre: { type: String, trim: true },
     tags: [{ type: String, trim: true }],
     totalCopies: { type: Number, default: 1, min: 0 },
@@ -442,6 +445,7 @@ const bookSchema = new mongoose.Schema(
   { timestamps: true }
 );
 bookSchema.index({ title: 'text', author: 'text' });
+// Ensure uniqueness at the index level (not in the field), to prevent duplicate schema index warnings
 bookSchema.index({ bookCode: 1 }, { unique: true, sparse: true });
 const Book = mongoose.model('Book', bookSchema);
 
@@ -1422,7 +1426,7 @@ async function markLoanAsReturned(loan) {
 }
 
 app.post('/api/loans/borrow', adminRequired, async (req, res) => {
-  const { userId, bookId, days = 14 } = req.body || {};
+  const { userId, bookId, days: daysRaw } = req.body || {};
   if (!userId || !bookId) return res.status(400).json({ error: 'userId and bookId required' });
   const [user, book] = await Promise.all([
     User.findById(userId),
@@ -1430,7 +1434,8 @@ app.post('/api/loans/borrow', adminRequired, async (req, res) => {
   ]);
   if (!user || !book) return res.status(404).json({ error: 'User or Book not found' });
   if (book.availableCopies <= 0) return res.status(400).json({ error: 'No available copies' });
-  const dueAt = new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000);
+  const chosenDays = Number(daysRaw ?? DEFAULT_LOAN_DAYS) || DEFAULT_LOAN_DAYS;
+  const dueAt = new Date(Date.now() + chosenDays * 24 * 60 * 60 * 1000);
   const loan = await Loan.create({ userId: user._id, bookId: book._id, dueAt });
   await Book.findByIdAndUpdate(book._id, { $inc: { availableCopies: -1 } });
   res.status(201).json(loan);
@@ -1438,7 +1443,7 @@ app.post('/api/loans/borrow', adminRequired, async (req, res) => {
 
 // Student self-service borrowing
 app.post('/api/student/borrow', studentRequired, async (req, res) => {
-  const { bookId, days = 14 } = req.body || {};
+  const { bookId, days: daysRaw } = req.body || {};
   if (!bookId) return res.status(400).json({ error: 'bookId required' });
   
   const userId = req.user.sub;
@@ -1458,7 +1463,8 @@ app.post('/api/student/borrow', studentRequired, async (req, res) => {
   });
   if (existingLoan) return res.status(400).json({ error: 'You already have this book borrowed' });
   
-  const dueAt = new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000);
+  const chosenDays = Number(daysRaw ?? DEFAULT_LOAN_DAYS) || DEFAULT_LOAN_DAYS;
+  const dueAt = new Date(Date.now() + chosenDays * 24 * 60 * 60 * 1000);
   const loan = await Loan.create({ userId: user._id, bookId: book._id, dueAt });
   await Book.findByIdAndUpdate(book._id, { $inc: { availableCopies: -1 } });
   

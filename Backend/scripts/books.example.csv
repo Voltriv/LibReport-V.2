@@ -1,0 +1,4 @@
+title,author,isbn,bookCode,genre,tags,totalCopies,availableCopies
+The Hobbit,J.R.R. Tolkien,9780547928227,HBT-001,Fantasy,"fantasy|classic",5,5
+To Kill a Mockingbird,Harper Lee,9780061120084,TMK-002,Classic,"classic|novel",3,3
+1984,George Orwell,9780451524935,NIN-003,Dystopian,"dystopian|political",4,4
