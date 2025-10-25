@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -10,227 +10,335 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Box
-} from '@mui/material';
+  Stack,
+  Paper,
+  Typography,
+  Box,
+} from "@mui/material";
 
 const GENRE_DEFAULTS = [
-  'Fiction', 'Non-fiction', 'Science', 'Technology', 'History', 'Arts', 'Education', 'Reference', 'Research'
+  "Fiction",
+  "Non-fiction",
+  "Science",
+  "Technology",
+  "History",
+  "Arts",
+  "Education",
+  "Reference",
+  "Research",
 ];
 
-const BookFormModal = ({ open, mode = 'create', book = null, onCancel, onSubmit }) => {
-  const [formData, setFormData] = useState({
-    title: '',
-    author: '',
-    isbn: '',
-    bookCode: '',
-    genre: '',
-    totalCopies: 1,
-    availableCopies: 1
+const fileToBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
+export default function BookFormModal({
+  open,
+  mode = "create",             // "create" | "edit"
+  book = null,                  // prefill for edit
+  onCancel,
+  onSubmit,                     // (payload) => Promise<void>
+  busy = false,
+}) {
+  const [formData, setFormData] = useState({
+    title: "",
+    author: "",
+    isbn: "",
+    bookCode: "",
+    genre: "",
+    totalCopies: 1,
+    availableCopies: 1,
+  });
+
+  // Files
+  const [coverFile, setCoverFile] = useState(null);     // image/*
+  const [coverPreview, setCoverPreview] = useState(""); // URL string
+  const [pdfFile, setPdfFile] = useState(null);         // application/pdf
+  const [coverCleared, setCoverCleared] = useState(false);
+
+  const [errors, setErrors] = useState({});
+
+  // Seed state when opening
   useEffect(() => {
-    if (open) {
-      if (mode === 'edit' && book) {
-        setFormData({
-          title: book.title || '',
-          author: book.author || '',
-          isbn: book.isbn || '',
-          bookCode: book.bookCode || '',
-          genre: book.genre || '',
-          totalCopies: book.totalCopies || 1,
-          availableCopies: book.availableCopies || 1
-        });
-      } else {
-        setFormData({
-          title: '',
-          author: '',
-          isbn: '',
-          bookCode: '',
-          genre: '',
-          totalCopies: 1,
-          availableCopies: 1
-        });
-      }
-      setErrors({});
+    if (!open) return;
+
+    if (mode === "edit" && book) {
+      setFormData({
+        title: book.title || "",
+        author: book.author || "",
+        isbn: book.isbn || "",
+        bookCode: book.bookCode || "",
+        genre: book.genre || "",
+        totalCopies: Number(book.totalCopies ?? 1),
+        availableCopies: Number(book.availableCopies ?? 1),
+      });
+      setCoverPreview(book.coverImagePath || book.coverUrl || "");
+    } else {
+      setFormData({
+        title: "",
+        author: "",
+        isbn: "",
+        bookCode: "",
+        genre: "",
+        totalCopies: 1,
+        availableCopies: 1,
+      });
+      setCoverPreview("");
     }
+
+    setCoverCleared(false);
+    setCoverFile(null);
+    setPdfFile(null);
+    setErrors({});
   }, [open, mode, book]);
 
-  const handleChange = (field) => (event) => {
-    const value = event.target.value;
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
-    }
+  // Preview for selected cover
+  useEffect(() => {
+    if (!coverFile) return;
+    const url = URL.createObjectURL(coverFile);
+    setCoverPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [coverFile]);
+
+  const handleChange = (field) => (e) => {
+    const value = e.target.value;
+    setFormData((p) => ({ ...p, [field]: value }));
+    if (errors[field]) setErrors((p) => ({ ...p, [field]: "" }));
   };
 
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.title.trim()) {
-      newErrors.title = 'Title is required';
+  const validate = () => {
+    const e = {};
+    if (!formData.title.trim()) e.title = "Title is required";
+    if (!formData.author.trim()) e.author = "Author is required";
+    if (Number(formData.totalCopies) < 1) e.totalCopies = "At least 1 copy";
+    if (
+      Number(formData.availableCopies) < 0 ||
+      Number(formData.availableCopies) > Number(formData.totalCopies)
+    ) {
+      e.availableCopies = "0 to Total Copies only";
     }
-    
-    if (!formData.author.trim()) {
-      newErrors.author = 'Author is required';
-    }
-    
-    if (formData.totalCopies < 1) {
-      newErrors.totalCopies = 'Total copies must be at least 1';
-    }
-    
-    if (formData.availableCopies < 0 || formData.availableCopies > formData.totalCopies) {
-      newErrors.availableCopies = 'Available copies must be between 0 and total copies';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    if (coverFile && !coverFile.type.startsWith("image/")) e.cover = "Cover must be an image";
+    if (pdfFile && pdfFile.type !== "application/pdf") e.pdf = "Attached file must be a PDF";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    
-    if (!validateForm()) {
-      return;
+  const submit = async (ev) => {
+    ev.preventDefault();
+    if (!validate() || busy) return;
+
+    const payload = {
+      ...formData,
+      totalCopies: Number(formData.totalCopies),
+      availableCopies: Number(formData.availableCopies),
+    };
+
+    if (coverFile) {
+      payload.coverImageData = await fileToBase64(coverFile);
+      payload.coverImageName = coverFile.name;
+    } else if (coverCleared && mode === "edit") {
+      payload.coverRemoved = true;
     }
-    
-    setIsSubmitting(true);
-    
-    try {
-      await onSubmit(formData);
-      onCancel();
-    } catch (error) {
-      console.error('Error submitting book:', error);
-    } finally {
-      setIsSubmitting(false);
+
+    if (pdfFile) {
+      payload.pdfData = await fileToBase64(pdfFile);
+      payload.pdfName = pdfFile.name;
     }
+
+    await onSubmit(payload);
   };
 
-  const handleCancel = () => {
-    setFormData({
-      title: '',
-      author: '',
-      isbn: '',
-      bookCode: '',
-      genre: '',
-      totalCopies: 1,
-      availableCopies: 1
-    });
+  const cancel = () => {
+    setCoverFile(null);
+    setPdfFile(null);
+    setCoverPreview("");
+    setCoverCleared(false);
     setErrors({});
-    onCancel();
+    onCancel?.();
   };
 
   return (
-    <Dialog open={open} onClose={handleCancel} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        {mode === 'create' ? 'Add New Book' : 'Edit Book'}
-      </DialogTitle>
-      
-      <form onSubmit={handleSubmit}>
+    <Dialog open={open} onClose={cancel} maxWidth="md" fullWidth>
+      <DialogTitle>{mode === "create" ? "Add New Book" : "Edit Book"}</DialogTitle>
+
+      <form onSubmit={submit}>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField
-              label="Title"
-              value={formData.title}
-              onChange={handleChange('title')}
-              error={!!errors.title}
-              helperText={errors.title}
-              required
-              fullWidth
-            />
-            
-            <TextField
-              label="Author"
-              value={formData.author}
-              onChange={handleChange('author')}
-              error={!!errors.author}
-              helperText={errors.author}
-              required
-              fullWidth
-            />
-            
-            <TextField
-              label="ISBN"
-              value={formData.isbn}
-              onChange={handleChange('isbn')}
-              fullWidth
-            />
-            
-            <TextField
-              label="Book Code"
-              value={formData.bookCode}
-              onChange={handleChange('bookCode')}
-              fullWidth
-            />
-            
-            <FormControl fullWidth>
-              <InputLabel>Genre</InputLabel>
-              <Select
-                value={formData.genre}
-                onChange={handleChange('genre')}
-                label="Genre"
-              >
-                <MenuItem value="">
-                  <em>Select a genre</em>
-                </MenuItem>
-                {GENRE_DEFAULTS.map((genre) => (
-                  <MenuItem key={genre} value={genre}>
-                    {genre}
+          <Stack spacing={3}>
+            {/* Main Fields */}
+            <Stack spacing={2}>
+              <TextField
+                label="Title *"
+                value={formData.title}
+                onChange={handleChange("title")}
+                error={!!errors.title}
+                helperText={errors.title}
+                fullWidth
+                autoFocus
+              />
+              <TextField
+                label="Author *"
+                value={formData.author}
+                onChange={handleChange("author")}
+                error={!!errors.author}
+                helperText={errors.author}
+                fullWidth
+              />
+              <TextField label="ISBN" value={formData.isbn} onChange={handleChange("isbn")} fullWidth />
+              <TextField
+                label="Book Code"
+                value={formData.bookCode}
+                onChange={handleChange("bookCode")}
+                fullWidth
+              />
+              <FormControl fullWidth>
+                <InputLabel>Genre</InputLabel>
+                <Select label="Genre" value={formData.genre} onChange={handleChange("genre")}>
+                  <MenuItem value="">
+                    <em>Select a genre</em>
                   </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
-                label="Total Copies"
-                type="number"
-                value={formData.totalCopies}
-                onChange={handleChange('totalCopies')}
-                error={!!errors.totalCopies}
-                helperText={errors.totalCopies}
-                inputProps={{ min: 1 }}
-                sx={{ flex: 1 }}
-              />
-              
-              <TextField
-                label="Available Copies"
-                type="number"
-                value={formData.availableCopies}
-                onChange={handleChange('availableCopies')}
-                error={!!errors.availableCopies}
-                helperText={errors.availableCopies}
-                inputProps={{ min: 0, max: formData.totalCopies }}
-                sx={{ flex: 1 }}
-              />
-            </Box>
-          </Box>
+                  {GENRE_DEFAULTS.map((g) => (
+                    <MenuItem key={g} value={g}>
+                      {g}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <TextField
+                  label="Total Copies"
+                  type="number"
+                  inputProps={{ min: 1 }}
+                  value={formData.totalCopies}
+                  onChange={handleChange("totalCopies")}
+                  error={!!errors.totalCopies}
+                  helperText={errors.totalCopies}
+                  fullWidth
+                />
+                <TextField
+                  label="Available Copies"
+                  type="number"
+                  inputProps={{ min: 0, max: formData.totalCopies }}
+                  value={formData.availableCopies}
+                  onChange={handleChange("availableCopies")}
+                  error={!!errors.availableCopies}
+                  helperText={errors.availableCopies}
+                  fullWidth
+                />
+              </Stack>
+            </Stack>
+
+            {/* Uploads */}
+            <Stack direction={{ xs: "column", md: "row" }} spacing={3}>
+              {/* Cover Photo */}
+              <Stack spacing={1} sx={{ flex: 1 }}>
+                <Typography variant="subtitle2">Cover Photo</Typography>
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <Box
+                    sx={{
+                      width: "100%",
+                      height: 260,
+                      borderRadius: 1,
+                      bgcolor: "grey.100",
+                      overflow: "hidden",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {coverPreview ? (
+                      // eslint-disable-next-line jsx-a11y/img-redundant-alt
+                      <img
+                        src={coverPreview}
+                        alt="Cover preview"
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No image selected
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                    <Button variant="outlined" component="label">
+                      Choose Image
+                      <input
+                        hidden
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const nextFile = e.target.files?.[0] || null;
+                          setCoverFile(nextFile);
+                          setCoverCleared(false);
+                        }}
+                      />
+                    </Button>
+                    {coverPreview && (
+                      <Button
+                        variant="text"
+                        color="inherit"
+                        onClick={() => {
+                          setCoverFile(null);
+                          setCoverPreview("");
+                          setCoverCleared(true);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </Stack>
+                  {errors.cover && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1, display: "block" }}>
+                      {errors.cover}
+                    </Typography>
+                  )}
+                </Paper>
+              </Stack>
+
+              {/* PDF File */}
+              <Stack spacing={1} sx={{ flex: 1 }}>
+                <Typography variant="subtitle2">Attach File (PDF)</Typography>
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Button variant="outlined" component="label">
+                      Choose PDF
+                      <input
+                        hidden
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                      />
+                    </Button>
+                    <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 260 }}>
+                      {pdfFile?.name || "No file selected"}
+                    </Typography>
+                  </Stack>
+                  {errors.pdf && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1, display: "block" }}>
+                      {errors.pdf}
+                    </Typography>
+                  )}
+                </Paper>
+              </Stack>
+            </Stack>
+          </Stack>
         </DialogContent>
-        
+
         <DialogActions>
-          <Button onClick={handleCancel} disabled={isSubmitting}>
+          <Button onClick={cancel} disabled={busy}>
             Cancel
           </Button>
-          <Button 
-            type="submit" 
-            variant="contained" 
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Saving...' : (mode === 'create' ? 'Add Book' : 'Update Book')}
+          <Button type="submit" variant="contained" disabled={busy}>
+            {busy ? "Saving..." : mode === "create" ? "Add Book" : "Update Book"}
           </Button>
         </DialogActions>
       </form>
     </Dialog>
   );
-};
+}
 
-export default BookFormModal;
+

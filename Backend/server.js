@@ -37,6 +37,8 @@ const MIME_EXTENSIONS = {
   'application/pdf': '.pdf'
 };
 
+let uploadBucket = null;
+
 function parseBase64Payload(raw) {
   if (!raw || typeof raw !== 'string') return null;
   const trimmed = raw.trim();
@@ -69,7 +71,31 @@ function sanitizeFilename(name) {
   return name.replace(/[^A-Za-z0-9._-]+/g, '_');
 }
 
-async function removeStoredFile(storedPath) {
+async function removeStoredFile(stored) {
+  if (!stored) return;
+  const entry =
+    typeof stored === 'string'
+      ? { storedPath: stored }
+      : stored && typeof stored === 'object'
+      ? stored
+      : null;
+  if (!entry) return;
+
+  const fileId = entry.fileId || entry.gridFsId || entry.id;
+  if (fileId && uploadBucket) {
+    try {
+      const objectId =
+        typeof fileId === 'string' ? new mongoose.Types.ObjectId(fileId) : fileId;
+      await uploadBucket.delete(objectId);
+      return;
+    } catch (err) {
+      if (!err || err.code !== 'FileNotFound') {
+        console.warn('Failed to delete GridFS file:', err?.message || err);
+      }
+    }
+  }
+
+  const storedPath = entry.storedPath;
   if (!storedPath) return;
   const prefix = '/uploads/';
   let relative = storedPath;
@@ -84,10 +110,19 @@ async function removeStoredFile(storedPath) {
   } catch {}
 }
 
-async function storeBase64File({ base64, originalName, allowedMime = [], maxBytes = 5 * 1024 * 1024 }) {
+async function storeBase64File({
+  base64,
+  originalName,
+  allowedMime = [],
+  maxBytes = 5 * 1024 * 1024,
+  subDir = ''
+}) {
   const parsed = parseBase64Payload(base64);
   if (!parsed) throw new Error('Invalid file data provided');
   const { buffer } = parsed;
+  if (!uploadBucket) {
+    throw new Error('File storage is not ready. Please try again shortly.');
+  }
   const mime = (parsed.mime || '').toLowerCase();
   const normalizedAllowed = allowedMime.map((m) => m.toLowerCase());
   if (maxBytes && buffer.length > maxBytes) {
@@ -123,11 +158,38 @@ async function storeBase64File({ base64, originalName, allowedMime = [], maxByte
 
   const safeName = sanitizeFilename(originalName || 'file');
   const fileName = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext || ''}`;
-  const finalPath = path.join(UPLOAD_DIR, fileName);
-  await fsp.writeFile(finalPath, buffer);
+
+  const contentType =
+    mime ||
+    (ext === '.pdf'
+      ? 'application/pdf'
+      : ext === '.png'
+      ? 'image/png'
+      : ext === '.jpg' || ext === '.jpeg'
+      ? 'image/jpeg'
+      : '');
+
+  const fileId = new mongoose.Types.ObjectId();
+  await new Promise((resolve, reject) => {
+    const uploadStream = uploadBucket.openUploadStreamWithId(fileId, fileName, {
+      contentType: contentType || undefined,
+      metadata: {
+        originalName: safeName || fileName,
+        category: subDir ? sanitizeFilename(subDir) : undefined,
+        mime: contentType || mime || 'application/octet-stream',
+        uploadedAt: new Date()
+      }
+    });
+    uploadStream.on('error', reject);
+    uploadStream.on('finish', resolve);
+    uploadStream.end(buffer);
+  });
+
   return {
-    storedPath: `/uploads/${fileName}`,
-    originalName: safeName || fileName
+    storedPath: `/api/files/${fileId.toString()}`,
+    originalName: safeName || fileName,
+    fileId,
+    mime: contentType || mime || 'application/octet-stream'
   };
 }
 
@@ -194,6 +256,23 @@ if (!MONGO_URI && !NO_DB && !USE_MEMORY_DB) {
 }
 
 let DB_READY = false;
+
+function initUploadBucket() {
+  if (NO_DB) return;
+  const db = mongoose.connection && mongoose.connection.db;
+  if (!db) return;
+  try {
+    uploadBucket = new mongoose.mongo.GridFSBucket(db, { bucketName: 'uploads' });
+  } catch (err) {
+    console.error('Failed to initialize GridFS bucket:', err?.message || err);
+  }
+}
+
+mongoose.connection.on('connected', initUploadBucket);
+mongoose.connection.on('disconnected', () => {
+  uploadBucket = null;
+});
+
 if (!NO_DB && USE_MEMORY_DB) {
   (async () => {
     try {
@@ -201,6 +280,7 @@ if (!NO_DB && USE_MEMORY_DB) {
       const mem = await MongoMemoryServer.create();
       MONGO_URI = mem.getUri();
       await mongoose.connect(MONGO_URI, { dbName: DB_NAME, serverSelectionTimeoutMS: 10000, family: 4 });
+      initUploadBucket();
       DB_READY = true;
       console.log(`MongoMemoryServer started. Using in-memory DB "${DB_NAME}"`);
       await ensureDefaultAdmin();
@@ -217,6 +297,7 @@ if (!NO_DB && USE_MEMORY_DB) {
         serverSelectionTimeoutMS: 10000,
         family: 4
       });
+      initUploadBucket();
       DB_READY = true;
       console.log(`MongoDB connected to database "${DB_NAME}"`);
       await ensureDefaultAdmin();
@@ -296,15 +377,46 @@ const adminSchema = new mongoose.Schema(
 const Admin = mongoose.model('Admin', adminSchema);
 
 async function ensureDefaultAdmin() {
-  const email = (process.env.ADMIN_EMAIL || 'admin@example.com').toLowerCase();
-  const adminId = process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '03-2324-032246';
-  const fullName = process.env.ADMIN_NAME || 'Librarian';
+  const rawEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+  const email = rawEmail ? String(rawEmail).trim().toLowerCase() : '';
+  const adminId = String(process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '03-2324-032246').trim();
+  const fullName = String(process.env.ADMIN_NAME || 'Librarian').trim() || 'Librarian';
   const password = process.env.ADMIN_PASSWORD || 'Password123';
-  const exists = await Admin.findOne({ adminId }).lean();
-  if (exists) return;
+
+  const lookups = [];
+  if (adminId) lookups.push({ adminId });
+  if (email) lookups.push({ email });
+
+  const existing = lookups.length ? await Admin.findOne({ $or: lookups }).lean() : null;
+  if (existing) {
+    const updates = {};
+    if (email && !existing.email) updates.email = email;
+    if (existing.role !== 'librarian') updates.role = 'librarian';
+    if (Object.keys(updates).length) {
+      await Admin.updateOne({ _id: existing._id }, { $set: updates });
+    }
+    return;
+  }
+
   const passwordHash = await bcrypt.hash(String(password), 10);
-  await Admin.create({ adminId, email, fullName, role: 'librarian', passwordHash });
-  console.log(`Created default admin (librarian) with Admin ID ${adminId}`);
+  const toCreate = {
+    adminId,
+    fullName,
+    role: 'librarian',
+    passwordHash
+  };
+  if (email) toCreate.email = email;
+
+  try {
+    await Admin.create(toCreate);
+    console.log(`Created default admin (librarian) with Admin ID ${adminId}`);
+  } catch (err) {
+    if (err && (err.code === 11000 || err.code === 11001)) {
+      console.warn('Default admin already exists, skipping bootstrap account creation.');
+    } else {
+      throw err;
+    }
+  }
 }
 
 // --- Additional models ---
@@ -320,8 +432,12 @@ const bookSchema = new mongoose.Schema(
     availableCopies: { type: Number, default: 1, min: 0 },
     coverImagePath: { type: String, trim: true },
     coverImageOriginalName: { type: String, trim: true },
+    coverImageFileId: { type: mongoose.Schema.Types.ObjectId },
+    coverImageMime: { type: String, trim: true },
     pdfPath: { type: String, trim: true },
-    pdfOriginalName: { type: String, trim: true }
+    pdfOriginalName: { type: String, trim: true },
+    pdfFileId: { type: mongoose.Schema.Types.ObjectId },
+    pdfMime: { type: String, trim: true }
   },
   { timestamps: true }
 );
@@ -1015,36 +1131,42 @@ app.post('/api/books', adminRequired, async (req, res) => {
       tags: tagList
     };
 
-    const storedPaths = [];
+    const storedUploads = [];
     try {
       if (coverImageData) {
         const coverInfo = await storeBase64File({
           base64: coverImageData,
           originalName: coverImageName,
           allowedMime: ['image/png', 'image/jpeg', 'image/webp'],
-          maxBytes: 5 * 1024 * 1024
+          maxBytes: 5 * 1024 * 1024,
+          subDir: 'covers'
         });
         payload.coverImagePath = coverInfo.storedPath;
         payload.coverImageOriginalName = coverInfo.originalName;
-        storedPaths.push(coverInfo.storedPath);
+        payload.coverImageFileId = coverInfo.fileId;
+        payload.coverImageMime = coverInfo.mime;
+        storedUploads.push(coverInfo);
       }
       if (pdfData) {
         const pdfInfo = await storeBase64File({
           base64: pdfData,
           originalName: pdfName,
           allowedMime: ['application/pdf'],
-          maxBytes: 25 * 1024 * 1024
+          maxBytes: 25 * 1024 * 1024,
+          subDir: 'pdfs'
         });
         payload.pdfPath = pdfInfo.storedPath;
         payload.pdfOriginalName = pdfInfo.originalName;
-        storedPaths.push(pdfInfo.storedPath);
+        payload.pdfFileId = pdfInfo.fileId;
+        payload.pdfMime = pdfInfo.mime;
+        storedUploads.push(pdfInfo);
       }
 
       const book = await Book.create(payload);
       res.status(201).json(book);
     } catch (err) {
-      for (const pathRef of storedPaths) {
-        await removeStoredFile(pathRef);
+      for (const stored of storedUploads) {
+        await removeStoredFile(stored);
       }
       throw err;
     }
@@ -1092,13 +1214,16 @@ app.patch('/api/books/:id', adminRequired, async (req, res) => {
     coverImageData,
     coverImageName,
     pdfData,
-    pdfName
+    pdfName,
+    coverRemoved
   } = req.body || {};
 
   let newCover;
   let newPdf;
   let oldCoverPath;
+  let oldCoverFileId;
   let oldPdfPath;
+  let oldPdfFileId;
   try {
     const book = await Book.findById(req.params.id);
     if (!book) return res.status(404).json({ error: 'Not found' });
@@ -1146,27 +1271,45 @@ app.patch('/api/books/:id', adminRequired, async (req, res) => {
       book.availableCopies = availableValue;
     }
 
+    const removeCoverOnly = Boolean(coverRemoved && !coverImageData);
+    if (removeCoverOnly && book.coverImagePath) {
+      oldCoverPath = book.coverImagePath;
+      oldCoverFileId = book.coverImageFileId;
+      book.coverImagePath = undefined;
+      book.coverImageOriginalName = undefined;
+      book.coverImageFileId = undefined;
+      book.coverImageMime = undefined;
+    }
+
     if (coverImageData) {
       newCover = await storeBase64File({
         base64: coverImageData,
         originalName: coverImageName,
         allowedMime: ['image/png', 'image/jpeg', 'image/webp'],
-        maxBytes: 5 * 1024 * 1024
+        maxBytes: 5 * 1024 * 1024,
+        subDir: 'covers'
       });
       oldCoverPath = book.coverImagePath;
+      oldCoverFileId = book.coverImageFileId;
       book.coverImagePath = newCover.storedPath;
       book.coverImageOriginalName = newCover.originalName;
+      book.coverImageFileId = newCover.fileId;
+      book.coverImageMime = newCover.mime;
     }
     if (pdfData) {
       newPdf = await storeBase64File({
         base64: pdfData,
         originalName: pdfName,
         allowedMime: ['application/pdf'],
-        maxBytes: 25 * 1024 * 1024
+        maxBytes: 25 * 1024 * 1024,
+        subDir: 'pdfs'
       });
       oldPdfPath = book.pdfPath;
+      oldPdfFileId = book.pdfFileId;
       book.pdfPath = newPdf.storedPath;
       book.pdfOriginalName = newPdf.originalName;
+      book.pdfFileId = newPdf.fileId;
+      book.pdfMime = newPdf.mime;
     }
 
     if (tags !== undefined) {
@@ -1177,17 +1320,20 @@ app.patch('/api/books/:id', adminRequired, async (req, res) => {
 
     await book.save();
 
+    if (removeCoverOnly && oldCoverPath) {
+      await removeStoredFile({ storedPath: oldCoverPath, fileId: oldCoverFileId });
+    }
     if (newCover && oldCoverPath && oldCoverPath !== newCover.storedPath) {
-      await removeStoredFile(oldCoverPath);
+      await removeStoredFile({ storedPath: oldCoverPath, fileId: oldCoverFileId });
     }
     if (newPdf && oldPdfPath && oldPdfPath !== newPdf.storedPath) {
-      await removeStoredFile(oldPdfPath);
+      await removeStoredFile({ storedPath: oldPdfPath, fileId: oldPdfFileId });
     }
 
     res.json(book.toObject());
   } catch (e) {
-    if (newCover) await removeStoredFile(newCover.storedPath);
-    if (newPdf) await removeStoredFile(newPdf.storedPath);
+    if (newCover) await removeStoredFile(newCover);
+    if (newPdf) await removeStoredFile(newPdf);
     if (e && (e.code === 11000 || e.code === 11001)) {
       const field = e?.keyPattern ? Object.keys(e.keyPattern)[0] : null;
       if (field === 'bookCode') {
@@ -1201,9 +1347,60 @@ app.patch('/api/books/:id', adminRequired, async (req, res) => {
 app.delete('/api/books/:id', adminRequired, async (req, res) => {
   const out = await Book.findByIdAndDelete(req.params.id).lean();
   if (!out) return res.status(404).json({ error: 'Not found' });
-  if (out.coverImagePath) await removeStoredFile(out.coverImagePath);
-  if (out.pdfPath) await removeStoredFile(out.pdfPath);
+  if (out.coverImagePath || out.coverImageFileId) {
+    await removeStoredFile({ storedPath: out.coverImagePath, fileId: out.coverImageFileId });
+  }
+  if (out.pdfPath || out.pdfFileId) {
+    await removeStoredFile({ storedPath: out.pdfPath, fileId: out.pdfFileId });
+  }
   res.status(204).send();
+});
+
+app.get(['/api/files/:id', '/api/files/:id/:name'], async (req, res) => {
+  if (NO_DB) return res.status(503).json({ error: 'Database disabled (NO_DB=true)' });
+  if (!uploadBucket) return res.status(503).json({ error: 'File storage is not ready yet' });
+
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: 'Invalid file identifier' });
+  }
+
+  const fileId = new mongoose.Types.ObjectId(id);
+  try {
+    const filesCollection = mongoose.connection.db.collection('uploads.files');
+    const fileDoc = await filesCollection.findOne({ _id: fileId });
+    if (!fileDoc) return res.status(404).json({ error: 'File not found' });
+
+    const contentType = fileDoc.contentType || fileDoc.metadata?.mime || 'application/octet-stream';
+    res.set('Content-Type', contentType);
+
+    const download = String(req.query.download || '').toLowerCase();
+    const shouldDownload = download === '1' || download === 'true';
+    if (shouldDownload) {
+      const rawName =
+        req.params.name ||
+        fileDoc.metadata?.originalName ||
+        fileDoc.filename ||
+        `file-${id}`;
+      const headerName = sanitizeFilename(rawName) || `file-${id}`;
+      res.set(
+        'Content-Disposition',
+        `attachment; filename="${headerName}"`
+      );
+    }
+
+    const stream = uploadBucket.openDownloadStream(fileId);
+    stream.on('error', (err) => {
+      if (!res.headersSent) {
+        res.status(500).json({ error: err?.message || 'Failed to read file' });
+      } else {
+        res.destroy(err);
+      }
+    });
+    stream.pipe(res);
+  } catch (err) {
+    res.status(500).json({ error: err?.message || 'Unexpected error' });
+  }
 });
 
 // --- Loans

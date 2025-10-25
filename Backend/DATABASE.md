@@ -59,13 +59,19 @@ Library catalog including cover and PDF metadata.
 | `availableCopies` | Number | Currently available copies. Default 1. |
 | `coverImagePath` | String | Relative path for uploaded cover image. |
 | `coverImageOriginalName` | String | Original cover filename. |
+| `coverImageFileId` | ObjectId | GridFS `_id` pointing to the stored cover in the `uploads` bucket. |
+| `coverImageMime` | String | MIME type recorded for the cover image. |
 | `pdfPath` | String | Relative path for uploaded PDF. |
 | `pdfOriginalName` | String | Original PDF filename. |
+| `pdfFileId` | ObjectId | GridFS `_id` pointing to the stored PDF in the `uploads` bucket. |
+| `pdfMime` | String | MIME type recorded for the PDF (usually `application/pdf`). |
 | `createdAt` / `updatedAt` | Date | Auto timestamps. |
 
 **Indexes**
 - Text index on `{ title: 'text', author: 'text' }`
 - Unique sparse index on `{ bookCode: 1 }`
+
+> **File storage:** Cover images and PDFs are streamed into MongoDB GridFS (bucket name `uploads`). The REST API exposes them at `GET /api/files/:id[/:name]`, so Compass will show the binary chunks under `uploads.files` / `uploads.chunks`. The `coverImagePath` / `pdfPath` fields simply store the public URL (e.g. `/api/files/<ObjectId>`) consumed by the frontend.
 
 ### `loans`
 Tracks borrowing activity between students and books.
