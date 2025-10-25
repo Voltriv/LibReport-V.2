@@ -33,22 +33,30 @@ async function main() {
   const { uri, dbName } = resolveMongoConfig();
   await mongoose.connect(uri, { dbName, serverSelectionTimeoutMS: 10000, family: 4 });
 
-  const Book = mongoose.models.Book || mongoose.model(
-    'Book',
-    new mongoose.Schema(
-      {
-        title: String,
-        author: String,
-        isbn: String,
-        bookCode: String,
-        genre: String,
-        tags: [String],
-        totalCopies: Number,
-        availableCopies: Number,
-      },
-      { timestamps: true }
-    )
-  );
+  const Book =
+    mongoose.models.Book ||
+    mongoose.model(
+      'Book',
+      new mongoose.Schema(
+        {
+          title: String,
+          author: String,
+          isbn: String,
+          bookCode: String,
+          genre: String,
+          tags: [String],
+          totalCopies: Number,
+          availableCopies: Number,
+          coverImagePath: String,
+          coverImageOriginalName: String,
+          coverImageMime: String,
+          pdfPath: String,
+          pdfOriginalName: String,
+          pdfMime: String,
+        },
+        { timestamps: true }
+      )
+    );
 
   const docs = await Book.find({}).lean();
   if (format === 'json') {
@@ -63,6 +71,12 @@ async function main() {
       'tags',
       'totalCopies',
       'availableCopies',
+      'coverImagePath',
+      'coverImageOriginalName',
+      'coverImageMime',
+      'pdfPath',
+      'pdfOriginalName',
+      'pdfMime',
     ];
     const lines = [header.join(',')];
     for (const d of docs) {
@@ -76,6 +90,12 @@ async function main() {
           Array.isArray(d.tags) ? d.tags.join('|') : '',
           Number.isFinite(d.totalCopies) ? d.totalCopies : '',
           Number.isFinite(d.availableCopies) ? d.availableCopies : '',
+          d.coverImagePath || '',
+          d.coverImageOriginalName || '',
+          d.coverImageMime || '',
+          d.pdfPath || '',
+          d.pdfOriginalName || '',
+          d.pdfMime || '',
         ])
       );
     }
