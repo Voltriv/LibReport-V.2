@@ -13,7 +13,8 @@ const bcrypt = require('bcryptjs');
 const validator = require('validator');
 const crypto = require('node:crypto');
 
-const STUDENT_ID_REGEX = /^\d{2}-\d{4}-\d{5}$/;
+// Accept 2-4-5 or 2-4-6 digit formats (backwards compatible)
+const STUDENT_ID_REGEX = /^\d{2}-\d{4}-\d{5,6}$/;
 
 const app = express();
 app.set('etag', 'strong');
@@ -323,9 +324,9 @@ const userSchema = new mongoose.Schema(
       unique: true,
       trim: true,
       validate: {
-        // Format: 03-2324-03224 (2 digits - 4 digits - 5 digits with hyphens)
+        // Format: 03-2324-03224 or 03-2324-032246 (2-4-5 or 2-4-6 digits with hyphens)
         validator: v => STUDENT_ID_REGEX.test(v),
-        message: 'Student ID must match 00-0000-00000 pattern'
+        message: 'Student ID must match 00-0000-00000 or 00-0000-000000 pattern'
       }
     },
     email: {
@@ -674,7 +675,7 @@ app.post('/api/auth/signup', async (req, res) => {
     const fullNameNorm = String(fullName).trim();
 
     if (!STUDENT_ID_REGEX.test(studentIdNorm)) {
-      return res.status(400).json({ error: 'Student ID must match 00-0000-00000 pattern' });
+      return res.status(400).json({ error: 'Student ID must match 00-0000-00000 or 00-0000-000000 pattern' });
 
     }
     if (!validator.isEmail(emailNorm)) {
@@ -734,7 +735,7 @@ app.post('/api/auth/admin-signup', async (req, res) => {
     const adminIdNorm = String(adminId).trim();
     const emailNorm = email ? String(email).trim().toLowerCase() : undefined;
     const fullNameNorm = String(fullName).trim();
-    if (!STUDENT_ID_REGEX.test(adminIdNorm)) return res.status(400).json({ error: 'Admin ID must match 00-0000-00000 pattern' });
+    if (!STUDENT_ID_REGEX.test(adminIdNorm)) return res.status(400).json({ error: 'Admin ID must match 00-0000-00000 or 00-0000-000000 pattern' });
     if (email && !validator.isEmail(emailNorm)) return res.status(400).json({ error: 'Email must be valid' });
 
     const exists = await Admin.findOne({ $or: [ { adminId: adminIdNorm }, emailNorm ? { email: emailNorm } : null ].filter(Boolean) }).lean();
@@ -847,7 +848,7 @@ app.post('/api/admins', adminRequired, async (req, res) => {
     const emailNorm = email ? String(email).trim().toLowerCase() : undefined;
     const fullNameNorm = String(fullName).trim();
     if (!STUDENT_ID_REGEX.test(adminIdNorm)) {
-      return res.status(400).json({ error: 'adminId must match 00-0000-00000 pattern' });
+      return res.status(400).json({ error: 'adminId must match 00-0000-00000 or 00-0000-000000 pattern' });
     }
     const exists = await Admin.findOne({ $or: [ { adminId: adminIdNorm }, emailNorm ? { email: emailNorm } : null ].filter(Boolean) });
     if (exists) return res.status(409).json({ error: 'adminId or email already exists' });
@@ -959,18 +960,41 @@ app.get('/api/heatmap/visits', authRequired, async (req, res) => {
 app.post('/api/visit/enter', async (req, res) => {
   const { studentId, barcode, branch = 'Main' } = req.body || {};
   if (!studentId && !barcode) return res.status(400).json({ error: 'studentId or barcode required' });
-  const user = await User.findOne(
-    studentId ? { studentId: String(studentId) } : { barcode: String(barcode) }
-  ).lean();
-  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const normalizedStudentId = studentId ? String(studentId).trim() : null;
+  const normalizedBarcode = barcode ? String(barcode).trim() : null;
+
+  let user = null;
+  if (normalizedStudentId) {
+    user = await User.findOne({ studentId: normalizedStudentId }).lean();
+  } else if (normalizedBarcode) {
+    user = await User.findOne({ barcode: normalizedBarcode }).lean();
+  }
 
   const now = new Date();
+  const orFilters = [];
+  if (user && user._id) orFilters.push({ userId: user._id });
+  if (normalizedStudentId) orFilters.push({ studentId: normalizedStudentId });
+  if (normalizedBarcode) orFilters.push({ barcode: normalizedBarcode });
+  if (!orFilters.length) return res.status(400).json({ error: 'invalid payload' });
+
   const dupe = await Visit.findOne({
-    $or: [ { userId: user._id }, { studentId: user.studentId }, barcode ? { barcode } : { barcode: null } ],
+    $or: orFilters,
     enteredAt: { $gt: new Date(now.getTime() - 2 * 60 * 1000) }
   }).lean();
-  if (!dupe) await Visit.create({ userId: user._id, studentId: user.studentId, barcode, branch, enteredAt: now });
-  res.json({ ok: true, deduped: !!dupe, user: { id: String(user._id), fullName: user.fullName } });
+
+  if (!dupe) {
+    await Visit.create({
+      userId: user ? user._id : undefined,
+      studentId: normalizedStudentId || (user ? user.studentId : undefined),
+      barcode: normalizedBarcode || undefined,
+      branch,
+      enteredAt: now
+    });
+  }
+
+  const displayName = user?.fullName || normalizedStudentId || normalizedBarcode || 'Unknown';
+  res.json({ ok: true, deduped: !!dupe, user: { id: user?._id ? String(user._id) : null, fullName: displayName } });
 });
 
 // --- Tracker: visit exit (marks most recent active visit)

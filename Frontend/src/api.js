@@ -38,7 +38,10 @@ export function resolveMediaUrl(path) {
   if (!path) return '';
   const value = String(path).trim();
   if (!value) return '';
+  // Absolute URL or data URI: return as-is
   if (/^(?:[a-z]+:)?\/\//i.test(value) || value.startsWith('data:')) return value;
+  // Prefer CRA/Vite dev proxy for API paths to avoid cross-origin hitches with <img src>
+  if (value.startsWith('/api/')) return value;
   const base = directBackendBase();
   if (value.startsWith('/')) return `${base}${value}`;
   return `${base}/${value}`;

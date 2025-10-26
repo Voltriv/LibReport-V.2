@@ -5,13 +5,13 @@ import profileImage from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
 import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
-const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5}$/;
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5,6}$/;
 
 function formatStudentId(raw) {
-  const digits = String(raw || '').replace(/\D/g, '').slice(0, 11);
+  const digits = String(raw || '').replace(/\D/g, '').slice(0, 12);
   const part1 = digits.slice(0, 2);
   const part2 = digits.slice(2, 6);
-  const part3 = digits.slice(6, 11);
+  const part3 = digits.slice(6, 12);
   return [part1, part2, part3].filter(Boolean).join('-');
 }
 
@@ -130,7 +130,7 @@ const Tracker = () => {
   async function doEnter() {
     const payload = toPayload(input);
     if (!payload) {
-      setMessage('Student ID must match 00-0000-00000');
+      setMessage('Student ID must match 00-0000-00000 or 00-0000-000000');
       return;
     }
     setInput(payload.studentId);
@@ -147,7 +147,7 @@ const Tracker = () => {
   async function doExit() {
     const payload = toPayload(input);
     if (!payload) {
-      setMessage('Student ID must match 00-0000-00000');
+      setMessage('Student ID must match 00-0000-00000 or 00-0000-000000');
       return;
     }
     setInput(payload.studentId);
@@ -278,8 +278,8 @@ const Tracker = () => {
                     }
                   }}
                   inputMode="numeric"
-                  maxLength={13}
-                  placeholder="03-0000-00000"
+                  maxLength={14}
+                  placeholder="03-0000-000000"
                   className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 font-mono" 
                 />
               </div>

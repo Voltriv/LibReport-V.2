@@ -4,13 +4,13 @@ import pfp from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
 import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
-const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5}$/;
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5,6}$/;
 
 function formatStudentId(raw) {
-  const digits = String(raw || "").replace(/\D/g, "").slice(0, 11);
+  const digits = String(raw || "").replace(/\D/g, "").slice(0, 12);
   const part1 = digits.slice(0, 2);
   const part2 = digits.slice(2, 6);
-  const part3 = digits.slice(6, 11);
+  const part3 = digits.slice(6, 12);
   return [part1, part2, part3].filter(Boolean).join("-");
 }
 
@@ -55,7 +55,7 @@ const Admins = () => {
     setError("");
     const adminId = formatStudentId(creating.adminId);
     if (!STUDENT_ID_PATTERN.test(adminId)) {
-      setError("Admin ID must match 00-0000-00000");
+      setError("Admin ID must match 00-0000-00000 or 00-0000-000000");
       return;
     }
     try {
@@ -149,7 +149,7 @@ const Admins = () => {
             onChange={(e) =>
               setCreating((s) => ({ ...s, adminId: formatStudentId(e.target.value) }))
             }
-            maxLength={13}
+            maxLength={14}
             inputMode="numeric"
             required
           />

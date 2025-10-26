@@ -5,7 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "node scripts/bootstrap-dev.js && node --watch server.js",
     "dev:nodb": "node --watch server.js",
     "db:indexes": "node scripts/indexes.js",
     "db:seed": "node scripts/seed.js",

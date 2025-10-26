@@ -97,7 +97,7 @@ const StudentSignIn = () => {
           <div className="p-8 sm:p-10">
             <div>
               <h2 className="text-2xl font-semibold text-slate-900">Student Sign In</h2>
-              <p className="mt-1 text-sm text-slate-500">Use your student ID (00-0000-00000) or your registered email address.</p>
+              <p className="mt-1 text-sm text-slate-500">Use your student ID (00-0000-00000 or 00-0000-000000) or your registered email address.</p>
             </div>
 
             {error && (
@@ -111,7 +111,7 @@ const StudentSignIn = () => {
                   onChange={(e) => setIdentifier(e.target.value)}
                   type="text"
 
-                  placeholder="e.g. 03-2324-03224 or you@example.edu"
+                  placeholder="e.g. 03-2324-032246 or you@example.edu"
 
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                 />

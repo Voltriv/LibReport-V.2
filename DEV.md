@@ -11,7 +11,7 @@ Local Development
   - MongoDB via Docker or Compass
     - Option A: Docker (recommended)
       - Run `docker compose up -d` (starts MongoDB on localhost:27017, user/pass libreport/libreport)
-      - Use `MONGO_URI=mongodb://libreport:libreport@localhost:27017/?authSource=admin`, `DB_NAME=libreport`
+      - Use `MONGO_URI=mongodb+srv://libreport_db_user:libreport_db_user@libreport.nvhdoat.mongodb.net/libreport?authSource=admin&retryWrites=true&w=majority&appName=LibReport`, `DB_NAME=libreport`
     - Option B: Compass
       - Use your Compass connection string (`MONGO_URI=...`)
     - No PHP required.
@@ -19,7 +19,7 @@ Local Development
 - Backend env
   - Copy `Backend/.env.example` to `Backend/.env`
   - For Docker, set:
-    - `MONGO_URI=mongodb://libreport:libreport@localhost:27017/?authSource=admin`
+    - `MONGO_URI=mongodb+srv://libreport_db_user:libreport_db_user@libreport.nvhdoat.mongodb.net/libreport?authSource=admin&retryWrites=true&w=majority&appName=LibReport`
     - `DB_NAME=libreport`
   - For Compass, paste your `MONGO_URI` (URL-encode password if needed). Add `authSource=admin` if you use admin auth.
 
