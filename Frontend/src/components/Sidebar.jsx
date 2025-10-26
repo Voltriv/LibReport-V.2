@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
 import logo from "../assets/fav_logo.png";
 import ThemeToggle from "./ThemeToggle";
+import { getStoredUser } from "../api";
 
 const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -69,7 +70,7 @@ const Sidebar = () => {
           <div className="border-t border-white/20 pt-6">
             <h3 className="px-4 py-2 text-xs font-bold text-white/60 uppercase tracking-wider">Management</h3>
             <div className="space-y-2">
-              {managementNav.map((item) => (
+              {(getStoredUser()?.role === 'librarian_staff' ? managementNav.filter((i) => i.to !== '/admins') : managementNav).map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}

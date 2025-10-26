@@ -54,6 +54,14 @@ function RequireAdmin({ children }) {
   return children;
 }
 
+// Only allow librarian or admin (exclude librarian_staff)
+function RequireManagers({ children }) {
+  const user = getStoredUser();
+  if (!user || !["librarian", "admin"].includes(user.role))
+    return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
 function RequireStudent({ children }) {
   if (!hasStoredToken()) return <Navigate to="/student/signin" replace />;
   const user = getStoredUser();
@@ -242,9 +250,9 @@ function App() {
               path="/admins"
               element={
                 <RequireAuth>
-                  <RequireAdmin>
+                  <RequireManagers>
                     <Admins />
-                  </RequireAdmin>
+                  </RequireManagers>
                 </RequireAuth>
               }
             />

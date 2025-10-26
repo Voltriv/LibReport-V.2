@@ -24,6 +24,7 @@ const Admins = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [userName, setUserName] = useState("Account");
   const navigate = useNavigate();
+  const role = getStoredUser()?.role;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,8 +40,9 @@ const Admins = () => {
   }, [q]);
 
   useEffect(() => {
+    if (role === 'librarian_staff') return; // do not fetch if not allowed
     load();
-  }, [load]);
+  }, [load, role]);
 
   useEffect(() => {
     const stored = getStoredUser();
@@ -84,6 +86,22 @@ const Admins = () => {
 
     navigate("/signin", { replace: true });
   };
+
+  // Inline guard: show friendly message if librarian_staff somehow lands here
+  if (role === 'librarian_staff') {
+    return (
+      <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+        <Sidebar />
+        <main className="px-6 md:pl-8 lg:pl-10 pr-6 py-8 md:ml-80">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Admins</h1>
+          <div className="mt-6 p-6 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700">
+            <p className="text-slate-700 dark:text-stone-200">You are not authorized to view this page.</p>
+            <a href="/dashboard" className="inline-block mt-4 btn-brand text-white px-4 py-2 rounded-lg">Go to Dashboard</a>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">

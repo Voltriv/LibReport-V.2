@@ -641,6 +641,18 @@ function adminRequired(req, res, next) {
   });
 }
 
+// Stricter admin middleware: only full admins and librarians
+// Used for managing admin accounts so librarian_staff cannot access
+function elevatedAdminRequired(req, res, next) {
+  return authRequired(req, res, () => {
+    const role = req.user?.role;
+    if (role !== 'admin' && role !== 'librarian') {
+      return res.status(403).json({ error: 'librarian or admin role required' });
+    }
+    return next();
+  });
+}
+
 function studentRequired(req, res, next) {
   return authRequired(req, res, () => {
     const role = req.user?.role;
@@ -833,14 +845,15 @@ app.get('/api/student/me', studentRequired, async (req, res) => {
 });
 
 // --- Admins (librarians) CRUD
-app.get('/api/admins', adminRequired, async (req, res) => {
+// Only accessible by librarian/admin (not librarian_staff)
+app.get('/api/admins', elevatedAdminRequired, async (req, res) => {
   const q = String(req.query.q || '').trim();
   const filter = q ? { $or: [ { adminId: new RegExp(q, 'i') }, { fullName: new RegExp(q, 'i') }, { email: new RegExp(q, 'i') } ] } : {};
   const items = await Admin.find(filter).select('adminId fullName email role status createdAt').limit(200).sort({ createdAt: -1 }).lean();
   res.json(items);
 });
 
-app.post('/api/admins', adminRequired, async (req, res) => {
+app.post('/api/admins', elevatedAdminRequired, async (req, res) => {
   try {
     const { adminId, email, fullName, password, role } = req.body || {};
     if (!adminId || !fullName || !password) return res.status(400).json({ error: 'adminId, fullName, password required' });
@@ -860,7 +873,7 @@ app.post('/api/admins', adminRequired, async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.patch('/api/admins/:id', adminRequired, async (req, res) => {
+app.patch('/api/admins/:id', elevatedAdminRequired, async (req, res) => {
   try {
     const update = {};
     if (req.body.fullName) update.fullName = String(req.body.fullName);
@@ -880,7 +893,7 @@ app.patch('/api/admins/:id', adminRequired, async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.delete('/api/admins/:id', adminRequired, async (req, res) => {
+app.delete('/api/admins/:id', elevatedAdminRequired, async (req, res) => {
   const out = await Admin.findByIdAndDelete(req.params.id).lean();
   if (!out) return res.status(404).json({ error: 'Not found' });
   res.status(204).send();
