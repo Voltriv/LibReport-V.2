@@ -2,12 +2,17 @@
 
 title = "libreport gitleaks config"
 
-[rules.mongodb_atlas_uri]
+[extend]
+useDefault = true
+
+[[rules]]
+id = "mongodb_atlas_uri"
 description = "MongoDB connection string with credentials"
 regex = '''mongodb(?:\+srv)?:\/\/[A-Za-z0-9._%+-]+:[^@\s]+@[^\s/]+(?:\/[A-Za-z0-9._-]+)?[^\s]*'''
 tags = ["mongodb", "secret"]
 
-[rules.generic_password_in_uri]
+[[rules]]
+id = "generic_password_in_uri"
 description = "Credential in URI"
 regex = '''[a-z]+:\/\/[A-Za-z0-9._%+-]+:[^@\s]+@[^\s]+'''
 tags = ["secret"]
@@ -22,4 +27,7 @@ paths = [
   "Frontend/node_modules/",
   "Backend/node_modules/"
 ]
-
+regexes = [
+  '''MONGO_INITDB_ROOT_PASSWORD:\s*libreport''',
+  '''"--password",\s*"libreport"'''
+]
