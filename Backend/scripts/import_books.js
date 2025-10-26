@@ -8,9 +8,10 @@
 //   node scripts/import_books.js ./books.json
 //
 // CSV headers (case-insensitive):
-//   title, author, isbn, bookCode, genre, tags, totalCopies, availableCopies,
+//   title, author, isbn, bookCode, department, genre, tags, totalCopies, availableCopies,
 //   coverImageFile, pdfFile, coverImageName, coverImageMime, pdfName, pdfMime
 // - tags may be pipe- or comma-separated (e.g., "fiction|classic")
+// - department is optional but recommended; include both for richer filtering
 // - availableCopies defaults to totalCopies if omitted
 // - coverImageFile / pdfFile accept absolute or relative paths (relative to the CSV file)
 // - coverImageMime must be one of image/png, image/jpeg, or image/webp when provided
@@ -123,8 +124,11 @@ function normalizeRecord(rec, index) {
   const author = (get('author') || '').trim();
   const isbn = (get('isbn') || '').trim();
   const bookCode = (get('bookCode') || get('bookcode') || '').trim();
+  const department = (get('department') || get('dept') || '').trim();
   const genre = (get('genre') || '').trim();
-  const tags = toArrayTags(get('tags'));
+  const rawTags = toArrayTags(get('tags'));
+  const primaryTag = genre || department;
+  const tags = rawTags.length ? rawTags : primaryTag ? [primaryTag] : [];
   const total = Number(get('totalCopies') ?? get('totalcopies'));
   const avail = Number(get('availableCopies') ?? get('availablecopies'));
   const totalCopies = Number.isFinite(total) && total >= 0 ? Math.trunc(total) : 1;
@@ -146,7 +150,8 @@ function normalizeRecord(rec, index) {
     author,
     isbn,
     bookCode,
-    genre,
+    department,
+    genre: genre || '',
     tags,
     totalCopies,
     availableCopies,
@@ -279,6 +284,7 @@ async function run() {
           author: { type: String, required: true, trim: true },
           isbn: { type: String, trim: true },
           bookCode: { type: String, trim: true },
+          department: { type: String, trim: true },
           genre: { type: String, trim: true },
           tags: [{ type: String, trim: true }],
           totalCopies: { type: Number, default: 1, min: 0 },
@@ -390,6 +396,7 @@ async function run() {
       };
       if (record.isbn) setDoc.isbn = record.isbn;
       if (record.bookCode) setDoc.bookCode = record.bookCode;
+      if (record.department) setDoc.department = record.department;
       if (record.genre) setDoc.genre = record.genre;
 
       if (attachments.cover) {

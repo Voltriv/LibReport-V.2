@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -7,6 +7,7 @@ import {
   TextField,
   Button,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
@@ -16,7 +17,7 @@ import {
   Box,
 } from "@mui/material";
 
-const GENRE_DEFAULTS = [
+const GENRE_OPTIONS = [
   "Fiction",
   "Non-fiction",
   "Science",
@@ -27,6 +28,8 @@ const GENRE_DEFAULTS = [
   "Reference",
   "Research",
 ];
+
+const DEPARTMENT_OPTIONS = ["CITE", "CAHS", "CEA", "CMA", "CHTM", "SHS", "CCJE", "CELA"];
 
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -50,6 +53,7 @@ export default function BookFormModal({
     isbn: "",
     bookCode: "",
     genre: "",
+    department: "",
     totalCopies: 1,
     availableCopies: 1,
   });
@@ -62,6 +66,14 @@ export default function BookFormModal({
 
   const [errors, setErrors] = useState({});
 
+  const bookGenre = book?.genre || "";
+  const genreOptions = useMemo(() => {
+    const merged = new Set(GENRE_OPTIONS);
+    if (bookGenre) merged.add(bookGenre);
+    if (formData.genre) merged.add(formData.genre);
+    return Array.from(merged);
+  }, [bookGenre, formData.genre]);
+
   // Seed state when opening
   useEffect(() => {
     if (!open) return;
@@ -73,6 +85,7 @@ export default function BookFormModal({
         isbn: book.isbn || "",
         bookCode: book.bookCode || "",
         genre: book.genre || "",
+        department: book.department || book.genre || "",
         totalCopies: Number(book.totalCopies ?? 1),
         availableCopies: Number(book.availableCopies ?? 1),
       });
@@ -84,6 +97,7 @@ export default function BookFormModal({
         isbn: "",
         bookCode: "",
         genre: "",
+        department: "",
         totalCopies: 1,
         availableCopies: 1,
       });
@@ -114,6 +128,7 @@ export default function BookFormModal({
     const e = {};
     if (!formData.title.trim()) e.title = "Title is required";
     if (!formData.author.trim()) e.author = "Author is required";
+    if (!String(formData.department || "").trim()) e.department = "Department is required";
     if (Number(formData.totalCopies) < 1) e.totalCopies = "At least 1 copy";
     if (
       Number(formData.availableCopies) < 0 ||
@@ -200,12 +215,30 @@ export default function BookFormModal({
                   <MenuItem value="">
                     <em>Select a genre</em>
                   </MenuItem>
-                  {GENRE_DEFAULTS.map((g) => (
-                    <MenuItem key={g} value={g}>
-                      {g}
+                  {genreOptions.map((option) => (
+                    <MenuItem key={option} value={option}>
+                      {option}
                     </MenuItem>
                   ))}
                 </Select>
+              </FormControl>
+              <FormControl fullWidth error={!!errors.department}>
+                <InputLabel>Department</InputLabel>
+                <Select
+                  label="Department"
+                  value={formData.department}
+                  onChange={handleChange("department")}
+                >
+                  <MenuItem value="">
+                    <em>Select a department</em>
+                  </MenuItem>
+                  {DEPARTMENT_OPTIONS.map((dep) => (
+                    <MenuItem key={dep} value={dep}>
+                      {dep}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {errors.department && <FormHelperText>{errors.department}</FormHelperText>}
               </FormControl>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <TextField

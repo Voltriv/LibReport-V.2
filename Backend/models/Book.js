@@ -6,6 +6,7 @@ const bookSchema = new mongoose.Schema(
     author: { type: String, required: true, trim: true },
     isbn: { type: String, trim: true },
     bookCode: { type: String, trim: true },
+    department: { type: String, trim: true },
     genre: { type: String, trim: true },
     tags: [{ type: String, trim: true }],
     totalCopies: { type: Number, default: 1, min: 0 },

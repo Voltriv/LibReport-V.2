@@ -45,12 +45,21 @@ const BooksManagement = () => {
       const items = (data || []).map((b) => {
         const coverPath = resolveMediaUrl(b.coverImagePath || b.imageUrl || "");
         const pdfPath = resolveMediaUrl(b.pdfPath || b.pdfUrl || "");
+        const department = b.department || "";
+        const genre = b.genre || "";
+        const departmentLabel =
+          department ||
+          genre ||
+          (Array.isArray(b.tags) && b.tags.find((tag) => tag && String(tag).trim())) ||
+          "";
         return {
           id: b._id || b.id,
           title: b.title,
           author: b.author,
           bookCode: b.bookCode || "",
-          genre: b.genre || (Array.isArray(b.tags) && b.tags[0]) || "",
+          department,
+          departmentLabel,
+          genre,
           totalCopies: b.totalCopies ?? 0,
           availableCopies: b.availableCopies ?? 0,
           coverImagePath: coverPath,
@@ -304,12 +313,17 @@ const BooksManagement = () => {
                     </p>
                     <div className="flex items-center justify-between text-xs">
                       <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-stone-800 text-slate-600 dark:text-stone-400">
-                        {book.genre || "No genre"}
+                        {book.departmentLabel || "No department"}
                       </span>
                       <span className="text-slate-500 dark:text-stone-500">
                         {book.availableCopies || 0}/{book.totalCopies || 0} available
                       </span>
                     </div>
+                    {book.genre && (
+                      <div className="mt-2 text-xs text-slate-500 dark:text-stone-500">
+                        Genre: {book.genre}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

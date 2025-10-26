@@ -84,8 +84,9 @@ async function main() {
       author: 'Robert C. Martin',
       isbn: '9780132350884',
       bookCode: 'BK-0001',
-      genre: 'CITE',
-      tags: ['CITE'],
+      department: 'CITE',
+      genre: 'Software Engineering',
+      tags: ['CITE', 'Software Engineering'],
       totalCopies: 3,
       availableCopies: 2
     },
@@ -95,8 +96,9 @@ async function main() {
       author: 'Don Norman',
       isbn: '9780465050659',
       bookCode: 'BK-0002',
-      genre: 'CAHS',
-      tags: ['CAHS'],
+      department: 'CAHS',
+      genre: 'Design',
+      tags: ['CAHS', 'Design'],
       totalCopies: 2,
       availableCopies: 1
     },
@@ -106,8 +108,9 @@ async function main() {
       author: 'Cormen et al.',
       isbn: '9780262046305',
       bookCode: 'BK-0003',
-      genre: 'CEA',
-      tags: ['CEA'],
+      department: 'CEA',
+      genre: 'Computer Science',
+      tags: ['CEA', 'Computer Science'],
       totalCopies: 5,
       availableCopies: 5
     }

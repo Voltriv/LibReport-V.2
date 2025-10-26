@@ -983,7 +983,7 @@ app.get('/api/books/library', authRequired, async (req, res) => {
   }
   if (tag) {
     filter.$and = filter.$and || [];
-    filter.$and.push({ $or: [{ genre: tag }, { tags: tag }] });
+    filter.$and.push({ $or: [{ department: tag }, { genre: tag }, { tags: tag }] });
   }
   if (withPdf) {
     filter.$and = filter.$and || [];
@@ -1012,6 +1012,8 @@ app.post('/api/books', adminRequired, async (req, res) => {
     author,
     isbn,
     bookCode,
+    department,
+    department,
     genre,
     tags,
     totalCopies,
@@ -1036,14 +1038,17 @@ app.post('/api/books', adminRequired, async (req, res) => {
     let availableValue = availableParsed === null ? totalValue : availableParsed;
     if (availableValue > totalValue) availableValue = totalValue;
 
+    const normalizedDepartment = typeof department === 'string' ? department.trim() : '';
     const normalizedGenre = typeof genre === 'string' ? genre.trim() : '';
-    const tagList = parseTagsInput(tags, normalizedGenre);
+    const primaryTag = normalizedGenre || normalizedDepartment;
+    const tagList = parseTagsInput(tags, primaryTag);
 
     const payload = {
       title: normalizedTitle,
       author: normalizedAuthor,
       isbn: isbn ? String(isbn).trim() : undefined,
       bookCode: normalizedCode,
+      department: normalizedDepartment || undefined,
       genre: normalizedGenre || undefined,
       totalCopies: totalValue,
       availableCopies: availableValue,
@@ -1103,13 +1108,21 @@ app.post('/api/books', adminRequired, async (req, res) => {
 app.get('/api/books', adminRequired, async (req, res) => {
   const q = String(req.query.q || '').trim();
   const filter = {};
+  const andConditions = [];
   if (q) {
     const escaped = q.replace(/[-/\^$*+?.()|[\]{}]/g, '\$&');
     const regex = new RegExp(escaped, 'i');
-    filter.$or = [{ title: regex }, { author: regex }, { bookCode: regex }];
+    andConditions.push({ $or: [{ title: regex }, { author: regex }, { bookCode: regex }] });
   }
   const tag = String(req.query.tag || '').trim();
-  if (tag) filter.genre = tag;
+  if (tag) {
+    andConditions.push({ $or: [{ department: tag }, { genre: tag }, { tags: tag }] });
+  }
+  if (andConditions.length === 1) {
+    Object.assign(filter, andConditions[0]);
+  } else if (andConditions.length > 1) {
+    filter.$and = andConditions;
+  }
   const items = await Book.find(filter).sort({ createdAt: -1, _id: -1 }).limit(400).lean();
   res.json(items);
 });
@@ -1165,6 +1178,13 @@ app.patch('/api/books/:id', adminRequired, async (req, res) => {
       const trimmed = String(bookCode).trim();
       if (!trimmed) throw new Error('bookCode cannot be empty');
       book.bookCode = trimmed;
+    }
+
+    let nextDepartment = book.department;
+    if (department !== undefined) {
+      const trimmed = typeof department === 'string' ? department.trim() : '';
+      nextDepartment = trimmed || undefined;
+      book.department = nextDepartment;
     }
 
     let nextGenre = book.genre;
@@ -1231,10 +1251,12 @@ app.patch('/api/books/:id', adminRequired, async (req, res) => {
       book.pdfMime = newPdf.mime;
     }
 
+    const fallbackTag = nextGenre || nextDepartment;
+
     if (tags !== undefined) {
-      book.tags = parseTagsInput(tags, nextGenre);
-    } else if (genre !== undefined) {
-      book.tags = parseTagsInput([], nextGenre);
+      book.tags = parseTagsInput(tags, fallbackTag);
+    } else if (genre !== undefined || department !== undefined) {
+      book.tags = parseTagsInput([], fallbackTag);
     }
 
     await book.save();
