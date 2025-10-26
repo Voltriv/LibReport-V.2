@@ -2,6 +2,8 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api, { persistAuthSession } from "../api";
 
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
+
 const StudentSignIn = () => {
   const navigate = useNavigate();
   const [identifier, setIdentifier] = React.useState("");
@@ -30,13 +32,18 @@ const StudentSignIn = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (!identifier.trim() || !password) {
-      setError("Please enter your student ID or email and password.");
+    const trimmed = identifier.trim();
+    if (!trimmed || !password) {
+      setError("Please enter your student ID and password.");
+      return;
+    }
+    if (!STUDENT_ID_PATTERN.test(trimmed)) {
+      setError("Student ID must match 00-0000-000000.");
       return;
     }
     try {
       setLoading(true);
-      const { data } = await api.post("/auth/login", { studentId: identifier.trim(), password });
+      const { data } = await api.post("/auth/login", { studentId: trimmed, password });
 
       persistAuthSession({ token: data?.token, user: data?.user });
 
@@ -97,7 +104,7 @@ const StudentSignIn = () => {
           <div className="p-8 sm:p-10">
             <div>
               <h2 className="text-2xl font-semibold text-slate-900">Student Sign In</h2>
-              <p className="mt-1 text-sm text-slate-500">Use your student ID (00-0000-000000) or your registered email address.</p>
+              <p className="mt-1 text-sm text-slate-500">Use your student ID (03-0000-000000).</p>
             </div>
 
             {error && (
@@ -105,15 +112,17 @@ const StudentSignIn = () => {
             )}
             <form className="mt-6 space-y-4" onSubmit={onSubmit}>
               <div>
-                <label className="text-sm font-medium text-slate-700">Student ID or Email</label>
+                <label className="text-sm font-medium text-slate-700">Student ID</label>
                 <input
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   type="text"
 
-                  placeholder="e.g. 03-2324-032246 or you@example.edu"
+                  placeholder="03-0000-000000"
 
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                  inputMode="numeric"
+                  maxLength={14}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold font-mono"
                 />
               </div>
               <div>
