@@ -1,6 +1,7 @@
 const path = require('node:path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env'), override: false });
+const env = require('../utils/dotenv');
+env.config({ path: path.join(__dirname, '..', '.env') });
+env.config({ path: path.join(__dirname, '..', '..', '.env'), override: false });
 
 function buildMongoUriFromParts() {
   const host = process.env.MONGO_HOST || 'localhost';

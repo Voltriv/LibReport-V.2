@@ -1,6 +1,7 @@
 // Quick check for admins collection and counts
 const path = require('node:path');
-require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
+const env = require('../utils/dotenv');
+env.config({ path: path.resolve(process.cwd(), '.env') });
 const { MongoClient } = require('mongodb');
 const { resolveMongoConfig } = require('../db/uri');
 

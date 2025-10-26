@@ -1,8 +1,9 @@
 ﻿const path = require('node:path');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
-require('dotenv').config({ path: path.join(__dirname, '..', '.env'), override: false });
+const env = require('./utils/dotenv');
+env.config({ path: path.join(__dirname, '.env') });
+env.config({ path: path.join(__dirname, '..', '.env'), override: false });
 const express = require('express');
 const compression = require('compression');
 const mongoose = require('mongoose');

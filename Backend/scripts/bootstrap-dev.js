@@ -2,8 +2,9 @@
 // Safe to run multiple times — it checks a marker doc and collection count.
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env'), override: false });
+const env = require('../utils/dotenv');
+env.config({ path: path.join(__dirname, '..', '.env') });
+env.config({ path: path.join(__dirname, '..', '..', '.env'), override: false });
 
 async function main() {
   try {
