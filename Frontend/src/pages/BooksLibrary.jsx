@@ -1,14 +1,16 @@
 /* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/Sidebar';
-import api from '../api';
+import api, { resolveMediaUrl } from '../api';
 
+// Normalize media URLs to the running backend origin and
+// hide legacy static paths that are no longer served.
 const toMediaUrl = (p) => {
   if (!p) return null;
-  if (p.startsWith('http')) return p;
-  // Legacy static assets are no longer served; hide broken links
-  if (p.startsWith('book_images') || p.startsWith('book_pdf')) return null;
-  return p;
+  const v = String(p).trim();
+  if (!v) return null;
+  if (v.startsWith('book_images') || v.startsWith('book_pdf')) return null;
+  return resolveMediaUrl(v);
 };
 
 const BooksLibrary = () => {
