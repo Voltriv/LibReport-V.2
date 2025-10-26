@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import api, { persistAuthSession } from "../api";
 
-const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5,6}$/;
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
 
 function formatStudentId(raw) {
   const digits = String(raw || '').replace(/\D/g, '').slice(0, 12);
@@ -39,7 +39,7 @@ const StudentSignUp = () => {
     const nextErrors = {};
 
     if (!STUDENT_ID_PATTERN.test(form.studentId.trim())) {
-      nextErrors.studentId = "Format must be 00-0000-00000 or 00-0000-000000";
+      nextErrors.studentId = "Format must be 00-0000-000000";
 
     }
     if (!form.email.includes("@")) {

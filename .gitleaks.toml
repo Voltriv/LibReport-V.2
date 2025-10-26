@@ -1,0 +1,25 @@
+# Gitleaks config to catch common secrets and MongoDB URIs
+
+title = "libreport gitleaks config"
+
+[rules.mongodb_atlas_uri]
+description = "MongoDB connection string with credentials"
+regex = '''mongodb(?:\+srv)?:\/\/[A-Za-z0-9._%+-]+:[^@\s]+@[^\s/]+(?:\/[A-Za-z0-9._-]+)?[^\s]*'''
+tags = ["mongodb", "secret"]
+
+[rules.generic_password_in_uri]
+description = "Credential in URI"
+regex = '''[a-z]+:\/\/[A-Za-z0-9._%+-]+:[^@\s]+@[^\s]+'''
+tags = ["secret"]
+
+[allowlist]
+description = "Allowlisted files and patterns"
+files = [
+  "Backend/.env",     # real env is ignored by git; present local only
+]
+paths = [
+  "node_modules/",
+  "Frontend/node_modules/",
+  "Backend/node_modules/"
+]
+

@@ -13,8 +13,8 @@ const bcrypt = require('bcryptjs');
 const validator = require('validator');
 const crypto = require('node:crypto');
 
-// Accept 2-4-5 or 2-4-6 digit formats (backwards compatible)
-const STUDENT_ID_REGEX = /^\d{2}-\d{4}-\d{5,6}$/;
+// Student/Admin ID format: 2-4-6 digits (e.g., 03-0000-000000)
+const STUDENT_ID_REGEX = /^\d{2}-\d{4}-\d{6}$/;
 
 const app = express();
 app.set('etag', 'strong');
@@ -324,9 +324,9 @@ const userSchema = new mongoose.Schema(
       unique: true,
       trim: true,
       validate: {
-        // Format: 03-2324-03224 or 03-2324-032246 (2-4-5 or 2-4-6 digits with hyphens)
+        // Format: 03-2324-032246 (2-4-6 digits with hyphens)
         validator: v => STUDENT_ID_REGEX.test(v),
-        message: 'Student ID must match 00-0000-00000 or 00-0000-000000 pattern'
+        message: 'Student ID must match 00-0000-000000 pattern'
       }
     },
     email: {
@@ -675,7 +675,7 @@ app.post('/api/auth/signup', async (req, res) => {
     const fullNameNorm = String(fullName).trim();
 
     if (!STUDENT_ID_REGEX.test(studentIdNorm)) {
-      return res.status(400).json({ error: 'Student ID must match 00-0000-00000 or 00-0000-000000 pattern' });
+      return res.status(400).json({ error: 'Student ID must match 00-0000-000000 pattern' });
 
     }
     if (!validator.isEmail(emailNorm)) {
@@ -735,7 +735,7 @@ app.post('/api/auth/admin-signup', async (req, res) => {
     const adminIdNorm = String(adminId).trim();
     const emailNorm = email ? String(email).trim().toLowerCase() : undefined;
     const fullNameNorm = String(fullName).trim();
-    if (!STUDENT_ID_REGEX.test(adminIdNorm)) return res.status(400).json({ error: 'Admin ID must match 00-0000-00000 or 00-0000-000000 pattern' });
+    if (!STUDENT_ID_REGEX.test(adminIdNorm)) return res.status(400).json({ error: 'Admin ID must match 00-0000-000000 pattern' });
     if (email && !validator.isEmail(emailNorm)) return res.status(400).json({ error: 'Email must be valid' });
 
     const exists = await Admin.findOne({ $or: [ { adminId: adminIdNorm }, emailNorm ? { email: emailNorm } : null ].filter(Boolean) }).lean();
@@ -848,7 +848,7 @@ app.post('/api/admins', adminRequired, async (req, res) => {
     const emailNorm = email ? String(email).trim().toLowerCase() : undefined;
     const fullNameNorm = String(fullName).trim();
     if (!STUDENT_ID_REGEX.test(adminIdNorm)) {
-      return res.status(400).json({ error: 'adminId must match 00-0000-00000 or 00-0000-000000 pattern' });
+      return res.status(400).json({ error: 'adminId must match 00-0000-000000 pattern' });
     }
     const exists = await Admin.findOne({ $or: [ { adminId: adminIdNorm }, emailNorm ? { email: emailNorm } : null ].filter(Boolean) });
     if (exists) return res.status(409).json({ error: 'adminId or email already exists' });

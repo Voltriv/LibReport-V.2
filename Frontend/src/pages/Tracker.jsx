@@ -5,7 +5,7 @@ import profileImage from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
 import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
-const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{5,6}$/;
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
 
 function formatStudentId(raw) {
   const digits = String(raw || '').replace(/\D/g, '').slice(0, 12);
@@ -130,7 +130,7 @@ const Tracker = () => {
   async function doEnter() {
     const payload = toPayload(input);
     if (!payload) {
-      setMessage('Student ID must match 00-0000-00000 or 00-0000-000000');
+      setMessage('Student ID must match 00-0000-000000');
       return;
     }
     setInput(payload.studentId);
@@ -147,7 +147,7 @@ const Tracker = () => {
   async function doExit() {
     const payload = toPayload(input);
     if (!payload) {
-      setMessage('Student ID must match 00-0000-00000 or 00-0000-000000');
+      setMessage('Student ID must match 00-0000-000000');
       return;
     }
     setInput(payload.studentId);

@@ -97,7 +97,7 @@ const StudentSignIn = () => {
           <div className="p-8 sm:p-10">
             <div>
               <h2 className="text-2xl font-semibold text-slate-900">Student Sign In</h2>
-              <p className="mt-1 text-sm text-slate-500">Use your student ID (00-0000-00000 or 00-0000-000000) or your registered email address.</p>
+              <p className="mt-1 text-sm text-slate-500">Use your student ID (00-0000-000000) or your registered email address.</p>
             </div>
 
             {error && (
