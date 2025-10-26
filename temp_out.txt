@@ -1,0 +1,40 @@
+  { timestamps: true }
+);
+visitSchema.index({ studentId: 1, enteredAt: -1 });
+visitSchema.index({ barcode: 1, enteredAt: -1 });
+visitSchema.index({ userId: 1, enteredAt: -1 });
+const Visit = mongoose.model('Visit', visitSchema);
+
+const hoursSchema = new mongoose.Schema(
+  {
+    branch: { type: String, required: true, trim: true },
+    dayOfWeek: { type: Number, required: true, min: 0, max: 6 }, // 0=Sun
+    open: { type: String, required: true }, // HH:mm
+    close: { type: String, required: true }
+  },
+  { timestamps: true }
+);
+hoursSchema.index({ branch: 1, dayOfWeek: 1 }, { unique: true });
+const Hours = mongoose.model('Hours', hoursSchema);
+
+// Password reset tokens
+const passwordResetSchema = new mongoose.Schema(
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    tokenHash: { type: String, required: true },
+    createdAt: { type: Date, default: () => new Date() },
+    expiresAt: { type: Date, required: true },
+    used: { type: Boolean, default: false },
+    usedAt: { type: Date, default: null }
+  },
+  { timestamps: false }
+);
+passwordResetSchema.index({ userId: 1, expiresAt: 1, used: 1 });
+const PasswordReset = mongoose.model('PasswordReset', passwordResetSchema);
+
+// --- Health
+app.get('/api/health', async (_req, res) => {
+  const dbReady = NO_DB ? false : (mongoose.connection.readyState === 1 || DB_READY);
+  return res.status(200).json({ ok: true, db: dbReady, noDbMode: NO_DB, time: new Date().toISOString() });
+});
+

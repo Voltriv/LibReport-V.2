@@ -14,8 +14,8 @@ const bcrypt = require('bcryptjs');
 const validator = require('validator');
 const crypto = require('node:crypto');
 
-// Student/Admin ID format: 2-4-6 digits (e.g., 03-0000-000000)
-const STUDENT_ID_REGEX = /^\d{2}-\d{4}-\d{6}$/;
+// Student/Admin ID format shared with models
+const { STUDENT_ID_REGEX } = require('./models/validators');
 
 const app = express();
 app.set('etag', 'strong');
@@ -317,68 +317,10 @@ if (!NO_DB && USE_MEMORY_DB) {
 }
 
 // --- User model
-const userSchema = new mongoose.Schema(
-  {
-    studentId: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-      validate: {
-        // Format: 03-2324-032246 (2-4-6 digits with hyphens)
-        validator: v => STUDENT_ID_REGEX.test(v),
-        message: 'Student ID must match 00-0000-000000 pattern'
-      }
-    },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-      lowercase: true,
-      validate: {
-        validator: v => validator.isEmail(v), // contains '@' and valid format
-        message: 'Email must be a valid address'
-      }
-    },
-    // Some existing collections may expect a `name` field; keep both.
-    name: { type: String, trim: true },
-    fullName: {
-      type: String,
-      required: true,
-      trim: true,
-      validate: {
-        // Allow letters, spaces, periods, apostrophes, and hyphens
-        validator: v => /^[A-Za-z .'-]+$/.test(v),
-        message: "Full name may contain letters, spaces, apostrophes, hyphens, and periods only"
-      }
-    },
-    barcode: { type: String, trim: true, unique: true, sparse: true },
-    passwordHash: { type: String, required: true },
-    role: { type: String, trim: true, default: 'student' },
-    status: { type: String, enum: ['active','disabled','pending'], default: 'active' }
-  },
-  { timestamps: true }
-);
+const { User, Admin, Book, Loan, Visit, Hours, PasswordReset } = require('./models');
+// Models loaded from ./models (legacy inline schema removed)
 
-// Field-level unique indexes are already defined on email and studentId.
-// Avoid duplicating them with schema.index() to prevent Mongoose warnings.
-
-const User = mongoose.model('User', userSchema);
-
-// Separate Admin collection
-const adminSchema = new mongoose.Schema(
-  {
-    adminId: { type: String, required: true, unique: true, trim: true },
-    email: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
-    fullName: { type: String, required: true, trim: true },
-    passwordHash: { type: String, required: true },
-    role: { type: String, enum: ['librarian', 'librarian_staff'], default: 'librarian_staff' },
-    status: { type: String, enum: ['active','disabled','pending'], default: 'active' }
-  },
-  { timestamps: true }
-);
-const Admin = mongoose.model('Admin', adminSchema);
+// Separate Admin collection (loaded from ./models)
 
 async function ensureDefaultAdmin() {
   const rawEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
@@ -426,91 +368,15 @@ async function ensureDefaultAdmin() {
   }
 }
 
-// --- Additional models ---
-const bookSchema = new mongoose.Schema(
-  {
-    title: { type: String, required: true, trim: true },
-    author: { type: String, required: true, trim: true },
-    isbn: { type: String, trim: true },
-    // Unique index for bookCode is defined below via schema.index to avoid duplicate-index warnings
-    bookCode: { type: String, trim: true },
-    genre: { type: String, trim: true },
-    tags: [{ type: String, trim: true }],
-    totalCopies: { type: Number, default: 1, min: 0 },
-    availableCopies: { type: Number, default: 1, min: 0 },
-    coverImagePath: { type: String, trim: true },
-    coverImageOriginalName: { type: String, trim: true },
-    coverImageFileId: { type: mongoose.Schema.Types.ObjectId },
-    coverImageMime: { type: String, trim: true },
-    pdfPath: { type: String, trim: true },
-    pdfOriginalName: { type: String, trim: true },
-    pdfFileId: { type: mongoose.Schema.Types.ObjectId },
-    pdfMime: { type: String, trim: true }
-  },
-  { timestamps: true }
-);
-bookSchema.index({ title: 'text', author: 'text' });
-// Ensure uniqueness at the index level (not in the field), to prevent duplicate schema index warnings
-bookSchema.index({ bookCode: 1 }, { unique: true, sparse: true });
-const Book = mongoose.model('Book', bookSchema);
+// Additional models loaded from ./models
 
-const loanSchema = new mongoose.Schema(
-  {
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    bookId: { type: mongoose.Schema.Types.ObjectId, ref: 'Book', required: true },
-    borrowedAt: { type: Date, default: () => new Date() },
-    dueAt: { type: Date, required: true },
-    returnedAt: { type: Date, default: null }
-  },
-  { timestamps: true }
-);
-loanSchema.index({ userId: 1, returnedAt: 1 });
-loanSchema.index({ bookId: 1, returnedAt: 1 });
-loanSchema.index({ dueAt: 1 });
-const Loan = mongoose.model('Loan', loanSchema);
+//
 
-const visitSchema = new mongoose.Schema(
-  {
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    studentId: { type: String, trim: true },
-    barcode: { type: String, trim: true },
-    branch: { type: String, trim: true, default: 'Main' },
-    enteredAt: { type: Date, default: () => new Date() },
-    exitedAt: { type: Date, default: null }
-  },
-  { timestamps: true }
-);
-visitSchema.index({ studentId: 1, enteredAt: -1 });
-visitSchema.index({ barcode: 1, enteredAt: -1 });
-visitSchema.index({ userId: 1, enteredAt: -1 });
-const Visit = mongoose.model('Visit', visitSchema);
+//
 
-const hoursSchema = new mongoose.Schema(
-  {
-    branch: { type: String, required: true, trim: true },
-    dayOfWeek: { type: Number, required: true, min: 0, max: 6 }, // 0=Sun
-    open: { type: String, required: true }, // HH:mm
-    close: { type: String, required: true }
-  },
-  { timestamps: true }
-);
-hoursSchema.index({ branch: 1, dayOfWeek: 1 }, { unique: true });
-const Hours = mongoose.model('Hours', hoursSchema);
+//
 
-// Password reset tokens
-const passwordResetSchema = new mongoose.Schema(
-  {
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    tokenHash: { type: String, required: true },
-    createdAt: { type: Date, default: () => new Date() },
-    expiresAt: { type: Date, required: true },
-    used: { type: Boolean, default: false },
-    usedAt: { type: Date, default: null }
-  },
-  { timestamps: false }
-);
-passwordResetSchema.index({ userId: 1, expiresAt: 1, used: 1 });
-const PasswordReset = mongoose.model('PasswordReset', passwordResetSchema);
+// Password reset tokens model loaded from ./models
 
 // --- Health
 app.get('/api/health', async (_req, res) => {

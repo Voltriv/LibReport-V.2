@@ -58,3 +58,68 @@ Scanner Notes
 
 - Camera scanner uses BarcodeDetector (Chromium-based) on https:// or http://localhost.
 - Scanner Sound Preference is saved in localStorage key lr_scan_sound and shared in Tracker and Books Management.
+
+Atlas Setup (Shared Cloud DB)
+
+- Create an Atlas cluster and a DB user with readWrite on your database.
+- Add your IP(s) in Atlas Network Access (or 0.0.0.0/0 for dev-only).
+- In `Backend/.env` set:
+  - `MONGO_URI=mongodb+srv://<user>:<url-encoded-pass>@<cluster>/<db>?authSource=admin&retryWrites=true&w=majority&appName=LibReport`
+  - `DB_NAME=<db>` (usually `libreport` to match the URI path)
+  - Set a strong `JWT_SECRET` (see JWT Tokens section).
+- Install deps: `npm run setup`
+- Start backend (Atlas): `npm run dev:backend` (avoid the in-memory scripts)
+- Start backend+frontend together (Atlas): `npm run dev:atlas`
+- Verify connection: `npm --prefix Backend run check:connection`
+- Optional: seed demo data + indexes into Atlas: `npm --prefix Backend run db:bootstrap`
+
+Switching Between Atlas and Local
+
+- Atlas (shared across all PCs)
+  - Ensure `Backend/.env` has the Atlas `MONGO_URI` and matching `DB_NAME`.
+  - Run `npm run dev:backend`.
+- Local Docker (isolated per PC)
+  - `docker compose up -d` to start local Mongo.
+  - Use either a single URI or parts in `Backend/.env`:
+    - `MONGO_URI=mongodb://libreport:libreport@127.0.0.1:27017/libreport?authSource=admin`
+    - or parts: `MONGO_HOST=127.0.0.1`, `MONGO_PORT=27017`, `MONGO_USER=libreport`, `MONGO_PASS=libreport`, `MONGO_AUTH_DB=admin`, `DB_NAME=libreport`.
+  - Run `npm run dev:backend`.
+- In-memory (fast demo/testing; not shared)
+  - `npm run dev:backend:memory` or root `npm run dev`.
+
+Data Migration (Local -> Atlas)
+
+- Use MongoDB Database Tools on your machine.
+- Dump local:
+  - `mongodump --uri="mongodb://libreport:libreport@127.0.0.1:27017/libreport?authSource=admin" --db=libreport --out=dump_dir`
+- Restore to Atlas:
+  - `mongorestore --uri="mongodb+srv://<user>:<pass>@<cluster>/libreport?authSource=admin" --nsInclude=libreport.* dump_dir/libreport`
+- Or use the bundled migration script:
+  - `npm --prefix Backend run migrate:local:atlas`
+- Per-collection only:
+  - `node Backend/scripts/migrate_to_atlas.js --from local --to env --collections users,admins,books,uploads.files,uploads.chunks --drop-target`
+- Files (book covers/PDFs) are in GridFS `uploads.files`/`uploads.chunks` and migrate with dump/restore.
+
+Troubleshooting Connectivity
+
+- Start local Mongo (Docker): `docker compose up -d`
+- Test local connection (prefer 127.0.0.1):
+  - `mongosh "mongodb://libreport:libreport@127.0.0.1:27017/libreport?authSource=admin" --eval "db.stats().ok"`
+- Verify Atlas connectivity (uses your Backend/.env):
+  - `npm --prefix Backend run check:connection`
+- If migration fails with ECONNREFUSED, confirm the source is running and accessible, then re-run:
+  - `npm --prefix Backend run migrate:local:atlas`
+
+Index Maintenance
+
+- Ensure/create managed indexes anytime:
+  - `npm --prefix Backend run db:indexes`
+- Drop obsolete/duplicate indexes (keeps _id and managed ones):
+  - `npm --prefix Backend run db:indexes:clean`
+
+JWT Tokens (Shared Across PCs)
+
+- Generate a strong secret and add to `Backend/.env` on every PC:
+  - `npm --prefix Backend run token:secret`
+  - Copy the printed `JWT_SECRET=...` into `Backend/.env` (use the SAME value on all machines)
+- The backend signs tokens with HS256 and a 7d expiry. Using the same `JWT_SECRET` across machines allows tokens issued by one backend to be valid on the others.

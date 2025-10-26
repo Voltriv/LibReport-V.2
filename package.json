@@ -15,6 +15,7 @@
     "dev": "npm run dev:fast",
     "dev:fast": "cross-env USE_MEMORY_DB=true concurrently -n backend,frontend -c blue,magenta \"npm:dev:backend\" \"npm --prefix Frontend run start\"",
     "dev:fast:external": "concurrently -n backend,frontend -c blue,magenta \"npm:dev:backend\" \"npm --prefix Frontend run start:no-depr\"",
+    "dev:atlas": "concurrently -n backend,frontend -c blue,magenta \"npm:dev:backend\" \"npm --prefix Frontend run start:no-depr\"",
     "start": "npm run dev",
     "clean": "rimraf Frontend/build",
     "build:frontend": "npm --prefix Frontend run build",

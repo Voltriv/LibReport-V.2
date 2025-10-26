@@ -24,18 +24,17 @@ const { resolveMongoConfig } = require('../db/uri');
     await db.collection('users').createIndexes([
       { key: { name: 1 }, name: 'user_name' },
       { key: { role: 1 }, name: 'user_role' },
-      { key: { email: 1 }, name: 'user_email_unique', unique: true, partialFilterExpression: { email: { $exists: true } } },
-      {
-        key: { studentId: 1 },
-        name: 'user_studentId_unique',
-        unique: true,
-        partialFilterExpression: { studentId: { $exists: true, $ne: '' } }
-      }
+      // email is required by schema; enforce global unique
+      { key: { email: 1 }, name: 'user_email_unique', unique: true },
+      // studentId is required by schema; enforce global unique
+      { key: { studentId: 1 }, name: 'user_studentId_unique', unique: true },
+      // optional barcode: avoid $ne in partials (not supported on some versions)
+      { key: { barcode: 1 }, name: 'user_barcode_unique', unique: true, partialFilterExpression: { barcode: { $exists: true } } }
     ]);
 
     await db.collection('books').createIndexes([
       { key: { title: 'text', author: 'text' }, name: 'books_text' },
-      { key: { bookCode: 1 }, name: 'books_bookCode_unique', unique: true, partialFilterExpression: { bookCode: { $exists: true, $ne: '' } } }
+      { key: { bookCode: 1 }, name: 'books_bookCode_unique', unique: true, partialFilterExpression: { bookCode: { $exists: true } } }
     ]);
 
     await db.collection('loans').createIndexes([
