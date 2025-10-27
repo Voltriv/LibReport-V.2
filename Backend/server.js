@@ -13,6 +13,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const validator = require('validator');
 const crypto = require('node:crypto');
+const { EventEmitter } = require('node:events');
 
 // Student/Admin ID format shared with models
 const { STUDENT_ID_REGEX } = require('./models/validators');
@@ -21,8 +22,8 @@ const app = express();
 app.set('etag', 'strong');
 app.use(compression());
 app.use(cors());
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('tiny'));
 
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
@@ -40,6 +41,45 @@ const MIME_EXTENSIONS = {
 };
 
 let uploadBucket = null;
+const uploadBucketEvents = new EventEmitter();
+uploadBucketEvents.setMaxListeners(0);
+
+function setUploadBucket(bucket) {
+  if (bucket) {
+    uploadBucket = bucket;
+    uploadBucketEvents.emit('ready', bucket);
+  } else {
+    uploadBucket = null;
+  }
+}
+
+function waitForUploadBucket(timeoutMs = 5000) {
+  if (NO_DB) {
+    return Promise.reject(new Error('Database disabled (NO_DB=true)'));
+  }
+  if (uploadBucket) {
+    return Promise.resolve(uploadBucket);
+  }
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('File storage is not ready yet'));
+    }, timeoutMs);
+
+    const onReady = (bucket) => {
+      cleanup();
+      resolve(bucket);
+    };
+
+    function cleanup() {
+      clearTimeout(timer);
+      uploadBucketEvents.removeListener('ready', onReady);
+    }
+
+    uploadBucketEvents.once('ready', onReady);
+  });
+}
 
 function parseBase64Payload(raw) {
   if (!raw || typeof raw !== 'string') return null;
@@ -84,11 +124,14 @@ async function removeStoredFile(stored) {
   if (!entry) return;
 
   const fileId = entry.fileId || entry.gridFsId || entry.id;
-  if (fileId && uploadBucket) {
+  const bucket =
+    uploadBucket ||
+    (await waitForUploadBucket(5000).catch(() => null));
+  if (fileId && bucket) {
     try {
       const objectId =
         typeof fileId === 'string' ? new mongoose.Types.ObjectId(fileId) : fileId;
-      await uploadBucket.delete(objectId);
+      await bucket.delete(objectId);
       return;
     } catch (err) {
       if (!err || err.code !== 'FileNotFound') {
@@ -122,7 +165,10 @@ async function storeBase64File({
   const parsed = parseBase64Payload(base64);
   if (!parsed) throw new Error('Invalid file data provided');
   const { buffer } = parsed;
-  if (!uploadBucket) {
+  const bucket =
+    uploadBucket ||
+    (await waitForUploadBucket(5000).catch(() => null));
+  if (!bucket) {
     throw new Error('File storage is not ready. Please try again shortly.');
   }
   const mime = (parsed.mime || '').toLowerCase();
@@ -173,7 +219,7 @@ async function storeBase64File({
 
   const fileId = new mongoose.Types.ObjectId();
   await new Promise((resolve, reject) => {
-    const uploadStream = uploadBucket.openUploadStreamWithId(fileId, fileName, {
+    const uploadStream = bucket.openUploadStreamWithId(fileId, fileName, {
       contentType: contentType || undefined,
       metadata: {
         originalName: safeName || fileName,
@@ -266,7 +312,8 @@ function initUploadBucket() {
   const db = mongoose.connection && mongoose.connection.db;
   if (!db) return;
   try {
-    uploadBucket = new mongoose.mongo.GridFSBucket(db, { bucketName: 'uploads' });
+    const bucket = new mongoose.mongo.GridFSBucket(db, { bucketName: 'uploads' });
+    setUploadBucket(bucket);
   } catch (err) {
     console.error('Failed to initialize GridFS bucket:', err?.message || err);
   }
@@ -274,7 +321,7 @@ function initUploadBucket() {
 
 mongoose.connection.on('connected', initUploadBucket);
 mongoose.connection.on('disconnected', () => {
-  uploadBucket = null;
+  setUploadBucket(null);
 });
 
 if (!NO_DB && USE_MEMORY_DB) {
@@ -458,7 +505,9 @@ app.use((req, res, next) => {
     req.path === '/api' ||
     req.path === '/api/' ||
     req.path === '/api/health' ||
-    req.path.startsWith('/api/auth/');
+    req.path.startsWith('/api/auth/') ||
+    req.path === '/api/files' ||
+    req.path.startsWith('/api/files/');
   if (open) return next();
 
   // Routes that any authenticated user (students or librarians) can access
@@ -1299,7 +1348,11 @@ app.delete('/api/books/:id', adminRequired, async (req, res) => {
 
 app.get(['/api/files/:id', '/api/files/:id/:name'], async (req, res) => {
   if (NO_DB) return res.status(503).json({ error: 'Database disabled (NO_DB=true)' });
-  if (!uploadBucket) return res.status(503).json({ error: 'File storage is not ready yet' });
+
+  const bucket =
+    uploadBucket ||
+    (await waitForUploadBucket(5000).catch(() => null));
+  if (!bucket) return res.status(503).json({ error: 'File storage is not ready yet' });
 
   const { id } = req.params;
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -1330,7 +1383,7 @@ app.get(['/api/files/:id', '/api/files/:id/:name'], async (req, res) => {
       );
     }
 
-    const stream = uploadBucket.openDownloadStream(fileId);
+    const stream = bucket.openDownloadStream(fileId);
     stream.on('error', (err) => {
       if (!res.headersSent) {
         res.status(500).json({ error: err?.message || 'Failed to read file' });
