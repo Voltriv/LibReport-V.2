@@ -15,7 +15,9 @@ const BooksManagement = () => {
   const [books, setBooks] = useState([]);
   const [toast, setToast] = useState(null); // { msg, type }
   const toastTimeoutRef = useRef(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  // Separate dropdown states: header profile vs. per-card menu
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [cardMenuOpenId, setCardMenuOpenId] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [userName, setUserName] = useState("Account");
 
@@ -24,27 +26,58 @@ const BooksManagement = () => {
   const [editingBook, setEditingBook] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formBusy, setFormBusy] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const navigate = useNavigate();
 
   const handleLogout = () => {
     setShowLogoutModal(false);
-    setIsDropdownOpen(false);
+    setProfileMenuOpen(false);
     clearAuthSession();
     broadcastAuthChange();
     navigate("/signin", { replace: true });
   };
 
   const toggleDropdown = (id) => {
-    setIsDropdownOpen(isDropdownOpen === id ? null : id);
+    setProfileMenuOpen(false);
+    setCardMenuOpenId((prev) => (prev === id ? null : id));
   };
 
   const loadCatalog = useCallback(async () => {
     try {
       const { data } = await api.get("/books");
       const items = (data || []).map((b) => {
-        const coverPath = resolveMediaUrl(b.coverImagePath || b.imageUrl || "");
-        const pdfPath = resolveMediaUrl(b.pdfPath || b.pdfUrl || "");
+        const rawCover = b.coverImagePath || b.imageUrl || "";
+        let coverPath = "";
+        if (typeof rawCover === "string") {
+          const v = rawCover.trim();
+          if (v) {
+            if (v.startsWith("book_images") || v.startsWith("/book_images")) {
+              const rel = v.replace(/^\/+/, "");
+              coverPath = resolveMediaUrl(`/uploads/${rel}`);
+            } else if (v.startsWith("book_pdf") || v.startsWith("/book_pdf")) {
+              // Ignore PDF as a cover
+              coverPath = "";
+            } else {
+              coverPath = resolveMediaUrl(v);
+            }
+          }
+        }
+        let pdfPath = "";
+        const rawPdf = b.pdfPath || b.pdfUrl || "";
+        if (typeof rawPdf === "string") {
+          const pv = rawPdf.trim();
+          if (pv) {
+            if (pv.startsWith("book_pdf") || pv.startsWith("/book_pdf")) {
+              const relp = pv.replace(/^\/+/, "");
+              pdfPath = resolveMediaUrl(`/uploads/${relp}`);
+            } else {
+              pdfPath = resolveMediaUrl(pv);
+            }
+          }
+        }
         const department = b.department || "";
         const genre = b.genre || "";
         const departmentLabel =
@@ -104,14 +137,16 @@ const BooksManagement = () => {
   // Create book
   async function handleCreateBook(payload) {
     setFormBusy(true);
+    setFormError(null);
     try {
       await api.post("/books", payload);
       await loadCatalog();
       setIsAddOpen(false);
+      setFormError(null);
       showToast("Book added", "success");
     } catch (err) {
       const msg = err?.response?.data?.error || "Failed to add book";
-      showToast(msg, "error");
+      setFormError(msg);
     } finally {
       setFormBusy(false);
     }
@@ -121,14 +156,16 @@ const BooksManagement = () => {
   async function handleUpdateBook(payload) {
     if (!editingBook) return;
     setFormBusy(true);
+    setFormError(null);
     try {
       await api.patch(`/books/${editingBook.id}`, payload);
       await loadCatalog();
       setEditingBook(null);
+      setFormError(null);
       showToast("Book updated", "success");
     } catch (err) {
       const msg = err?.response?.data?.error || "Failed to update book";
-      showToast(msg, "error");
+      setFormError(msg);
     } finally {
       setFormBusy(false);
     }
@@ -167,13 +204,22 @@ const BooksManagement = () => {
           </div>
           <div className="flex items-center gap-4">
             <button
-              onClick={() => loadCatalog()}
+              onClick={async () => {
+                if (refreshing) return;
+                setRefreshing(true);
+                try {
+                  await loadCatalog();
+                  setRefreshNonce((n) => n + 1);
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Refresh
+              {refreshing ? 'Refreshing...' : 'Refresh'}
             </button>
             <button
               onClick={() => setIsAddOpen(true)}
@@ -186,7 +232,10 @@ const BooksManagement = () => {
             </button>
             <div className="relative">
               <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                onClick={() => {
+                  setProfileMenuOpen((v) => !v);
+                  setCardMenuOpenId(null);
+                }}
                 className="inline-flex items-center gap-3 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
               >
                 <img src={pfp} alt="Profile" className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20" />
@@ -200,7 +249,7 @@ const BooksManagement = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              {isDropdownOpen && (
+              {profileMenuOpen && (
                 <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                   <button
                     className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
@@ -251,18 +300,27 @@ const BooksManagement = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {books.map((book) => (
-                <div key={book.id} className="group relative bg-white dark:bg-stone-900 rounded-2xl ring-1 ring-slate-200 dark:ring-stone-700 overflow-hidden hover:shadow-xl transition-all duration-300">
+                <div key={book.id} className="group relative bg-white dark:bg-stone-900 rounded-2xl ring-1 ring-slate-200 dark:ring-stone-700 hover:shadow-xl transition-all duration-300">
                   {/* Cover */}
                   <div className="aspect-[3/4] bg-gradient-to-br from-slate-100 to-slate-200 dark:from-stone-800 dark:to-stone-700 flex items-center justify-center relative overflow-hidden">
-                    {book.coverImagePath ? (
-                      <img src={book.coverImagePath} alt={book.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    ) : (
+                    {/* Fallback placeholder sits behind the image */}
+                    <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center">
                       <div className="text-center p-4">
                         <svg className="h-16 w-16 text-slate-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                         </svg>
                         <p className="text-xs text-slate-500 dark:text-stone-400">No cover image</p>
                       </div>
+                    </div>
+                    {/* Image (hidden on error) */}
+                    {book.coverImagePath && (
+                      <img
+                        src={`${book.coverImagePath}${book.coverImagePath.includes('?') ? '&' : '?'}r=${refreshNonce}`}
+                        alt={book.title}
+                        loading="lazy"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        className="relative z-10 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
                     )}
 
                     {/* Menu */}
@@ -277,12 +335,13 @@ const BooksManagement = () => {
                           </svg>
                         </button>
 
-                        {isDropdownOpen === book.id && (
+                        {cardMenuOpenId === book.id && (
                           <div className="absolute right-0 mt-2 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                             <button
                               onClick={() => {
                                 setEditingBook(book);
-                                setIsDropdownOpen(false);
+                                setCardMenuOpenId(null);
+                                setProfileMenuOpen(false);
                               }}
                               className="w-full text-left rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-stone-300 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
                             >
@@ -291,7 +350,8 @@ const BooksManagement = () => {
                             <button
                               onClick={() => {
                                 setDeleteTarget(book);
-                                setIsDropdownOpen(false);
+                                setCardMenuOpenId(null);
+                                setProfileMenuOpen(false);
                               }}
                               className="w-full text-left rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200"
                             >
@@ -333,9 +393,9 @@ const BooksManagement = () => {
 
         {/* Toast */}
         {toast && (
-          <div className="fixed bottom-4 right-4 z-50">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
             <div
-              className={`rounded-xl px-4 py-3 shadow-lg ring-1 ${
+              className={`pointer-events-auto rounded-xl px-4 py-3 shadow-lg ring-1 ${
                 toast.type === "success"
                   ? "bg-green-50 text-green-800 ring-green-200 dark:bg-green-900/20 dark:text-green-400 dark:ring-green-800"
                   : "bg-red-50 text-red-800 ring-red-200 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-800"
@@ -352,18 +412,22 @@ const BooksManagement = () => {
         <BookFormModal
           open={isAddOpen}
           mode="create"
-          onCancel={() => setIsAddOpen(false)}
+          onCancel={() => { setIsAddOpen(false); setFormError(null); }}
           onSubmit={handleCreateBook}
           busy={formBusy}
+          serverError={formError}
+          onClearServerError={() => setFormError(null)}
         />
         {editingBook && (
           <BookFormModal
             open
             mode="edit"
             book={editingBook}
-            onCancel={() => setEditingBook(null)}
+            onCancel={() => { setEditingBook(null); setFormError(null); }}
             onSubmit={handleUpdateBook}
             busy={formBusy}
+            serverError={formError}
+            onClearServerError={() => setFormError(null)}
           />
         )}
         <DeleteConfirmModal
@@ -411,5 +475,6 @@ const BooksManagement = () => {
 };
 
 export default BooksManagement;
+
 
 

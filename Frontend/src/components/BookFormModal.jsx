@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { resolveMediaUrl } from "../api";
 import {
   Dialog,
   DialogTitle,
@@ -46,6 +47,8 @@ export default function BookFormModal({
   onCancel,
   onSubmit,                     // (payload) => Promise<void>
   busy = false,
+  serverError = null,
+  onClearServerError = () => {},
 }) {
   const [formData, setFormData] = useState({
     title: "",
@@ -65,6 +68,18 @@ export default function BookFormModal({
   const [coverCleared, setCoverCleared] = useState(false);
 
   const [errors, setErrors] = useState({});
+
+  const normalizeCover = (p) => {
+    if (!p) return "";
+    const v = String(p).trim();
+    if (!v) return "";
+    if (v.startsWith("book_images") || v.startsWith("/book_images")) {
+      const rel = v.replace(/^\/+/, "");
+      return resolveMediaUrl(`/uploads/${rel}`);
+    }
+    if (v.startsWith("book_pdf") || v.startsWith("/book_pdf")) return "";
+    return resolveMediaUrl(v);
+  };
 
   const bookGenre = book?.genre || "";
   const genreOptions = useMemo(() => {
@@ -89,7 +104,7 @@ export default function BookFormModal({
         totalCopies: Number(book.totalCopies ?? 1),
         availableCopies: Number(book.availableCopies ?? 1),
       });
-      setCoverPreview(book.coverImagePath || book.coverUrl || "");
+      setCoverPreview(normalizeCover(book.coverImagePath || book.coverUrl || ""));
     } else {
       setFormData({
         title: "",
@@ -122,6 +137,7 @@ export default function BookFormModal({
     const value = e.target.value;
     setFormData((p) => ({ ...p, [field]: value }));
     if (errors[field]) setErrors((p) => ({ ...p, [field]: "" }));
+    if (serverError) onClearServerError();
   };
 
   const validate = () => {
@@ -287,6 +303,7 @@ export default function BookFormModal({
                       <img
                         src={coverPreview}
                         alt="Cover preview"
+                        onError={() => setCoverPreview("")}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
                     ) : (
@@ -307,6 +324,7 @@ export default function BookFormModal({
                           const nextFile = e.target.files?.[0] || null;
                           setCoverFile(nextFile);
                           setCoverCleared(false);
+                          if (serverError) onClearServerError();
                         }}
                       />
                     </Button>
@@ -318,6 +336,7 @@ export default function BookFormModal({
                           setCoverFile(null);
                           setCoverPreview("");
                           setCoverCleared(true);
+                          if (serverError) onClearServerError();
                         }}
                       >
                         Remove
@@ -343,7 +362,7 @@ export default function BookFormModal({
                         hidden
                         type="file"
                         accept="application/pdf"
-                        onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                        onChange={(e) => { setPdfFile(e.target.files?.[0] || null); if (serverError) onClearServerError(); }}
                       />
                     </Button>
                     <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 260 }}>
@@ -370,6 +389,37 @@ export default function BookFormModal({
           </Button>
         </DialogActions>
       </form>
+
+      {/* Centered server error overlay inside modal */}
+      {serverError && (
+        <Box
+          sx={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1400,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+          }}
+        >
+          <Paper
+            elevation={6}
+            sx={{
+              px: 2.5,
+              py: 1.5,
+              borderRadius: 2,
+              bgcolor: (t) => (t.palette.mode === 'dark' ? 'rgba(127,29,29,0.2)' : 'rgba(254,226,226,0.9)'),
+              color: (t) => (t.palette.mode === 'dark' ? '#fecaca' : '#7f1d1d'),
+              border: '1px solid',
+              borderColor: 'error.light',
+              pointerEvents: 'auto',
+            }}
+          >
+            <Typography variant="body2" fontWeight={600}>{serverError}</Typography>
+          </Paper>
+        </Box>
+      )}
     </Dialog>
   );
 }

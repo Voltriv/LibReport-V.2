@@ -9,8 +9,23 @@ const toMediaUrl = (p) => {
   if (!p) return null;
   const v = String(p).trim();
   if (!v) return null;
-  if (v.startsWith('book_images') || v.startsWith('book_pdf')) return null;
+  if (v.startsWith('book_images') || v.startsWith('/book_images')) {
+    const rel = v.replace(/^\/+/, '');
+    return resolveMediaUrl(`/uploads/${rel}`);
+  }
+  if (v.startsWith('book_pdf') || v.startsWith('/book_pdf')) {
+    const rel = v.replace(/^\/+/, '');
+    return resolveMediaUrl(`/uploads/${rel}`);
+  }
   return resolveMediaUrl(v);
+};
+
+const isLikelyFileUrl = (u) => {
+  if (!u) return false;
+  const s = String(u);
+  if (/\/api\/files\/[a-f0-9]{24}(?:\/|$)/i.test(s)) return true;
+  if (/\/uploads\/.+\.(?:pdf|png|jpg|jpeg|webp)(?:\?|$)/i.test(s)) return true;
+  return false;
 };
 
 const BooksLibrary = () => {
@@ -93,7 +108,8 @@ const BooksLibrary = () => {
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
             {items.map((b, i) => {
               const img = toMediaUrl(b.imageUrl);
-              const pdf = toMediaUrl(b.pdfUrl);
+              const pdfCandidate = toMediaUrl(b.pdfUrl);
+              const pdf = isLikelyFileUrl(pdfCandidate) ? pdfCandidate : null;
               return (
                 <div key={b._id || i} className="rounded-xl ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 overflow-hidden">
                   <div className="aspect-[3/4] bg-slate-100 dark:bg-stone-900 flex items-center justify-center">

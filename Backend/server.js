@@ -1138,6 +1138,7 @@ app.patch('/api/books/:id', adminRequired, async (req, res) => {
     author,
     isbn,
     bookCode,
+    department,
     genre,
     tags,
     totalCopies,

@@ -51,8 +51,35 @@ const StudentCatalog = () => {
           const coverRaw = item.imageUrl || item.coverImagePath || "";
           const pdfRaw = item.pdfUrl || item.pdfPath || "";
 
-          const imageUrl = resolveMediaUrl(coverRaw);
-          const pdfUrl = resolveMediaUrl(pdfRaw);
+          let imageUrl = "";
+          if (typeof coverRaw === "string") {
+            const v = coverRaw.trim();
+            if (v.startsWith("book_images") || v.startsWith("/book_images")) {
+              const rel = v.replace(/^\/+/, "");
+              imageUrl = resolveMediaUrl(`/uploads/${rel}`);
+            } else if (v) {
+              imageUrl = resolveMediaUrl(v);
+            }
+          }
+
+          let pdfUrl = "";
+          if (typeof pdfRaw === "string") {
+            const pv = pdfRaw.trim();
+            if (pv.startsWith("book_pdf") || pv.startsWith("/book_pdf")) {
+              const relp = pv.replace(/^\/+/, "");
+              pdfUrl = resolveMediaUrl(`/uploads/${relp}`);
+            } else if (pv) {
+              pdfUrl = resolveMediaUrl(pv);
+            }
+          }
+
+          const isLikelyFileUrl = (u) => {
+            if (!u) return false; const s = String(u);
+            if (/\/api\/files\/[a-f0-9]{24}(?:\/|$)/i.test(s)) return true;
+            if (/\/uploads\/.+\.(?:pdf|png|jpg|jpeg|webp)(?:\?|$)/i.test(s)) return true;
+            return false;
+          };
+          if (!isLikelyFileUrl(pdfUrl)) pdfUrl = "";
           return {
             ...item,
             imageUrl: imageUrl || null,
