@@ -35,6 +35,57 @@ const Reports = () => {
   const [loadingReport, setLoadingReport] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const [printing, setPrinting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const printReport = () => {
+    try {
+      setPrinting(true);
+      // Allow layout to settle before print
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => setPrinting(false), 300);
+      }, 50);
+    } catch {
+      setPrinting(false);
+    }
+  };
+
+  const downloadPdf = async () => {
+    const root = document.getElementById('report-print-root');
+    if (!root) return;
+    const h2c = window.html2canvas;
+    const jsPDF = window.jspdf?.jsPDF;
+    if (!h2c || !jsPDF) {
+      // Fallback to browser print if libs not yet loaded
+      return printReport();
+    }
+    try {
+      setDownloading(true);
+      const canvas = await h2c(root, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = canvas.height * (imgWidth / canvas.width);
+
+      let position = 0;
+      let heightLeft = imgHeight;
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      while (heightLeft > 0) {
+        position = -(imgHeight - heightLeft);
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const fileName = `Report_${reportType.value}_${timeRange.value}_${new Date().toISOString().slice(0,10)}.pdf`;
+      pdf.save(fileName);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleLogout = () => {
     setShowLogoutModal(false);
@@ -226,14 +277,25 @@ const Reports = () => {
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <Sidebar />
 
-      <main className="px-6 md:pl-8 lg:pl-10 pr-6 py-8 md:ml-80">
+      {/* Print styles: hide chrome and show only report area when printing */}
+      <style>{`
+        @media print {
+          /* Hide sidebar and page chrome */
+          .print-hide, .print-hide * { display: none !important; }
+          /* Make main content full width for print */
+          .print-container { margin: 0 !important; padding: 0 16px !important; }
+          /* Avoid sticky gaps */
+          body { background: #fff !important; }
+        }
+      `}</style>
+      <main className="px-6 md:pl-8 lg:pl-10 pr-6 py-8 md:ml-80 print-container">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Reports</h1>
             <p className="text-slate-600 dark:text-stone-400 mt-1">Generate comprehensive library reports and analytics</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 print-hide">
             <button 
               onClick={() => window.location.reload()}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
@@ -273,10 +335,10 @@ const Reports = () => {
           </div>
         </div>
 
-        <section className="mt-6">
+        <section className="mt-6" id="report-print-root">
           <h2 className="text-2xl font-semibold text-slate-900 dark:text-stone-100">Auto Reports</h2>
 
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex items-center gap-2 print-hide">
             {TIME_RANGES.map((range) => (
               <button
                 key={range.value}
@@ -292,7 +354,7 @@ const Reports = () => {
             ))}
           </div>
 
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex items-center gap-2 print-hide">
             <label className="text-sm text-slate-700 dark:text-stone-200">Report Type:</label>
             <select
               value={reportType.value}
@@ -413,8 +475,13 @@ const Reports = () => {
             </table>
           </div>
 
-          <div className="mt-4">
-            <button className="rounded-lg px-4 py-2 bg-brand-gold text-white hover:opacity-90">Download as PDF</button>
+          <div className="mt-4 print-hide flex gap-2">
+            <button onClick={downloadPdf} className="rounded-lg px-4 py-2 bg-brand-gold text-white hover:opacity-90 disabled:opacity-60" disabled={downloading}>
+              {downloading ? 'Exporting…' : 'Download as PDF'}
+            </button>
+            <button onClick={printReport} className="rounded-lg px-4 py-2 ring-1 ring-slate-300 text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800">
+              Print
+            </button>
           </div>
         </section>
       </main>
