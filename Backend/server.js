@@ -1013,7 +1013,6 @@ app.post('/api/books', adminRequired, async (req, res) => {
     isbn,
     bookCode,
     department,
-    department,
     genre,
     tags,
     totalCopies,
