@@ -73,11 +73,6 @@ export default function BookFormModal({
     if (!p) return "";
     const v = String(p).trim();
     if (!v) return "";
-    if (v.startsWith("book_images") || v.startsWith("/book_images")) {
-      const rel = v.replace(/^\/+/, "");
-      return resolveMediaUrl(`/uploads/${rel}`);
-    }
-    if (v.startsWith("book_pdf") || v.startsWith("/book_pdf")) return "";
     return resolveMediaUrl(v);
   };
 

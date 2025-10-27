@@ -9,14 +9,6 @@ const toMediaUrl = (p) => {
   if (!p) return null;
   const v = String(p).trim();
   if (!v) return null;
-  if (v.startsWith('book_images') || v.startsWith('/book_images')) {
-    const rel = v.replace(/^\/+/, '');
-    return resolveMediaUrl(`/uploads/${rel}`);
-  }
-  if (v.startsWith('book_pdf') || v.startsWith('/book_pdf')) {
-    const rel = v.replace(/^\/+/, '');
-    return resolveMediaUrl(`/uploads/${rel}`);
-  }
   return resolveMediaUrl(v);
 };
 

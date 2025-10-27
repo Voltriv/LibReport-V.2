@@ -50,34 +50,9 @@ const BooksManagement = () => {
       const { data } = await api.get("/books");
       const items = (data || []).map((b) => {
         const rawCover = b.coverImagePath || b.imageUrl || "";
-        let coverPath = "";
-        if (typeof rawCover === "string") {
-          const v = rawCover.trim();
-          if (v) {
-            if (v.startsWith("book_images") || v.startsWith("/book_images")) {
-              const rel = v.replace(/^\/+/, "");
-              coverPath = resolveMediaUrl(`/uploads/${rel}`);
-            } else if (v.startsWith("book_pdf") || v.startsWith("/book_pdf")) {
-              // Ignore PDF as a cover
-              coverPath = "";
-            } else {
-              coverPath = resolveMediaUrl(v);
-            }
-          }
-        }
-        let pdfPath = "";
+        const coverPath = resolveMediaUrl(rawCover);
         const rawPdf = b.pdfPath || b.pdfUrl || "";
-        if (typeof rawPdf === "string") {
-          const pv = rawPdf.trim();
-          if (pv) {
-            if (pv.startsWith("book_pdf") || pv.startsWith("/book_pdf")) {
-              const relp = pv.replace(/^\/+/, "");
-              pdfPath = resolveMediaUrl(`/uploads/${relp}`);
-            } else {
-              pdfPath = resolveMediaUrl(pv);
-            }
-          }
-        }
+        const pdfPath = resolveMediaUrl(rawPdf);
         const department = b.department || "";
         const genre = b.genre || "";
         const departmentLabel =

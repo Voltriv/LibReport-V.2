@@ -21,9 +21,7 @@
                     "export:books":  "node scripts/books_export.js",
                     "validate:books":  "node scripts/books_validate.js",
                     "import:books:data":  "node scripts/import_books.js data/books.template.csv",
-                    "dump:covers":  "node scripts/dump_book_covers.js",
-                    "migrate:covers":  "node scripts/migrate_legacy_covers.js",
-                    "export:missing":  "node scripts/export_missing_media.js"
+                    "migrate:covers":  "node scripts/migrate_legacy_covers.js"
                 },
     "dependencies":  {
                          "bcryptjs":  "^3.0.2",
