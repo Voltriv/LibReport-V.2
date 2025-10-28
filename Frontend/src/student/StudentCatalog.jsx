@@ -341,8 +341,34 @@ const StudentCatalog = () => {
               : `Showing ${totalToShow} ${baseLabel}${filterLabel}`}
           </div>
           {!showSkeleton && lastUpdated && (
-            <div className="text-xs text-slate-500">
-              Updated {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              <span>
+                Updated {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+              <button
+                type="button"
+                onClick={() => load({ reset: true })}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2 py-1 font-semibold text-slate-600 transition hover:border-brand-green hover:text-brand-green"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="23 4 23 10 17 10" />
+                  <polyline points="1 20 1 14 7 14" />
+                  <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10" />
+                  <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14" />
+                </svg>
+                Refresh
+              </button>
             </div>
           )}
         </div>

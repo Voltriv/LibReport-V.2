@@ -5,7 +5,7 @@ const StudentBorrowedBooks = () => {
   const [loading, setLoading] = React.useState(true);
   const [books, setBooks] = React.useState([]);
   const [error, setError] = React.useState("");
-  const [returning, setReturning] = React.useState(false);
+  const [returningId, setReturningId] = React.useState(null);
   const [returnSuccess, setReturnSuccess] = React.useState(null);
   const [renewingId, setRenewingId] = React.useState(null);
   const [renewSuccess, setRenewSuccess] = React.useState(null);
@@ -37,9 +37,9 @@ const StudentBorrowedBooks = () => {
   }, []);
 
   const handleReturnBook = React.useCallback(async (bookId, bookTitle) => {
-    if (returning) return;
+    if (returningId || renewingId) return;
     
-    setReturning(true);
+    setReturningId(bookId);
     setError("");
     setRenewSuccess(null);
     
@@ -56,9 +56,9 @@ const StudentBorrowedBooks = () => {
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to return book. Please try again.');
     } finally {
-      setReturning(false);
+      setReturningId(null);
     }
-  }, [returning, refreshBorrowed]);
+  }, [returningId, renewingId, refreshBorrowed]);
 
   const handleRenewBook = React.useCallback(async (bookId, bookTitle) => {
     if (renewingId) return;
@@ -100,22 +100,26 @@ const StudentBorrowedBooks = () => {
         )}
 
         {returnSuccess && (
-          <div className="mb-6 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            <div className="flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22,4 12,14.01 9,11.01"/>
-              </svg>
-              <span>
-                <strong>Success!</strong> You have returned "{returnSuccess.title}".
-              </span>
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/30 backdrop-blur-sm">
+            <div className="relative w-[min(90%,420px)] rounded-3xl border border-green-200 bg-white px-6 py-6 text-center text-sm text-green-700 shadow-xl">
+              <button
+                type="button"
+                onClick={() => setReturnSuccess(null)}
+                className="absolute right-4 top-4 rounded-full border border-green-200 px-2 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-50"
+              >
+                Dismiss
+              </button>
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-700">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22,4 12,14.01 9,11.01"/>
+                </svg>
+              </div>
+              <h2 className="mt-3 text-lg font-semibold text-green-800">Success!</h2>
+              <p className="mt-2 text-sm leading-relaxed text-green-700">
+                You have returned "<strong>{returnSuccess.title}</strong>".
+              </p>
             </div>
-            <button
-              onClick={() => setReturnSuccess(null)}
-              className="mt-2 text-green-600 hover:text-green-800 underline"
-            >
-              Dismiss
-            </button>
           </div>
         )}
 
@@ -154,6 +158,8 @@ const StudentBorrowedBooks = () => {
             {books.map((book) => {
               const isRenewingThis = renewingId === book.bookId;
               const isRenewingAny = Boolean(renewingId);
+              const isReturningThis = returningId === book.bookId;
+              const isReturningAny = Boolean(returningId);
               return (
                 <div key={book.id} className="rounded-lg bg-white p-6 shadow-sm">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -173,16 +179,16 @@ const StudentBorrowedBooks = () => {
                       <button 
                         className="btn-student-outline btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() => handleRenewBook(book.bookId, book.title)}
-                        disabled={isRenewingAny || returning}
+                        disabled={isRenewingAny || isReturningAny}
                       >
                         {isRenewingThis ? 'Renewing...' : 'Renew'}
                       </button>
                       <button 
                         className="btn-student-primary btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() => handleReturnBook(book.bookId, book.title)}
-                        disabled={returning || Boolean(renewingId)}
+                        disabled={isRenewingAny || isReturningAny}
                       >
-                        {returning ? 'Returning...' : 'Return'}
+                        {isReturningThis ? 'Returning...' : 'Return'}
                       </button>
                     </div>
                   </div>
