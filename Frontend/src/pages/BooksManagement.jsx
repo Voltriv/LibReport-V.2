@@ -299,7 +299,7 @@ const BooksManagement = () => {
                     )}
 
                     {/* Menu */}
-                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <div className="absolute top-3 right-3 z-20">
                       <div className="relative">
                         <button
                           onClick={() => toggleDropdown(book.id)}

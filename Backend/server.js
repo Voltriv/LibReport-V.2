@@ -290,6 +290,38 @@ function parseTagsInput(raw, fallback) {
   return out;
 }
 
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function readNumericQueryParam(value, options = {}) {
+  const { defaultValue, min, max, integer = false, name = 'value' } = options;
+  const hasValue = !(value === undefined || value === null || value === '');
+  let candidate;
+  if (hasValue) {
+    candidate = Number(value);
+  } else if (defaultValue !== undefined) {
+    candidate = Number(defaultValue);
+  } else {
+    throw new Error(`${name} is required`);
+  }
+
+  if (!Number.isFinite(candidate)) {
+    throw new Error(`${name} must be a number`);
+  }
+
+  let result = integer ? Math.trunc(candidate) : candidate;
+
+  if (min !== undefined && result < min) {
+    result = min;
+  }
+  if (max !== undefined && result > max) {
+    result = max;
+  }
+
+  return result;
+}
+
 // --- DB connect
 const { resolveMongoConfig } = require('./db/uri');
 const { uri: MONGO_URI_INIT, dbName: DB_NAME } = resolveMongoConfig();
@@ -372,7 +404,7 @@ const { User, Admin, Book, Loan, Visit, Hours, PasswordReset } = require('./mode
 async function ensureDefaultAdmin() {
   const rawEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
   const email = rawEmail ? String(rawEmail).trim().toLowerCase() : '';
-  const adminId = String(process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '03-2324-03224').trim();
+  const adminId = String(process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '03-2324-032224').trim();
   const fullName = String(process.env.ADMIN_NAME || 'Librarian').trim() || 'Librarian';
   const password = process.env.ADMIN_PASSWORD || 'Password123';
 
@@ -705,7 +737,7 @@ app.post('/api/auth/login', async (req, res) => {
   if (!account) {
     // Final fallback: allow admins to log in with legacy studentId without dashes
     const digitsOnly = lookup.replace(/[^0-9]/g, '');
-    if (digitsOnly.length === 11) {
+    if (digitsOnly.length === 12) {
       const dashed = `${digitsOnly.slice(0, 2)}-${digitsOnly.slice(2, 6)}-${digitsOnly.slice(6)}`;
       account = await Admin.findOne({ adminId: dashed });
       if (account) isAdmin = true;
@@ -764,7 +796,17 @@ app.get('/api/student/me', studentRequired, async (req, res) => {
 // Only accessible by librarian/admin (not librarian_staff)
 app.get('/api/admins', elevatedAdminRequired, async (req, res) => {
   const q = String(req.query.q || '').trim();
-  const filter = q ? { $or: [ { adminId: new RegExp(q, 'i') }, { fullName: new RegExp(q, 'i') }, { email: new RegExp(q, 'i') } ] } : {};
+  let filter = {};
+  if (q) {
+    const safeQuery = escapeRegex(q);
+    filter = {
+      $or: [
+        { adminId: new RegExp(safeQuery, 'i') },
+        { fullName: new RegExp(safeQuery, 'i') },
+        { email: new RegExp(safeQuery, 'i') }
+      ]
+    };
+  }
   const items = await Admin.find(filter).select('adminId fullName email role status createdAt').limit(200).sort({ createdAt: -1 }).lean();
   res.json(items);
 });
@@ -869,7 +911,17 @@ app.get('/api/dashboard', authRequired, async (_req, res) => {
 
 // --- Usage Heatmaps (visits)
 app.get('/api/heatmap/visits', authRequired, async (req, res) => {
-  const days = Number(req.query.days || 30);
+  let days;
+  try {
+    days = readNumericQueryParam(req.query.days, {
+      name: 'days',
+      defaultValue: 30,
+      min: 1,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const branch = req.query.branch;
   const match = { enteredAt: { $gte: since } };
@@ -938,7 +990,17 @@ app.post('/api/visit/exit', async (req, res) => {
 
 // --- Recent visits feed (for tracker)
 app.get('/api/visits/recent', authRequired, async (req, res) => {
-  const minutes = Number(req.query.minutes || 60);
+  let minutes;
+  try {
+    minutes = readNumericQueryParam(req.query.minutes, {
+      name: 'minutes',
+      defaultValue: 60,
+      min: 1,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
   const since = new Date(Date.now() - minutes * 60 * 1000);
   const items = await Visit.aggregate([
     { $match: { enteredAt: { $gte: since } } },
@@ -970,10 +1032,26 @@ app.get('/api/tracker/stats', adminRequired, async (_req, res) => {
 
 // Recent loan activity for tracker quick log
 app.get('/api/tracker/logs', adminRequired, async (req, res) => {
-  const limitRaw = Number(req.query.limit || 25);
-  const daysRaw = Number(req.query.days || 30);
-  const limit = Math.max(1, Math.min(limitRaw, 100));
-  const days = Math.max(1, Math.min(daysRaw, 180));
+  let limit;
+  let days;
+  try {
+    limit = readNumericQueryParam(req.query.limit, {
+      name: 'limit',
+      defaultValue: 25,
+      min: 1,
+      max: 100,
+      integer: true
+    });
+    days = readNumericQueryParam(req.query.days, {
+      name: 'days',
+      defaultValue: 30,
+      min: 1,
+      max: 180,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
   const docs = await Loan.aggregate([
@@ -1019,14 +1097,31 @@ app.get('/api/tracker/logs', adminRequired, async (req, res) => {
 // --- Public library listing (auth), supports q and limit
 app.get('/api/books/library', authRequired, async (req, res) => {
   const q = String(req.query.q || '').trim();
-  const limit = Math.min(Number(req.query.limit || 24), 100);
-  const skip = Math.max(Number(req.query.skip || 0), 0);
+  let limit;
+  let skip;
+  try {
+    limit = readNumericQueryParam(req.query.limit, {
+      name: 'limit',
+      defaultValue: 24,
+      min: 1,
+      max: 100,
+      integer: true
+    });
+    skip = readNumericQueryParam(req.query.skip, {
+      name: 'skip',
+      defaultValue: 0,
+      min: 0,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
   const tag = String(req.query.tag || '').trim();
   const withPdf = String(req.query.withPdf || '').toLowerCase() === 'true';
 
   const filter = {};
   if (q) {
-    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escaped = escapeRegex(q);
     const regex = new RegExp(escaped, 'i');
     filter.$or = [{ title: regex }, { author: regex }, { bookCode: regex }, { isbn: regex }];
   }
@@ -1158,7 +1253,7 @@ app.get('/api/books', adminRequired, async (req, res) => {
   const filter = {};
   const andConditions = [];
   if (q) {
-    const escaped = q.replace(/[-/\^$*+?.()|[\]{}]/g, '\$&');
+    const escaped = escapeRegex(q);
     const regex = new RegExp(escaped, 'i');
     andConditions.push({ $or: [{ title: regex }, { author: regex }, { bookCode: regex }] });
   }
@@ -1418,16 +1513,50 @@ async function markLoanAsReturned(loan) {
 app.post('/api/loans/borrow', adminRequired, async (req, res) => {
   const { userId, bookId, days: daysRaw } = req.body || {};
   if (!userId || !bookId) return res.status(400).json({ error: 'userId and bookId required' });
-  const [user, book] = await Promise.all([
-    User.findById(userId),
-    Book.findById(bookId)
-  ]);
-  if (!user || !book) return res.status(404).json({ error: 'User or Book not found' });
-  if (book.availableCopies <= 0) return res.status(400).json({ error: 'No available copies' });
-  const chosenDays = Number(daysRaw ?? DEFAULT_LOAN_DAYS) || DEFAULT_LOAN_DAYS;
+  if (!mongoose.Types.ObjectId.isValid(String(userId))) {
+    return res.status(400).json({ error: 'userId must be a valid identifier' });
+  }
+  if (!mongoose.Types.ObjectId.isValid(String(bookId))) {
+    return res.status(400).json({ error: 'bookId must be a valid identifier' });
+  }
+  const bookObjectId = new mongoose.Types.ObjectId(String(bookId));
+  const user = await User.findById(userId);
+  if (!user) return res.status(404).json({ error: 'User or Book not found' });
+
+  let chosenDays;
+  try {
+    chosenDays = readNumericQueryParam(daysRaw, {
+      name: 'days',
+      defaultValue: DEFAULT_LOAN_DAYS,
+      min: 1,
+      max: 180,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
   const dueAt = new Date(Date.now() + chosenDays * 24 * 60 * 60 * 1000);
-  const loan = await Loan.create({ userId: user._id, bookId: book._id, dueAt });
-  await Book.findByIdAndUpdate(book._id, { $inc: { availableCopies: -1 } });
+
+  const book = await Book.findOneAndUpdate(
+    { _id: bookObjectId, availableCopies: { $gt: 0 } },
+    { $inc: { availableCopies: -1 } },
+    { new: true }
+  );
+
+  if (!book) {
+    const exists = await Book.exists({ _id: bookObjectId });
+    if (!exists) return res.status(404).json({ error: 'User or Book not found' });
+    return res.status(400).json({ error: 'No available copies' });
+  }
+
+  let loan;
+  try {
+    loan = await Loan.create({ userId: user._id, bookId: book._id, dueAt });
+  } catch (err) {
+    await Book.updateOne({ _id: book._id }, { $inc: { availableCopies: 1 } });
+    return res.status(500).json({ error: err?.message || 'Failed to create loan' });
+  }
   res.status(201).json(loan);
 });
 
@@ -1435,28 +1564,56 @@ app.post('/api/loans/borrow', adminRequired, async (req, res) => {
 app.post('/api/student/borrow', studentRequired, async (req, res) => {
   const { bookId, days: daysRaw } = req.body || {};
   if (!bookId) return res.status(400).json({ error: 'bookId required' });
+  if (!mongoose.Types.ObjectId.isValid(String(bookId))) {
+    return res.status(400).json({ error: 'bookId must be a valid identifier' });
+  }
+  const bookObjectId = new mongoose.Types.ObjectId(String(bookId));
   
   const userId = req.user.sub;
-  const [user, book] = await Promise.all([
-    User.findById(userId),
-    Book.findById(bookId)
-  ]);
-  
-  if (!user || !book) return res.status(404).json({ error: 'User or Book not found' });
-  if (book.availableCopies <= 0) return res.status(400).json({ error: 'No available copies' });
+  const user = await User.findById(userId);
+  if (!user) return res.status(404).json({ error: 'User or Book not found' });
+
+  let chosenDays;
+  try {
+    chosenDays = readNumericQueryParam(daysRaw, {
+      name: 'days',
+      defaultValue: DEFAULT_LOAN_DAYS,
+      min: 1,
+      max: 180,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
   
   // Check if student already has this book borrowed
   const existingLoan = await Loan.findOne({ 
     userId: user._id, 
-    bookId: book._id, 
+    bookId: bookObjectId, 
     returnedAt: null 
   });
   if (existingLoan) return res.status(400).json({ error: 'You already have this book borrowed' });
-  
-  const chosenDays = Number(daysRaw ?? DEFAULT_LOAN_DAYS) || DEFAULT_LOAN_DAYS;
+ 
+  const book = await Book.findOneAndUpdate(
+    { _id: bookObjectId, availableCopies: { $gt: 0 } },
+    { $inc: { availableCopies: -1 } },
+    { new: true }
+  );
+
+  if (!book) {
+    const exists = await Book.exists({ _id: bookObjectId });
+    if (!exists) return res.status(404).json({ error: 'User or Book not found' });
+    return res.status(400).json({ error: 'No available copies' });
+  }
+
   const dueAt = new Date(Date.now() + chosenDays * 24 * 60 * 60 * 1000);
-  const loan = await Loan.create({ userId: user._id, bookId: book._id, dueAt });
-  await Book.findByIdAndUpdate(book._id, { $inc: { availableCopies: -1 } });
+  let loan;
+  try {
+    loan = await Loan.create({ userId: user._id, bookId: book._id, dueAt });
+  } catch (err) {
+    await Book.updateOne({ _id: book._id }, { $inc: { availableCopies: 1 } });
+    return res.status(500).json({ error: err?.message || 'Failed to create loan' });
+  }
   
   res.status(201).json({
     id: loan._id,
@@ -1684,11 +1841,32 @@ app.get('/api/student/borrowing-history', studentRequired, async (req, res) => {
 
 // --- Reports
 app.get('/api/reports/top-books', authRequired, async (req, res) => {
-  const limit = Math.max(1, Math.min(Number(req.query.limit || 10), 50));
-  const daysRaw = Number(req.query.days);
+  let limit;
+  try {
+    limit = readNumericQueryParam(req.query.limit, {
+      name: 'limit',
+      defaultValue: 10,
+      min: 1,
+      max: 50,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
   const pipeline = [];
-  if (!Number.isNaN(daysRaw) && daysRaw > 0) {
-    const since = new Date(Date.now() - daysRaw * 24 * 60 * 60 * 1000);
+  const hasDaysFilter = !(req.query.days === undefined || req.query.days === null || req.query.days === '');
+  if (hasDaysFilter) {
+    let days;
+    try {
+      days = readNumericQueryParam(req.query.days, {
+        name: 'days',
+        min: 1,
+        integer: true
+      });
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     pipeline.push({ $match: { borrowedAt: { $gte: since } } });
   }
   pipeline.push(
@@ -1704,11 +1882,32 @@ app.get('/api/reports/top-books', authRequired, async (req, res) => {
 });
 
 app.get('/api/reports/overdue', authRequired, async (req, res) => {
-  const limit = Math.max(1, Math.min(Number(req.query.limit || 100), 500));
-  const daysRaw = Number(req.query.days || 0);
+  let limit;
+  try {
+    limit = readNumericQueryParam(req.query.limit, {
+      name: 'limit',
+      defaultValue: 100,
+      min: 1,
+      max: 500,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
   const dueMatch = { returnedAt: null, dueAt: { $lt: new Date() } };
-  if (!Number.isNaN(daysRaw) && daysRaw > 0) {
-    dueMatch.dueAt.$gte = new Date(Date.now() - daysRaw * 24 * 60 * 60 * 1000);
+  const hasDaysFilter = !(req.query.days === undefined || req.query.days === null || req.query.days === '');
+  if (hasDaysFilter) {
+    let days;
+    try {
+      days = readNumericQueryParam(req.query.days, {
+        name: 'days',
+        min: 1,
+        integer: true
+      });
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    dueMatch.dueAt.$gte = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   }
   const items = await Loan.aggregate([
     { $match: dueMatch },
@@ -1746,7 +1945,17 @@ app.put('/api/hours/:branch/:day', adminRequired, async (req, res) => {
 // --- Admin: users list + role update
 app.get('/api/admin/users', adminRequired, async (req, res) => {
   const q = String(req.query.q || '').trim();
-  const filter = q ? { $or: [ { fullName: new RegExp(q, 'i') }, { email: new RegExp(q, 'i') }, { studentId: new RegExp(q, 'i') } ] } : {};
+  let filter = {};
+  if (q) {
+    const safeQuery = escapeRegex(q);
+    filter = {
+      $or: [
+        { fullName: new RegExp(safeQuery, 'i') },
+        { email: new RegExp(safeQuery, 'i') },
+        { studentId: new RegExp(safeQuery, 'i') }
+      ]
+    };
+  }
   const items = await User.find(filter).select('fullName email studentId role createdAt').limit(200).lean();
   res.json(items);
 });
@@ -1783,7 +1992,14 @@ app.get('/api/books/lookup', authRequired, async (req, res) => {
   const filter = {};
   if (isbn) filter.isbn = String(isbn);
   if (code) filter.bookCode = String(code);
-  if (q) filter.$or = [{ title: new RegExp(String(q), 'i') }, { author: new RegExp(String(q), 'i') }, { bookCode: new RegExp(String(q), 'i') }];
+  if (q) {
+    const escaped = String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    filter.$or = [
+      { title: new RegExp(escaped, 'i') },
+      { author: new RegExp(escaped, 'i') },
+      { bookCode: new RegExp(escaped, 'i') }
+    ];
+  }
   const items = await Book.find(filter).limit(20).lean();
   res.json({ items });
 });
