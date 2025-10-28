@@ -98,7 +98,7 @@ const supportChannels = [
     icon: "📧",
     title: "Email & Tickets",
     description: "Send detailed requests or attach syllabi so our team can prepare resources before your visit.",
-    contact: "library@libreport.edu",
+    contact: "library@phinmaed.com",
   },
   {
     icon: "🏛️",
@@ -461,7 +461,7 @@ const StudentLanding = () => {
           <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-2xl bg-slate-50 p-4 text-left text-sm text-slate-600 ring-1 ring-slate-200 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-semibold text-slate-900">Need help getting started?</p>
-              <p className="text-xs text-slate-500">Email the librarians at <a className="text-brand-green hover:underline" href="mailto:library@libreport.edu">library@libreport.edu</a> or visit the circulation desk.</p>
+              <p className="text-xs text-slate-500">Email the librarians at <a className="text-brand-green hover:underline" href="mailto:library@phinmaed.com">library@phinmaed.com</a> or visit the circulation desk.</p>
             </div>
             <Link to="/student/catalog" className="btn-student-primary btn-pill-sm">
               Browse Titles

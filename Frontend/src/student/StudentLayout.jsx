@@ -317,7 +317,7 @@ const StudentLayout = () => {
               <h3 className="font-semibold text-slate-900">Support</h3>
               <div className="space-y-2">
                 <Link to="/signin" className="block text-sm text-slate-600 hover:text-brand-green transition-colors">Admin Portal</Link>
-                <a href="mailto:library@libreport.edu" className="block text-sm text-slate-600 hover:text-brand-green transition-colors">Contact Librarians</a>
+                <a href="mailto:library@phinmaed.com" className="block text-sm text-slate-600 hover:text-brand-green transition-colors">Contact Librarians</a>
                 <p className="text-xs text-slate-500">Monday-Friday: 7:30 AM - 6:00 PM</p>
               </div>
             </div>
