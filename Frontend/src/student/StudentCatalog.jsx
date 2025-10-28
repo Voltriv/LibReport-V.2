@@ -239,7 +239,16 @@ const StudentCatalog = () => {
               <label className="text-sm font-semibold text-slate-700">Department</label>
               <select
                 value={tag}
-                onChange={(e) => setTag(e.target.value)}
+                onChange={(e) => {
+                  const nextTag = e.target.value;
+                  setTag(nextTag);
+                  load({
+                    reset: true,
+                    overrideQuery: query.trim(),
+                    overrideTag: nextTag,
+                    overrideWithPdf: withPdf
+                  });
+                }}
                 className="w-full rounded-xl border border-slate-300/60 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-brand-gold transition-all duration-200"
               >
                 <option value="">All Departments</option>

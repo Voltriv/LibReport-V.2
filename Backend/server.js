@@ -1133,8 +1133,10 @@ app.get('/api/books/library', authRequired, async (req, res) => {
     filter.$or = [{ title: regex }, { author: regex }, { bookCode: regex }, { isbn: regex }];
   }
   if (tag) {
+    const escapedTag = escapeRegex(tag);
+    const tagRegex = new RegExp(`^${escapedTag}$`, 'i');
     filter.$and = filter.$and || [];
-    filter.$and.push({ $or: [{ department: tag }, { genre: tag }, { tags: tag }] });
+    filter.$and.push({ $or: [{ department: tagRegex }, { genre: tagRegex }, { tags: tagRegex }] });
   }
   if (withPdf) {
     filter.$and = filter.$and || [];
@@ -1271,7 +1273,9 @@ app.get('/api/books', adminRequired, async (req, res) => {
   }
   const tag = String(req.query.tag || '').trim();
   if (tag) {
-    andConditions.push({ $or: [{ department: tag }, { genre: tag }, { tags: tag }] });
+    const escaped = escapeRegex(tag);
+    const tagRegex = new RegExp(`^${escaped}$`, 'i');
+    andConditions.push({ $or: [{ department: tagRegex }, { genre: tagRegex }, { tags: tagRegex }] });
   }
   if (andConditions.length === 1) {
     Object.assign(filter, andConditions[0]);
