@@ -356,9 +356,26 @@ const StudentLanding = () => {
                 Sign in with your student account to unlock personalized recommendations, saved searches, and offline access.
               </p>
 
-              <Link to="/student/catalog" className="btn-student-outline bg-white text-brand-green">
-
-                View Catalog
+              <Link
+                to="/student/catalog"
+                className="inline-flex items-center gap-2 rounded-full bg-white/90 px-5 py-2 text-sm font-semibold text-brand-green shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white/60"
+              >
+                <span>View Catalog</span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12h14" />
+                  <path d="m12 5 7 7-7 7" />
+                </svg>
               </Link>
             </div>
           </div>

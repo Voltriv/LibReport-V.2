@@ -12,7 +12,7 @@ const StudentCatalog = () => {
   const [skip, setSkip] = React.useState(0);
   const [hasMore, setHasMore] = React.useState(true);
   const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState("");
+  const [catalogError, setCatalogError] = React.useState("");
 
   const [initialLoading, setInitialLoading] = React.useState(true);
   const [resultCount, setResultCount] = React.useState(0);
@@ -20,8 +20,8 @@ const StudentCatalog = () => {
   const loadingRef = React.useRef(false);
   
   // Borrowing state
-  const [borrowing, setBorrowing] = React.useState(false);
-  const [borrowSuccess, setBorrowSuccess] = React.useState(null);
+  const [borrowingId, setBorrowingId] = React.useState(null);
+  const [borrowFeedback, setBorrowFeedback] = React.useState(null);
 
   const load = React.useCallback(
     async ({ reset = false, overrideQuery, overrideTag, overrideWithPdf } = {}) => {
@@ -35,7 +35,7 @@ const StudentCatalog = () => {
       loadingRef.current = true;
       setLoading(true);
       if (reset) {
-        setError("");
+        setCatalogError("");
         setInitialLoading(true);
       }
       try {
@@ -88,11 +88,11 @@ const StudentCatalog = () => {
         setLastUpdated(new Date());
 
         if (reset && newItems.length === 0) {
-          setError("No books matched your filters. Try another keyword or department.");
+          setCatalogError("No books matched your filters. Try another keyword or department.");
         }
       } catch (e) {
         const msg = e?.response?.data?.error || "Unable to load the catalog. Please try again.";
-        setError(msg);
+        setCatalogError(msg);
         if (reset) {
           setItems([]);
           setSkip(0);
@@ -113,15 +113,17 @@ const StudentCatalog = () => {
   );
 
   const handleBorrowBook = React.useCallback(async (bookId, bookTitle) => {
-    if (borrowing) return;
+    if (borrowingId) return;
     
-    setBorrowing(true);
-    setError("");
+    setBorrowingId(bookId);
+    setBorrowFeedback(null);
     
     try {
       const response = await api.post('/student/borrow', { bookId });
       
-      setBorrowSuccess({
+      setBorrowFeedback({
+        bookId,
+        type: 'success',
         title: bookTitle,
         dueDate: new Date(response.data.dueAt).toLocaleDateString()
       });
@@ -130,11 +132,17 @@ const StudentCatalog = () => {
       load({ reset: true });
       
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to borrow book. Please try again.');
+      const message = err.response?.data?.error || 'Failed to borrow book. Please try again.';
+      setBorrowFeedback({
+        bookId,
+        type: 'error',
+        title: bookTitle,
+        message
+      });
     } finally {
-      setBorrowing(false);
+      setBorrowingId(null);
     }
-  }, [borrowing, load]);
+  }, [borrowingId, load]);
 
   React.useEffect(() => {
     load({ reset: true });
@@ -248,7 +256,11 @@ const StudentCatalog = () => {
                 <input
                   type="checkbox"
                   checked={withPdf}
-                  onChange={(e) => setWithPdf(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setWithPdf(checked);
+                    load({ reset: true, overrideWithPdf: checked });
+                  }}
                   className="h-4 w-4 rounded border-slate-300 text-brand-gold focus:ring-brand-gold"
                 />
                 <span>Only show titles with downloadable PDFs</span>
@@ -290,30 +302,9 @@ const StudentCatalog = () => {
           </div>
         </form>
 
-        {error && (
+        {catalogError && (
           <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">
-            {error}
-          </div>
-        )}
-
-        {borrowSuccess && (
-          <div className="mt-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            <div className="flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22,4 12,14.01 9,11.01"/>
-              </svg>
-              <span>
-                <strong>Success!</strong> You have borrowed "{borrowSuccess.title}". 
-                Due date: {borrowSuccess.dueDate}
-              </span>
-            </div>
-            <button
-              onClick={() => setBorrowSuccess(null)}
-              className="mt-2 text-green-600 hover:text-green-800 underline"
-            >
-              Dismiss
-            </button>
+            {catalogError}
           </div>
         )}
 
@@ -364,7 +355,6 @@ const StudentCatalog = () => {
             ))}
 
           {!showSkeleton && items.map((item) => {
-
             const parseCount = (value) => {
               const num = Number(value);
               return Number.isFinite(num) ? num : null;
@@ -379,9 +369,67 @@ const StudentCatalog = () => {
               if (available !== null) return `${available} copies available`;
               return `${total} total copies`;
             })();
+            const isFeedbackTarget = borrowFeedback?.bookId === item._id;
+            const isSuccessFeedback = isFeedbackTarget && borrowFeedback?.type === 'success';
+            const isBorrowingThis = borrowingId === item._id;
+            const isBorrowingAny = Boolean(borrowingId);
 
             return (
-              <article key={item._id} className="group flex h-full flex-col overflow-hidden rounded-3xl bg-white/95 backdrop-blur-sm shadow-sm ring-1 ring-slate-200/60 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:ring-brand-green/20">
+              <article
+                key={item._id}
+                className="group relative flex h-full flex-col overflow-hidden rounded-3xl bg-white/95 backdrop-blur-sm shadow-sm ring-1 ring-slate-200/60 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:ring-brand-green/20"
+              >
+                {isFeedbackTarget && (
+                  <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-white/90 backdrop-blur-sm">
+                    <div
+                      className={`pointer-events-auto w-[90%] max-w-xs rounded-2xl border px-5 py-4 text-center shadow-lg ${
+                        isSuccessFeedback
+                          ? "border-green-200 bg-green-50 text-green-800"
+                          : "border-red-200 bg-red-50 text-red-700"
+                      }`}
+                      role="alert"
+                      aria-live="assertive"
+                    >
+                      {isSuccessFeedback ? (
+                        <>
+                          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                              <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                          </div>
+                          <p className="mt-3 text-sm font-semibold">Borrowed successfully</p>
+                          <p className="mt-1 text-xs">
+                            You have borrowed "{borrowFeedback?.title}".<br />
+                            Due date: {borrowFeedback?.dueDate}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="8" x2="12" y2="12" />
+                              <line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
+                          </div>
+                          <p className="mt-3 text-sm font-semibold">{borrowFeedback?.message}</p>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setBorrowFeedback(null)}
+                        className={`mt-3 inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                          isSuccessFeedback
+                            ? "text-green-700 hover:bg-green-100 focus:ring-green-300"
+                            : "text-red-700 hover:bg-red-100 focus:ring-red-300"
+                        }`}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="relative aspect-[3/4] overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200">
                   {item.imageUrl ? (
                     <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
@@ -467,11 +515,11 @@ const StudentCatalog = () => {
                       {available !== null && available > 0 ? (
                         <button
                           onClick={() => handleBorrowBook(item._id, item.title)}
-                          disabled={borrowing}
+                          disabled={isBorrowingAny}
                           className="w-full btn-student-primary text-center py-3 font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                         >
                           <span className="flex items-center justify-center gap-2">
-                            {borrowing ? (
+                            {isBorrowingThis ? (
                               <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -482,7 +530,7 @@ const StudentCatalog = () => {
                                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                               </svg>
                             )}
-                            {borrowing ? 'Borrowing...' : 'Borrow Book'}
+                            {isBorrowingThis ? 'Borrowing...' : 'Borrow Book'}
                           </span>
                         </button>
                       ) : (
@@ -519,7 +567,7 @@ const StudentCatalog = () => {
 
         </div>
 
-        {items.length === 0 && !loading && !error && (
+        {items.length === 0 && !loading && !catalogError && (
           <div className="mt-6 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
             No books to display yet. Try adjusting your filters.
           </div>

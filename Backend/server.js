@@ -1138,7 +1138,12 @@ app.get('/api/books/library', authRequired, async (req, res) => {
   }
   if (withPdf) {
     filter.$and = filter.$and || [];
-    filter.$and.push({ pdfPath: { $exists: true, $ne: '' } });
+    filter.$and.push({
+      $or: [
+        { pdfPath: { $exists: true, $nin: [null, ''] } },
+        { pdfFileId: { $exists: true, $ne: null } }
+      ]
+    });
   }
 
   const docs = await Book.find(filter)
@@ -1627,6 +1632,48 @@ app.post('/api/student/borrow', studentRequired, async (req, res) => {
     bookId: book._id,
     title: book.title,
     author: book.author,
+    borrowedAt: loan.borrowedAt,
+    dueAt: loan.dueAt
+  });
+});
+
+// Student self-service renew
+app.post('/api/student/renew', studentRequired, async (req, res) => {
+  const { bookId, days: daysRaw } = req.body || {};
+  if (!bookId) return res.status(400).json({ error: 'bookId required' });
+  if (!mongoose.Types.ObjectId.isValid(String(bookId))) {
+    return res.status(400).json({ error: 'bookId must be a valid identifier' });
+  }
+
+  const userId = req.user.sub;
+  const loan = await Loan.findOne({
+    userId: new mongoose.Types.ObjectId(userId),
+    bookId: new mongoose.Types.ObjectId(bookId),
+    returnedAt: null
+  });
+  if (!loan) return res.status(404).json({ error: 'Active loan not found' });
+
+  let chosenDays;
+  try {
+    chosenDays = readNumericQueryParam(daysRaw, {
+      name: 'days',
+      defaultValue: DEFAULT_LOAN_DAYS,
+      min: 1,
+      max: 180,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const now = new Date();
+  const baseDate = loan.dueAt && loan.dueAt > now ? loan.dueAt : now;
+  loan.dueAt = new Date(baseDate.getTime() + chosenDays * 24 * 60 * 60 * 1000);
+  await loan.save();
+
+  res.json({
+    message: 'Loan renewed successfully',
+    bookId: String(bookId),
     borrowedAt: loan.borrowedAt,
     dueAt: loan.dueAt
   });

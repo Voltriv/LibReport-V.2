@@ -7,6 +7,8 @@ const StudentBorrowedBooks = () => {
   const [error, setError] = React.useState("");
   const [returning, setReturning] = React.useState(false);
   const [returnSuccess, setReturnSuccess] = React.useState(null);
+  const [renewingId, setRenewingId] = React.useState(null);
+  const [renewSuccess, setRenewSuccess] = React.useState(null);
 
   React.useEffect(() => {
     const fetchBorrowedBooks = async () => {
@@ -25,11 +27,21 @@ const StudentBorrowedBooks = () => {
     fetchBorrowedBooks();
   }, []);
 
+  const refreshBorrowed = React.useCallback(async () => {
+    try {
+      const { data } = await api.get("/student/borrowed");
+      setBooks(data.books || []);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load your borrowed books. Please try again later.');
+    }
+  }, []);
+
   const handleReturnBook = React.useCallback(async (bookId, bookTitle) => {
     if (returning) return;
     
     setReturning(true);
     setError("");
+    setRenewSuccess(null);
     
     try {
       await api.post('/student/return', { bookId });
@@ -39,15 +51,37 @@ const StudentBorrowedBooks = () => {
       });
       
       // Refresh the borrowed books list
-      const { data } = await api.get("/student/borrowed");
-      setBooks(data.books || []);
+      await refreshBorrowed();
       
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to return book. Please try again.');
     } finally {
       setReturning(false);
     }
-  }, [returning]);
+  }, [returning, refreshBorrowed]);
+
+  const handleRenewBook = React.useCallback(async (bookId, bookTitle) => {
+    if (renewingId) return;
+    
+    setRenewingId(bookId);
+    setError("");
+    setReturnSuccess(null);
+    
+    try {
+      const { data } = await api.post('/student/renew', { bookId });
+      
+      setRenewSuccess({
+        title: bookTitle,
+        dueDate: new Date(data.dueAt).toLocaleDateString()
+      });
+      
+      await refreshBorrowed();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to renew book. Please try again.');
+    } finally {
+      setRenewingId(null);
+    }
+  }, [renewingId, refreshBorrowed]);
 
   return (
     <div className="bg-slate-50">
@@ -85,6 +119,26 @@ const StudentBorrowedBooks = () => {
           </div>
         )}
 
+        {renewSuccess && (
+          <div className="mb-6 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3"/>
+                <path d="M12 7v5l3 3"/>
+              </svg>
+              <span>
+                <strong>Renewed!</strong> "{renewSuccess.title}" is now due on {renewSuccess.dueDate}.
+              </span>
+            </div>
+            <button
+              onClick={() => setRenewSuccess(null)}
+              className="mt-2 text-blue-600 hover:text-blue-800 underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
@@ -97,39 +151,44 @@ const StudentBorrowedBooks = () => {
           </div>
         ) : books.length > 0 ? (
           <div className="space-y-4">
-            {books.map((book) => (
-              <div key={book.id} className="rounded-lg bg-white p-6 shadow-sm">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900">{book.title}</h2>
-                    <p className="text-sm text-slate-600">By {book.author}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span className="inline-flex items-center rounded-full bg-brand-green-soft px-3 py-1 text-xs font-medium text-brand-green">
-                        Due: {new Date(book.dueAt).toLocaleDateString()}
-                      </span>
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        Borrowed: {new Date(book.borrowedAt).toLocaleDateString()}
-                      </span>
+            {books.map((book) => {
+              const isRenewingThis = renewingId === book.bookId;
+              const isRenewingAny = Boolean(renewingId);
+              return (
+                <div key={book.id} className="rounded-lg bg-white p-6 shadow-sm">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-semibold text-slate-900">{book.title}</h2>
+                      <p className="text-sm text-slate-600">By {book.author}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center rounded-full bg-brand-green-soft px-3 py-1 text-xs font-medium text-brand-green">
+                          Due: {new Date(book.dueAt).toLocaleDateString()}
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                          Borrowed: {new Date(book.borrowedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        className="btn-student-outline btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => handleRenewBook(book.bookId, book.title)}
+                        disabled={isRenewingAny || returning}
+                      >
+                        {isRenewingThis ? 'Renewing...' : 'Renew'}
+                      </button>
+                      <button 
+                        className="btn-student-primary btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => handleReturnBook(book.bookId, book.title)}
+                        disabled={returning || Boolean(renewingId)}
+                      >
+                        {returning ? 'Returning...' : 'Return'}
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button 
-                      className="btn-student-outline btn-pill-sm"
-                      onClick={() => {/* Implement renew functionality */}}
-                    >
-                      Renew
-                    </button>
-                    <button 
-                      className="btn-student-primary btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={() => handleReturnBook(book.bookId, book.title)}
-                      disabled={returning}
-                    >
-                      {returning ? 'Returning...' : 'Return'}
-                    </button>
-                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
