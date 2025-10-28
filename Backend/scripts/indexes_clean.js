@@ -27,6 +27,12 @@ const MANAGED = {
     'admin_adminId_unique',
     'admin_email_unique'
   ]),
+  faculty: new Set([
+    '_id_',
+    'faculty_facultyId',
+    'faculty_email_unique',
+    'faculty_department_status'
+  ]),
   books: new Set([
     '_id_',
     'books_text',

@@ -3,6 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import api, { persistAuthSession } from "../api";
 
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
+const formatStudentId = (value) => {
+  const digitsOnly = value.replace(/\D/g, "").slice(0, 12);
+  const first = digitsOnly.slice(0, 2);
+  const second = digitsOnly.slice(2, 6);
+  const third = digitsOnly.slice(6, 12);
+  return [first, second, third].filter(Boolean).join("-");
+};
 
 const StudentSignIn = () => {
   const navigate = useNavigate();
@@ -115,7 +122,7 @@ const StudentSignIn = () => {
                 <label className="text-sm font-medium text-slate-700">Student ID</label>
                 <input
                   value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
+                  onChange={(e) => setIdentifier(formatStudentId(e.target.value))}
                   type="text"
 
                   placeholder="03-0000-000000"

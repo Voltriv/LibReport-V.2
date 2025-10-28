@@ -4,6 +4,36 @@ import pfp from "../assets/pfp.png";
 import { useNavigate } from "react-router-dom";
 import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
+const DEPARTMENTS = ["CAHS", "CITE", "CCJE", "CEA", "CELA", "COL", "SHS"];
+const CREATE_FORM_DEFAULT = {
+  fullName: "",
+  studentId: "",
+  email: "",
+  department: "",
+  password: "",
+  confirmPassword: ""
+};
+
+const mapApiUsers = (rows = []) =>
+  (rows || []).map((u) => ({
+    id: u._id || u.id,
+    fullName: u.fullName || u.name || "-",
+    studentId: u.studentId || "-",
+    role: u.role || "-",
+    department: u.department || "-",
+    registrationDate: u.createdAt ? new Date(u.createdAt).toLocaleString() : "-",
+    status: u.status || "active"
+  }));
+
+const formatStudentId = (raw) => {
+  const digits = String(raw || "").replace(/\D/g, "").slice(0, 12);
+  const part1 = digits.slice(0, 2);
+  const part2 = digits.slice(2, 6);
+  const part3 = digits.slice(6, 12);
+  return [part1, part2, part3].filter(Boolean).join("-");
+};
+
 const UserManagement = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -12,19 +42,16 @@ const UserManagement = () => {
   const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ ...CREATE_FORM_DEFAULT });
+  const [createErrors, setCreateErrors] = useState({});
+  const [createError, setCreateError] = useState("");
+  const [creating, setCreating] = useState(false);
   useEffect(() => {
     api
       .get("/admin/users")
       .then((r) => {
-        const items = (r.data || []).map((u) => ({
-          id: u._id || u.id,
-          fullName: u.fullName || u.name || "-",
-          studentId: u.studentId || "-",
-          course: u.role || "-",
-          registrationDate: u.createdAt ? new Date(u.createdAt).toLocaleString() : "-",
-          status: u.status || "active",
-        }));
-        setUsers(items);
+        setUsers(mapApiUsers(r.data || []));
       })
       .catch(() => setUsers([]));
   }, []);
@@ -38,21 +65,13 @@ const UserManagement = () => {
   const handleSave = async () => {
     if (!selectedUser) return setIsModalOpen(false);
     try {
-      await api.patch(`/admin/users/${selectedUser.id}/role`, { role: selectedUser.course || "student" });
+      await api.patch(`/admin/users/${selectedUser.id}/role`, { role: selectedUser.role || "student" });
       if (selectedUser.status) {
         await api.patch(`/admin/users/${selectedUser.id}/status`, { status: selectedUser.status });
       }
       setIsModalOpen(false);
       const r = await api.get("/admin/users");
-      const items = (r.data || []).map((u) => ({
-        id: u._id || u.id,
-        fullName: u.fullName || u.name || "-",
-        studentId: u.studentId || "-",
-        course: u.role || "-",
-        registrationDate: u.createdAt ? new Date(u.createdAt).toLocaleString() : "-",
-        status: u.status || "active",
-      }));
-      setUsers(items);
+      setUsers(mapApiUsers(r.data || []));
     } catch {
       setIsModalOpen(false);
     }
@@ -61,6 +80,71 @@ const UserManagement = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setSelectedUser((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const openCreateModal = () => {
+    setCreateForm({ ...CREATE_FORM_DEFAULT });
+    setCreateErrors({});
+    setCreateError("");
+    setIsCreateModalOpen(true);
+  };
+
+  const handleCreateChange = (e) => {
+    const { name, value } = e.target;
+    const nextValue = name === "studentId" ? formatStudentId(value) : value;
+    setCreateForm((prev) => ({ ...prev, [name]: nextValue }));
+  };
+
+  const validateCreateForm = () => {
+    const next = {};
+    if (!STUDENT_ID_PATTERN.test(createForm.studentId.trim())) {
+      next.studentId = "Format must be 00-0000-000000";
+    }
+    if (!createForm.email.includes("@")) {
+      next.email = "Please enter a valid email";
+    }
+    if (!/^[A-Za-z .'-]+$/.test(createForm.fullName.trim())) {
+      next.fullName = "Name may contain letters, spaces, apostrophes, hyphens, and periods";
+    }
+    if (!createForm.department.trim()) {
+      next.department = "Select a department";
+    }
+    if (createForm.password.length < 8 || !/[A-Za-z]/.test(createForm.password) || !/[0-9]/.test(createForm.password)) {
+      next.password = "Password must be 8+ characters with letters and numbers";
+    }
+    if (createForm.password !== createForm.confirmPassword) {
+      next.confirmPassword = "Passwords do not match";
+    }
+    setCreateErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault();
+    setCreateError("");
+    if (!validateCreateForm()) {
+      setCreateError("Please correct the highlighted fields.");
+      return;
+    }
+    try {
+      setCreating(true);
+      await api.post("/admin/users", {
+        ...createForm,
+        role: "Faculty",
+        status: "active"
+      });
+      const r = await api.get("/admin/users");
+      setUsers(mapApiUsers(r.data || []));
+      setIsCreateModalOpen(false);
+      setCreateForm({ ...CREATE_FORM_DEFAULT });
+      setCreateErrors({});
+      setCreateError("");
+    } catch (err) {
+      const msg = err?.response?.data?.error || "Unable to add faculty right now. Please try again.";
+      setCreateError(msg);
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleLogout = () => {
@@ -93,6 +177,15 @@ const UserManagement = () => {
             <p className="text-slate-600 dark:text-stone-400 mt-1">Manage library users and their permissions</p>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={openCreateModal}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-green text-white px-4 py-2 hover:bg-brand-greenDark transition-colors duration-200"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Faculty
+            </button>
             <button 
               onClick={() => window.location.reload()}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
@@ -198,6 +291,7 @@ const UserManagement = () => {
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-stone-300 uppercase tracking-wider">User</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-stone-300 uppercase tracking-wider">Student ID</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-stone-300 uppercase tracking-wider">Department</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-stone-300 uppercase tracking-wider">Role</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-stone-300 uppercase tracking-wider">Registered</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-stone-300 uppercase tracking-wider">Status</th>
@@ -220,9 +314,10 @@ const UserManagement = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400 font-mono">{user.studentId}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.department}</td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-stone-700 text-slate-800 dark:text-stone-200">
-                        {user.course}
+                        {user.role}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.registrationDate}</td>
@@ -264,6 +359,140 @@ const UserManagement = () => {
           </div>
         </section>
 
+        {isCreateModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-brand-green/10 flex items-center justify-center">
+                  <svg className="h-5 w-5 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Add Faculty Account</h3>
+              </div>
+
+              {createError && (
+                <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+                  {createError}
+                </div>
+              )}
+
+              <form className="space-y-4" onSubmit={handleCreateSubmit}>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Full Name</label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={createForm.fullName}
+                    onChange={handleCreateChange}
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    required
+                  />
+                  {createErrors.fullName && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{createErrors.fullName}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Faculty ID</label>
+                  <input
+                    type="text"
+                    name="studentId"
+                    value={createForm.studentId}
+                    onChange={handleCreateChange}
+                    placeholder="00-0000-000000"
+                    inputMode="numeric"
+                    className={`w-full rounded-xl px-4 py-3 font-mono transition-colors duration-200 ${
+                      createErrors.studentId
+                        ? "border border-red-400 text-red-700 focus:ring-2 focus:ring-red-400 focus:border-red-400 bg-white dark:bg-stone-950"
+                        : "border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent"
+                    }`}
+                    maxLength={14}
+                    required
+                  />
+                  {createErrors.studentId && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{createErrors.studentId}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={createForm.email}
+                    onChange={handleCreateChange}
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    required
+                  />
+                  {createErrors.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{createErrors.email}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Department</label>
+                  <select
+                    name="department"
+                    value={createForm.department}
+                    onChange={handleCreateChange}
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    required
+                  >
+                    <option value="">Select a department</option>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                  {createErrors.department && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{createErrors.department}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Password</label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={createForm.password}
+                    onChange={handleCreateChange}
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    required
+                  />
+                  {createErrors.password && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{createErrors.password}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Confirm Password</label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={createForm.confirmPassword}
+                    onChange={handleCreateChange}
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    required
+                  />
+                  {createErrors.confirmPassword && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{createErrors.confirmPassword}</p>}
+                </div>
+
+                <div className="mt-8 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
+                    onClick={() => {
+                      setIsCreateModalOpen(false);
+                      setCreateErrors({});
+                      setCreateError("");
+                    }}
+                    disabled={creating}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl px-4 py-2 bg-brand-green text-white hover:bg-brand-greenDark transition-colors duration-200 flex items-center gap-2 disabled:opacity-60"
+                    disabled={creating}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    {creating ? "Creating..." : "Save Faculty"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {isModalOpen && selectedUser && (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
@@ -300,8 +529,8 @@ const UserManagement = () => {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Role</label>
                   <select
-                    name="course"
-                    value={selectedUser.course}
+                    name="role"
+                    value={selectedUser.role}
                     onChange={handleInputChange}
                     className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                   >

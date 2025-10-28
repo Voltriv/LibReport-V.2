@@ -55,13 +55,13 @@ async function main() {
   const db = client.db(dbName);
 
   // Clean collections for a predictable demo
-  for (const name of ['users','books','loans','visits','hours']) {
+  for (const name of ['users','books','loans','visits','hours','faculty']) {
     await db.collection(name).deleteMany({});
   }
 
   // bcrypt hash for "Password123" (cost 10)
   const demoHash = '$2b$10$vr7A1FNcgAQR/PmKzjVfMuCUWccdXVQqeA9M8I/VeEiFxLzAVtYoO';
-  const adminUser = { _id: new ObjectId(), adminId: '03-2324-03224', fullName: 'Librarian', role: 'librarian', email: 'admin@example.com', passwordHash: demoHash };
+  const adminUser = { _id: new ObjectId(), adminId: '03-2324-032224', fullName: 'Librarian', role: 'librarian', email: 'admin@example.com', passwordHash: demoHash };
   await db.collection('admins').updateOne(
     { adminId: adminUser.adminId },
     {
@@ -127,7 +127,8 @@ async function main() {
       barcode: 'LR-000101',
       passwordHash: demoHash,
       role: 'student',
-      status: 'active'
+      status: 'active',
+      department: 'CAHS'
     },
     {
       _id: new ObjectId(),
@@ -137,7 +138,8 @@ async function main() {
       barcode: 'LR-000102',
       passwordHash: demoHash,
       role: 'student',
-      status: 'active'
+      status: 'active',
+      department: 'CITE'
     },
     {
       _id: new ObjectId(),
@@ -235,7 +237,7 @@ async function main() {
   await ensureIndexes(db);
 
   const counts = await Promise.all(
-    ['users','books','hours','loans','visits'].map(async c => [c, await db.collection(c).countDocuments()])
+    ['users','faculty','books','hours','loans','visits'].map(async c => [c, await db.collection(c).countDocuments()])
   );
   console.log('Seed complete:', Object.fromEntries(counts));
 }

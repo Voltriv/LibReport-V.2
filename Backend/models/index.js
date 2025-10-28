@@ -1,10 +1,11 @@
 module.exports = {
   User: require('./User'),
   Admin: require('./Admin'),
+  Faculty: require('./Faculty'),
   Book: require('./Book'),
   Loan: require('./Loan'),
   Visit: require('./Visit'),
   Hours: require('./Hours'),
-  PasswordReset: require('./PasswordReset')
+  PasswordReset: require('./PasswordReset'),
+  Faculty: require('./Faculty')
 };
-

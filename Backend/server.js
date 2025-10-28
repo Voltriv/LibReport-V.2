@@ -332,11 +332,27 @@ function readNumericQueryParam(value, options = {}) {
 // --- DB connect
 const { resolveMongoConfig } = require('./db/uri');
 const { uri: MONGO_URI_INIT, dbName: DB_NAME } = resolveMongoConfig();
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
 const NO_DB = String(process.env.NO_DB || process.env.BACKEND_NO_DB || '').toLowerCase() === 'true';
 const USE_MEMORY_DB = String(process.env.USE_MEMORY_DB || process.env.BACKEND_INMEMORY_DB || '').toLowerCase() === 'true';
+const defaultAutoMemory = process.env.NODE_ENV === 'production' ? 'false' : 'true';
+const AUTO_MEMORY_FALLBACK =
+  USE_MEMORY_DB ||
+  String(
+    process.env.AUTO_MEMORY_DB ||
+      process.env.BACKEND_AUTO_MEMORY_DB ||
+      process.env.BACKEND_AUTO_MEMORY ||
+      defaultAutoMemory
+  )
+    .toLowerCase()
+    .trim() !== 'false';
 // Default borrowing period in days. Can be overridden via environment.
 const DEFAULT_LOAN_DAYS = Number(process.env.LOAN_DAYS_DEFAULT || 28);
+
+if (!JWT_SECRET) {
+  console.error('Missing JWT_SECRET environment variable. Set Backend/.env JWT_SECRET before starting the backend.');
+  process.exit(1);
+}
 
 let MONGO_URI = MONGO_URI_INIT;
 if (!MONGO_URI && !NO_DB && !USE_MEMORY_DB) {
@@ -363,48 +379,153 @@ mongoose.connection.on('disconnected', () => {
   setUploadBucket(null);
 });
 
-if (!NO_DB && USE_MEMORY_DB) {
-  (async () => {
-    try {
-      const { MongoMemoryServer } = require('mongodb-memory-server');
-      const mem = await MongoMemoryServer.create();
-      MONGO_URI = mem.getUri();
-      await mongoose.connect(MONGO_URI, { dbName: DB_NAME, serverSelectionTimeoutMS: 10000, family: 4 });
-      initUploadBucket();
-      DB_READY = true;
+async function startMemoryDatabase(reason) {
+  try {
+    const { MongoMemoryServer } = require('mongodb-memory-server');
+    const mem = await MongoMemoryServer.create();
+    MONGO_URI = mem.getUri();
+    await mongoose.connect(MONGO_URI, { dbName: DB_NAME, serverSelectionTimeoutMS: 10000, family: 4 });
+    initUploadBucket();
+    DB_READY = true;
+    if (reason) {
+      console.warn(`MongoDB connection failed (${reason}). Started in-memory database "${DB_NAME}" for development.`);
+    } else {
       console.log(`MongoMemoryServer started. Using in-memory DB "${DB_NAME}"`);
-      await ensureDefaultAdmin();
-    } catch (err) {
-      console.error('Failed to start in-memory MongoDB:', err.message);
-      process.exit(1);
     }
-  })();
-} else if (!NO_DB && MONGO_URI) {
-  (async () => {
-    try {
-      await mongoose.connect(MONGO_URI, {
-        dbName: DB_NAME,
-        serverSelectionTimeoutMS: 10000,
-        family: 4
-      });
-      initUploadBucket();
-      DB_READY = true;
-      console.log(`MongoDB connected to database "${DB_NAME}"`);
-      await ensureDefaultAdmin();
-    } catch (err) {
-      const code = err && (err.code || err.codeName || err.name);
-      console.error('Failed to connect to MongoDB:', code ? `${code}: ${err.message}` : err.message);
-      console.error('Tip: If using Atlas/Compass, ensure your password is URL-encoded and add authSource=admin if needed.');
-      process.exit(1);
-    }
-  })();
-} else if (NO_DB) {
-  console.warn('NO_DB=true; skipping MongoDB connection. All DB-backed routes will return 503.');
+    await ensureDefaultAdmin();
+  } catch (err) {
+    console.error('Failed to start in-memory MongoDB:', err.message);
+    process.exit(1);
+  }
 }
+
+async function connectMongo() {
+  if (NO_DB) {
+    console.warn('NO_DB=true; skipping MongoDB connection. All DB-backed routes will return 503.');
+    return;
+  }
+
+  if (USE_MEMORY_DB) {
+    await startMemoryDatabase();
+    return;
+  }
+
+  if (!MONGO_URI) {
+    console.error('Missing MONGO_URI (or MONGODB_URI) in environment');
+    process.exit(1);
+  }
+
+  try {
+    await mongoose.connect(MONGO_URI, {
+      dbName: DB_NAME,
+      serverSelectionTimeoutMS: 10000,
+      family: 4
+    });
+    initUploadBucket();
+    DB_READY = true;
+    console.log(`MongoDB connected to database "${DB_NAME}"`);
+    await ensureDefaultAdmin();
+  } catch (err) {
+    const code = err && (err.code || err.codeName || err.name);
+    console.error('Failed to connect to MongoDB:', code ? `${code}: ${err.message}` : err.message);
+    console.error('Tip: If using Atlas/Compass, ensure your password is URL-encoded and add authSource=admin if needed.');
+    if (AUTO_MEMORY_FALLBACK) {
+      const label = code || err?.message || 'unknown error';
+      await startMemoryDatabase(label);
+    } else {
+      process.exit(1);
+    }
+  }
+}
+
+connectMongo().catch((err) => {
+  console.error('Fatal MongoDB initialization error:', err?.message || err);
+  process.exit(1);
+});
 
 // --- User model
 const { User, Admin, Book, Loan, Visit, Hours, PasswordReset } = require('./models');
 // Models loaded from ./models (legacy inline schema removed)
+
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function resolveLoanDuration(daysRaw) {
+  try {
+    return readNumericQueryParam(daysRaw, {
+      name: 'days',
+      defaultValue: DEFAULT_LOAN_DAYS,
+      min: 1,
+      max: 180,
+      integer: true
+    });
+  } catch (err) {
+    throw new HttpError(400, err.message);
+  }
+}
+
+async function borrowBookCore({ borrowerId, bookId, daysRaw, enforceUniqueLoan }) {
+  if (!mongoose.Types.ObjectId.isValid(String(borrowerId))) {
+    throw new HttpError(400, 'userId must be a valid identifier');
+  }
+  if (!mongoose.Types.ObjectId.isValid(String(bookId))) {
+    throw new HttpError(400, 'bookId must be a valid identifier');
+  }
+
+  const userObjectId = new mongoose.Types.ObjectId(String(borrowerId));
+  const bookObjectId = new mongoose.Types.ObjectId(String(bookId));
+
+  const user = await User.findById(userObjectId).lean();
+  if (!user) {
+    throw new HttpError(404, 'User or Book not found');
+  }
+
+  if (enforceUniqueLoan) {
+    const existingLoan = await Loan.findOne({
+      userId: user._id,
+      bookId: bookObjectId,
+      returnedAt: null
+    }).lean();
+    if (existingLoan) {
+      throw new HttpError(400, 'You already have this book borrowed');
+    }
+  }
+
+  const chosenDays = resolveLoanDuration(daysRaw);
+  const dueAt = new Date(Date.now() + chosenDays * 24 * 60 * 60 * 1000);
+
+  const book = await Book.findOneAndUpdate(
+    { _id: bookObjectId, availableCopies: { $gt: 0 } },
+    { $inc: { availableCopies: -1 } },
+    { new: true }
+  );
+  if (!book) {
+    const exists = await Book.exists({ _id: bookObjectId });
+    if (!exists) {
+      throw new HttpError(404, 'User or Book not found');
+    }
+    throw new HttpError(400, 'No available copies');
+  }
+
+  let loanDoc;
+  try {
+    loanDoc = await Loan.create({ userId: user._id, bookId: book._id, dueAt });
+  } catch (err) {
+    await Book.updateOne({ _id: book._id }, { $inc: { availableCopies: 1 } });
+    throw new HttpError(500, err?.message || 'Failed to create loan');
+  }
+
+  return { user, book, loan: loanDoc };
+}
+
+function sendError(res, err, fallbackMessage) {
+  const status = Number.isInteger(err?.status) ? err.status : 500;
+  res.status(status).json({ error: err?.message || fallbackMessage });
+}
 
 // Separate Admin collection (loaded from ./models)
 
@@ -626,9 +747,9 @@ app.post('/api/auth/signup', async (req, res) => {
     if (!NO_DB && !(mongoose.connection.readyState === 1 || DB_READY)) {
       return res.status(503).json({ error: 'Database not ready' });
     }
-    const { studentId, email, fullName, password, confirmPassword } = req.body || {};
-    if (!studentId || !email || !fullName || !password || !confirmPassword) {
-      return res.status(400).json({ error: 'studentId, email, fullName, password, confirmPassword required' });
+    const { studentId, email, fullName, department, password, confirmPassword } = req.body || {};
+    if (!studentId || !email || !fullName || !department || !password || !confirmPassword) {
+      return res.status(400).json({ error: 'studentId, email, fullName, department, password, confirmPassword required' });
     }
     if (String(password) !== String(confirmPassword)) {
       return res.status(400).json({ error: 'Passwords do not match' });
@@ -640,6 +761,7 @@ app.post('/api/auth/signup', async (req, res) => {
     const studentIdNorm = String(studentId).trim();
     const emailNorm = String(email).trim().toLowerCase();
     const fullNameNorm = String(fullName).trim();
+    const departmentNorm = typeof department === 'string' ? department.trim() : '';
 
     if (!STUDENT_ID_REGEX.test(studentIdNorm)) {
       return res.status(400).json({ error: 'Student ID must match 00-0000-000000 pattern' });
@@ -650,6 +772,9 @@ app.post('/api/auth/signup', async (req, res) => {
     }
     if (!/^[A-Za-z .'-]+$/.test(fullNameNorm)) {
       return res.status(400).json({ error: 'Full name may contain letters, spaces, apostrophes, hyphens, and periods only' });
+    }
+    if (!departmentNorm) {
+      return res.status(400).json({ error: 'Department is required' });
     }
 
     const existing = await User.findOne({
@@ -668,6 +793,7 @@ app.post('/api/auth/signup', async (req, res) => {
       email: emailNorm,
       fullName: fullNameNorm,
       name: fullNameNorm,
+      department: departmentNorm,
       passwordHash,
       role: 'student',
       status: 'active'
@@ -680,7 +806,8 @@ app.post('/api/auth/signup', async (req, res) => {
         studentId: doc.studentId,
         email: doc.email,
         fullName: doc.fullName,
-        role: doc.role
+        role: doc.role,
+        department: doc.department
       }
     });
   } catch (e) {
@@ -761,26 +888,104 @@ app.post('/api/auth/login', async (req, res) => {
   const ok = await bcrypt.compare(String(password), account.passwordHash);
   if (!ok) return res.status(401).json({ error: 'invalid credentials' });
 
-  const role = account.role || (isAdmin ? 'librarian' : 'student');
+  const role = account.role || (isAdmin ? 'librarian' : isFaculty ? 'faculty' : 'student');
   const baseAccount = typeof account.toObject === 'function' ? account.toObject() : account;
   const token = signToken({ ...baseAccount, role });
   const payload = {
     id: String(account._id),
-    studentId: account.adminId || account.studentId,
+    studentId: account.adminId || account.studentId || account.facultyId,
     email: account.email,
     fullName: account.fullName,
     role
   };
   return res.json({ token, user: payload });
+});app.post('/api/auth/login', async (req, res) => {
+  const { password, studentId } = req.body || {};
+  if (!studentId || !password) return res.status(400).json({ error: 'studentId and password required' });
+  if (!NO_DB && !(mongoose.connection.readyState === 1 || DB_READY)) {
+    return res.status(503).json({ error: 'Database not ready' });
+  }
+
+  const lookup = String(studentId).trim();
+  let account = null;
+  let isAdmin = false;
+  let isFaculty = false;
+
+  // Numeric ID pattern first
+  if (STUDENT_ID_REGEX.test(lookup)) {
+    account = await Admin.findOne({ adminId: lookup });
+    if (account) isAdmin = true;
+
+    if (!account) {
+      account = await Faculty.findOne({ facultyId: lookup });
+      if (account) isFaculty = true;
+    }
+    if (!account) account = await User.findOne({ studentId: lookup });
+  }
+
+  // Email fallback
+  if (!account && lookup.includes('@')) {
+    const email = lookup.toLowerCase();
+    account = await Admin.findOne({ email });
+    if (account) isAdmin = true;
+
+    if (!account) {
+      account = await Faculty.findOne({ email });
+      if (account) isFaculty = true;
+    }
+    if (!account) account = await User.findOne({ email });
+  }
+
+  // Try dashed & raw numeric variants
+  if (!account) {
+    const digitsOnly = lookup.replace(/[^0-9]/g, '');
+    if (digitsOnly.length === 12) {
+      const dashed = `${digitsOnly.slice(0, 2)}-${digitsOnly.slice(2, 6)}-${digitsOnly.slice(6)}`;
+      account = await Admin.findOne({ adminId: dashed }); if (account) isAdmin = true;
+      if (!account) { account = await Faculty.findOne({ facultyId: dashed }); if (account) isFaculty = true; }
+      if (!account) account = await User.findOne({ studentId: dashed });
+    }
+    if (!account) {
+      account = await Admin.findOne({ adminId: digitsOnly }); if (account) isAdmin = true;
+      if (!account) { account = await Faculty.findOne({ facultyId: digitsOnly }); if (account) isFaculty = true; }
+      if (!account) account = await User.findOne({ studentId: digitsOnly });
+    }
+  }
+
+  if (!account) return res.status(401).json({ error: 'invalid credentials' });
+
+  const ok = await bcrypt.compare(String(password), account.passwordHash);
+  if (!ok) return res.status(401).json({ error: 'invalid credentials' });
+
+  const role = account.role || (isAdmin ? 'librarian' : isFaculty ? 'faculty' : 'student');
+  const baseAccount = typeof account.toObject === 'function' ? account.toObject() : account;
+  const token = signToken({ ...baseAccount, role });
+
+  const payload = {
+    id: String(account._id),
+    studentId: account.adminId || account.studentId || account.facultyId,
+    email: account.email,
+    fullName: account.fullName,
+    role
+  };
+
+  return res.json({ token, user: payload });
 });
+
 
 // Current user info
 app.get('/api/auth/me', authRequired, async (req, res) => {
   let admin = await Admin.findById(req.user.sub).lean();
   if (admin) return res.json({ id: String(admin._id), studentId: admin.adminId, email: admin.email, fullName: admin.fullName, role: admin.role });
   const user = await User.findById(req.user.sub).lean();
-  if (!user) return res.status(404).json({ error: 'not found' });
-  return res.json({ id: String(user._id), studentId: user.studentId, email: user.email, fullName: user.fullName, role: user.role });
+  if (user) {
+    return res.json({ id: String(user._id), studentId: user.studentId, email: user.email, fullName: user.fullName, role: user.role });
+  }
+  const faculty = await Faculty.findById(req.user.sub).lean();
+  if (faculty) {
+    return res.json({ id: String(faculty._id), studentId: faculty.facultyId, email: faculty.email, fullName: faculty.fullName, role: 'faculty' });
+  }
+  return res.status(404).json({ error: 'not found' });
 });
 
 // --- Student self-service endpoints
@@ -864,6 +1069,176 @@ app.delete('/api/admins/:id', elevatedAdminRequired, async (req, res) => {
   res.status(204).send();
 });
 
+// --- Faculty management
+app.get('/api/faculty', adminRequired, async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  const filter = {};
+  if (q) {
+    const safe = escapeRegex(q);
+    filter.$or = [
+      { fullName: new RegExp(safe, 'i') },
+      { email: new RegExp(safe, 'i') },
+      { facultyId: new RegExp(safe, 'i') },
+      { department: new RegExp(safe, 'i') }
+    ];
+  }
+  const items = await Faculty.find(filter)
+    .select('fullName email facultyId department status createdAt')
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .lean();
+  res.json(items);
+});
+
+app.post('/api/faculty', adminRequired, async (req, res) => {
+  try {
+    const { facultyId, fullName, email, department, password, confirmPassword } = req.body || {};
+    if (!facultyId || !fullName || !department || !password || !confirmPassword) {
+      return res.status(400).json({ error: 'facultyId, fullName, department, password, confirmPassword required' });
+    }
+    if (String(password) !== String(confirmPassword)) {
+      return res.status(400).json({ error: 'Passwords do not match' });
+    }
+    if (String(password).length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Password must be at least 8 chars and contain letters and numbers' });
+    }
+
+    const facultyIdNorm = String(facultyId).trim();
+    const fullNameNorm = String(fullName).trim();
+    const departmentNorm = String(department).trim();
+    const emailNorm = email ? String(email).trim().toLowerCase() : undefined;
+
+    if (!STUDENT_ID_REGEX.test(facultyIdNorm)) {
+      return res.status(400).json({ error: 'Faculty ID must match 00-0000-000000 pattern' });
+    }
+    if (!/^[A-Za-z .'-]+$/.test(fullNameNorm)) {
+      return res.status(400).json({ error: 'Full name may contain letters, spaces, apostrophes, hyphens, and periods only' });
+    }
+    if (!departmentNorm) {
+      return res.status(400).json({ error: 'Department is required' });
+    }
+    if (emailNorm && !validator.isEmail(emailNorm)) {
+      return res.status(400).json({ error: 'Email must be valid' });
+    }
+
+    const [existingFaculty, userCollision, adminCollision] = await Promise.all([
+      Faculty.findOne({
+        $or: [
+          { facultyId: facultyIdNorm },
+          emailNorm ? { email: emailNorm } : null
+        ].filter(Boolean)
+      }).lean(),
+      User.findOne({
+        $or: [
+          { studentId: facultyIdNorm },
+          emailNorm ? { email: emailNorm } : null
+        ].filter(Boolean)
+      }).lean(),
+      Admin.findOne({
+        $or: [
+          { adminId: facultyIdNorm },
+          emailNorm ? { email: emailNorm } : null
+        ].filter(Boolean)
+      }).lean()
+    ]);
+
+    if (existingFaculty) {
+      return res.status(409).json({ error: 'Faculty ID or email already exists' });
+    }
+    if (userCollision || adminCollision) {
+      return res.status(409).json({ error: 'ID or email already assigned to another account' });
+    }
+
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const doc = await Faculty.create({
+      facultyId: facultyIdNorm,
+      fullName: fullNameNorm,
+      email: emailNorm,
+      department: departmentNorm,
+      passwordHash,
+      status: 'active'
+    });
+
+    return res.status(201).json({
+      id: String(doc._id),
+      facultyId: doc.facultyId,
+      fullName: doc.fullName,
+      email: doc.email,
+      department: doc.department,
+      status: doc.status
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || 'Create failed' });
+  }
+});
+
+app.patch('/api/faculty/:id', adminRequired, async (req, res) => {
+  try {
+    const doc = await Faculty.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+
+    const update = {};
+    if (req.body.fullName !== undefined) {
+      const fullNameNorm = String(req.body.fullName).trim();
+      if (!/^[A-Za-z .'-]+$/.test(fullNameNorm)) {
+        return res.status(400).json({ error: 'Full name may contain letters, spaces, apostrophes, hyphens, and periods only' });
+      }
+      update.fullName = fullNameNorm;
+    }
+    if (req.body.department !== undefined) {
+      const deptNorm = String(req.body.department).trim();
+      if (!deptNorm) return res.status(400).json({ error: 'Department is required' });
+      update.department = deptNorm;
+    }
+    if (req.body.status !== undefined) {
+      const allowed = ['active', 'disabled', 'pending'];
+      if (!allowed.includes(req.body.status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
+      update.status = req.body.status;
+    }
+    if (req.body.email !== undefined) {
+      const emailNorm = req.body.email ? String(req.body.email).trim().toLowerCase() : undefined;
+      if (emailNorm && !validator.isEmail(emailNorm)) {
+        return res.status(400).json({ error: 'Email must be valid' });
+      }
+      if (emailNorm !== doc.email) {
+        const conflict = await Faculty.findOne({ _id: { $ne: doc._id }, email: emailNorm }).lean();
+        if (conflict) return res.status(409).json({ error: 'Email already exists' });
+        const otherCollision = await Promise.all([
+          User.findOne({ email: emailNorm }).lean(),
+          Admin.findOne({ email: emailNorm }).lean()
+        ]);
+        if (otherCollision.some(Boolean)) {
+          return res.status(409).json({ error: 'Email already assigned to another account' });
+        }
+      }
+      update.email = emailNorm;
+    }
+    if (req.body.newPassword) {
+      const next = String(req.body.newPassword);
+      if (next.length < 8 || !/[A-Za-z]/.test(next) || !/[0-9]/.test(next)) {
+        return res.status(400).json({ error: 'Password must be at least 8 chars and contain letters and numbers' });
+      }
+      update.passwordHash = await bcrypt.hash(next, 10);
+    }
+
+    Object.assign(doc, update);
+    await doc.save();
+
+    return res.json({
+      id: String(doc._id),
+      facultyId: doc.facultyId,
+      fullName: doc.fullName,
+      email: doc.email,
+      department: doc.department,
+      status: doc.status
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || 'Update failed' });
+  }
+});
+
 // Request password reset (returns token for demo; normally emailed)
 app.post('/api/auth/request-reset', async (req, res) => {
   const { email } = req.body || {};
@@ -897,24 +1272,49 @@ app.post('/api/auth/reset', async (req, res) => {
 
 // --- Dashboard
 app.get('/api/dashboard', authRequired, async (_req, res) => {
-  const [users, books, activeLoans, visitsToday] = await Promise.all([
-    User.countDocuments(),
-    Book.countDocuments(),
-    Loan.countDocuments({ returnedAt: null }),
-    Visit.countDocuments({ enteredAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) } })
+  // start-of-day (for "visitsToday")
+  const now = new Date();
+  const startOfDay = new Date(now);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  // run counts + top books in parallel
+  const countsPromise = Promise.all([
+    User.countDocuments({ role: 'student' }), // students
+    Faculty.countDocuments(),                 // facultyCount
+    Book.countDocuments(),                    // books
+    Loan.countDocuments({ returnedAt: null }),// activeLoans
+    Visit.countDocuments({ enteredAt: { $gte: startOfDay } }) // visitsToday
   ]);
 
-  const topBooks = await Loan.aggregate([
+  const topBooksPipeline = [
     { $group: { _id: '$bookId', borrows: { $sum: 1 } } },
     { $sort: { borrows: -1 } },
     { $limit: 5 },
     { $lookup: { from: 'books', localField: '_id', foreignField: '_id', as: 'book' } },
     { $unwind: '$book' },
     { $project: { _id: 0, bookId: '$_id', title: '$book.title', author: '$book.author', borrows: 1 } }
+  ];
+
+  const [counts, topBooks] = await Promise.all([
+    countsPromise,
+    Loan.aggregate(topBooksPipeline).allowDiskUse(true)
   ]);
 
-  res.json({ counts: { users, books, activeLoans, visitsToday }, topBooks });
+  const [students, facultyCount, books, activeLoans, visitsToday] = counts;
+
+  res.json({
+    counts: {
+      users: students + facultyCount,
+      students,
+      faculty: facultyCount,
+      books,
+      activeLoans,
+      visitsToday
+    },
+    topBooks
+  });
 });
+
 
 // --- Usage Heatmaps (visits)
 app.get('/api/heatmap/visits', authRequired, async (req, res) => {
@@ -1529,116 +1929,41 @@ async function markLoanAsReturned(loan) {
 app.post('/api/loans/borrow', adminRequired, async (req, res) => {
   const { userId, bookId, days: daysRaw } = req.body || {};
   if (!userId || !bookId) return res.status(400).json({ error: 'userId and bookId required' });
-  if (!mongoose.Types.ObjectId.isValid(String(userId))) {
-    return res.status(400).json({ error: 'userId must be a valid identifier' });
-  }
-  if (!mongoose.Types.ObjectId.isValid(String(bookId))) {
-    return res.status(400).json({ error: 'bookId must be a valid identifier' });
-  }
-  const bookObjectId = new mongoose.Types.ObjectId(String(bookId));
-  const user = await User.findById(userId);
-  if (!user) return res.status(404).json({ error: 'User or Book not found' });
-
-  let chosenDays;
   try {
-    chosenDays = readNumericQueryParam(daysRaw, {
-      name: 'days',
-      defaultValue: DEFAULT_LOAN_DAYS,
-      min: 1,
-      max: 180,
-      integer: true
+    const { loan } = await borrowBookCore({
+      borrowerId: userId,
+      bookId,
+      daysRaw,
+      enforceUniqueLoan: false
     });
+    res.status(201).json(loan);
   } catch (err) {
-    return res.status(400).json({ error: err.message });
+    sendError(res, err, 'Failed to create loan');
   }
-
-  const dueAt = new Date(Date.now() + chosenDays * 24 * 60 * 60 * 1000);
-
-  const book = await Book.findOneAndUpdate(
-    { _id: bookObjectId, availableCopies: { $gt: 0 } },
-    { $inc: { availableCopies: -1 } },
-    { new: true }
-  );
-
-  if (!book) {
-    const exists = await Book.exists({ _id: bookObjectId });
-    if (!exists) return res.status(404).json({ error: 'User or Book not found' });
-    return res.status(400).json({ error: 'No available copies' });
-  }
-
-  let loan;
-  try {
-    loan = await Loan.create({ userId: user._id, bookId: book._id, dueAt });
-  } catch (err) {
-    await Book.updateOne({ _id: book._id }, { $inc: { availableCopies: 1 } });
-    return res.status(500).json({ error: err?.message || 'Failed to create loan' });
-  }
-  res.status(201).json(loan);
 });
 
 // Student self-service borrowing
 app.post('/api/student/borrow', studentRequired, async (req, res) => {
   const { bookId, days: daysRaw } = req.body || {};
   if (!bookId) return res.status(400).json({ error: 'bookId required' });
-  if (!mongoose.Types.ObjectId.isValid(String(bookId))) {
-    return res.status(400).json({ error: 'bookId must be a valid identifier' });
-  }
-  const bookObjectId = new mongoose.Types.ObjectId(String(bookId));
-  
-  const userId = req.user.sub;
-  const user = await User.findById(userId);
-  if (!user) return res.status(404).json({ error: 'User or Book not found' });
-
-  let chosenDays;
   try {
-    chosenDays = readNumericQueryParam(daysRaw, {
-      name: 'days',
-      defaultValue: DEFAULT_LOAN_DAYS,
-      min: 1,
-      max: 180,
-      integer: true
+    const { book, loan } = await borrowBookCore({
+      borrowerId: req.user.sub,
+      bookId,
+      daysRaw,
+      enforceUniqueLoan: true
+    });
+    res.status(201).json({
+      id: loan._id,
+      bookId: book._id,
+      title: book.title,
+      author: book.author,
+      borrowedAt: loan.borrowedAt,
+      dueAt: loan.dueAt
     });
   } catch (err) {
-    return res.status(400).json({ error: err.message });
+    sendError(res, err, 'Failed to create loan');
   }
-  
-  // Check if student already has this book borrowed
-  const existingLoan = await Loan.findOne({ 
-    userId: user._id, 
-    bookId: bookObjectId, 
-    returnedAt: null 
-  });
-  if (existingLoan) return res.status(400).json({ error: 'You already have this book borrowed' });
- 
-  const book = await Book.findOneAndUpdate(
-    { _id: bookObjectId, availableCopies: { $gt: 0 } },
-    { $inc: { availableCopies: -1 } },
-    { new: true }
-  );
-
-  if (!book) {
-    const exists = await Book.exists({ _id: bookObjectId });
-    if (!exists) return res.status(404).json({ error: 'User or Book not found' });
-    return res.status(400).json({ error: 'No available copies' });
-  }
-
-  const dueAt = new Date(Date.now() + chosenDays * 24 * 60 * 60 * 1000);
-  let loan;
-  try {
-    loan = await Loan.create({ userId: user._id, bookId: book._id, dueAt });
-  } catch (err) {
-    await Book.updateOne({ _id: book._id }, { $inc: { availableCopies: 1 } });
-    return res.status(500).json({ error: err?.message || 'Failed to create loan' });
-  }
-  
-  res.status(201).json({
-    id: loan._id,
-    bookId: book._id,
-    title: book.title,
-    author: book.author,
-    borrowedAt: loan.borrowedAt,
-    dueAt: loan.dueAt
-  });
 });
 
 // Student self-service renew
@@ -1659,15 +1984,9 @@ app.post('/api/student/renew', studentRequired, async (req, res) => {
 
   let chosenDays;
   try {
-    chosenDays = readNumericQueryParam(daysRaw, {
-      name: 'days',
-      defaultValue: DEFAULT_LOAN_DAYS,
-      min: 1,
-      max: 180,
-      integer: true
-    });
+    chosenDays = resolveLoanDuration(daysRaw);
   } catch (err) {
-    return res.status(400).json({ error: err.message });
+    return res.status(err?.status || 400).json({ error: err.message });
   }
 
   const now = new Date();
@@ -2030,8 +2349,119 @@ app.get('/api/admin/users', adminRequired, async (req, res) => {
       ]
     };
   }
-  const items = await User.find(filter).select('fullName email studentId role createdAt').limit(200).lean();
+  const items = await User.find(filter).select('fullName email studentId role department status createdAt').limit(200).lean();
   res.json(items);
+});
+
+app.post('/api/admin/users', adminRequired, async (req, res) => {
+  try {
+    const { studentId, email, fullName, department, password, confirmPassword, role, status } = req.body || {};
+    if (!studentId || !email || !fullName || !department || !password || !confirmPassword) {
+      return res.status(400).json({ error: 'studentId, email, fullName, department, password, confirmPassword required' });
+    }
+    if (String(password) !== String(confirmPassword)) {
+      return res.status(400).json({ error: 'Passwords do not match' });
+    }
+    if (String(password).length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Password must be at least 8 chars and contain letters and numbers' });
+    }
+
+    const studentIdNorm = String(studentId).trim();
+    const emailNorm = String(email).trim().toLowerCase();
+    const fullNameNorm = String(fullName).trim();
+    const departmentNorm = typeof department === 'string' ? department.trim() : '';
+
+    if (!STUDENT_ID_REGEX.test(studentIdNorm)) {
+      return res.status(400).json({ error: 'Student ID must match 00-0000-000000 pattern' });
+    }
+    if (!validator.isEmail(emailNorm)) {
+      return res.status(400).json({ error: 'Email must be valid' });
+    }
+    if (!/^[A-Za-z .'-]+$/.test(fullNameNorm)) {
+      return res.status(400).json({ error: 'Full name may contain letters, spaces, apostrophes, hyphens, and periods only' });
+    }
+    if (!departmentNorm) {
+      return res.status(400).json({ error: 'Department is required' });
+    }
+
+    const allowedRoles = ['student', 'faculty', 'staff', 'admin', 'librarian', 'librarian_staff'];
+    const roleNorm = typeof role === 'string' && allowedRoles.includes(role.trim().toLowerCase())
+      ? role.trim().toLowerCase()
+      : 'faculty';
+    const allowedStatuses = ['active', 'disabled', 'pending'];
+    const statusNorm = typeof status === 'string' && allowedStatuses.includes(status.trim().toLowerCase())
+      ? status.trim().toLowerCase()
+      : 'active';
+
+    const existing = await User.findOne({
+      $or: [
+        { studentId: studentIdNorm },
+        { email: emailNorm }
+      ]
+    }).lean();
+    if (existing) {
+      return res.status(409).json({ error: 'studentId or email already exists' });
+    }
+
+    const existingAdmin = await Admin.findOne({
+      $or: [
+        { adminId: studentIdNorm },
+        emailNorm ? { email: emailNorm } : null
+      ].filter(Boolean)
+    }).lean();
+    if (existingAdmin) {
+      return res.status(409).json({ error: 'studentId or email already exists' });
+    }
+
+    const existingFaculty = await Faculty.findOne({
+      $or: [
+        { facultyId: studentIdNorm },
+        { email: emailNorm }
+      ]
+    }).lean();
+    if (existingFaculty) {
+      return res.status(409).json({ error: 'studentId or email already exists' });
+    }
+
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const doc = await User.create({
+      studentId: studentIdNorm,
+      email: emailNorm,
+      fullName: fullNameNorm,
+      name: fullNameNorm,
+      department: departmentNorm,
+      passwordHash,
+      role: roleNorm,
+      status: statusNorm
+    });
+
+    if (roleNorm === 'faculty') {
+      await Faculty.findOneAndUpdate(
+        { facultyId: studentIdNorm },
+        {
+          facultyId: studentIdNorm,
+          email: emailNorm,
+          fullName: fullNameNorm,
+          department: departmentNorm,
+          user: doc._id
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    }
+
+    res.status(201).json({
+      id: String(doc._id),
+      studentId: doc.studentId,
+      email: doc.email,
+      fullName: doc.fullName,
+      role: doc.role,
+      department: doc.department,
+      status: doc.status,
+      createdAt: doc.createdAt
+    });
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Unable to create user' });
+  }
 });
 
 app.patch('/api/admin/users/:id/role', adminRequired, async (req, res) => {
@@ -2039,6 +2469,21 @@ app.patch('/api/admin/users/:id/role', adminRequired, async (req, res) => {
   if (!role) return res.status(400).json({ error: 'role required' });
   const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true, runValidators: true }).lean();
   if (!user) return res.status(404).json({ error: 'Not found' });
+  if (user.role === 'faculty') {
+    await Faculty.findOneAndUpdate(
+      { facultyId: user.studentId },
+      {
+        facultyId: user.studentId,
+        email: user.email,
+        fullName: user.fullName,
+        department: user.department || '',
+        user: user._id
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  } else {
+    await Faculty.findOneAndDelete({ facultyId: user.studentId });
+  }
   res.json({ id: String(user._id), role: user.role });
 });
 

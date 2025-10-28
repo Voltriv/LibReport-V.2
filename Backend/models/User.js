@@ -33,9 +33,15 @@ const userSchema = new mongoose.Schema(
         message: "Full name may contain letters, spaces, apostrophes, hyphens, and periods only"
       }
     },
+    department: { type: String, trim: true },
     barcode: { type: String, trim: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ['student','librarian','librarian_staff'], default: 'student', trim: true },
+    role: {
+      type: String,
+      enum: ['student', 'faculty', 'staff', 'admin', 'librarian', 'librarian_staff'],
+      default: 'student',
+      trim: true
+    },
     status: { type: String, enum: ['active','disabled','pending'], default: 'active' }
   },
   { timestamps: true }

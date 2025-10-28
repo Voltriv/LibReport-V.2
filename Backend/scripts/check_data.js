@@ -11,7 +11,7 @@ const client = new MongoClient(uri);
   try {
     await client.connect();
     const db = client.db(dbName);
-    const colls = ['users','books','loans','visits','hours'];
+    const colls = ['users','faculty','books','loans','visits','hours'];
     for (const c of colls) {
       const count = await db.collection(c).countDocuments();
       const one = await db.collection(c).findOne();

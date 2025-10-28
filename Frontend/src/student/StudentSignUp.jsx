@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api, { persistAuthSession } from "../api";
 
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
+const DEPARTMENTS = ["CAHS", "CITE", "CCJE", "CEA", "CELA", "COL", "SHS"];
 
 function formatStudentId(raw) {
   const digits = String(raw || '').replace(/\D/g, '').slice(0, 12);
@@ -19,6 +20,7 @@ const StudentSignUp = () => {
     studentId: "",
     email: "",
     fullName: "",
+    department: "",
     password: "",
     confirmPassword: "",
   });
@@ -47,6 +49,9 @@ const StudentSignUp = () => {
     }
     if (!/^[A-Za-z .'-]+$/.test(form.fullName.trim())) {
       nextErrors.fullName = "Name may contain letters, spaces, apostrophes, hyphens, and periods";
+    }
+    if (!form.department.trim()) {
+      nextErrors.department = "Please select your department";
     }
     if (form.password.length < 8 || !/[A-Za-z]/.test(form.password) || !/[0-9]/.test(form.password)) {
       nextErrors.password = "Password must be 8+ characters with letters and numbers";
@@ -142,7 +147,7 @@ const StudentSignUp = () => {
                   type="email"
                   value={form.email}
                   onChange={onChange}
-                  placeholder="you@example.edu"
+                  placeholder="library.fvr.up@phinmaed.com"
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
                   required
                 />
@@ -159,6 +164,24 @@ const StudentSignUp = () => {
                   required
                 />
                 {errors.fullName && <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>}
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">Department</label>
+                <select
+                  name="department"
+                  value={form.department}
+                  onChange={onChange}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                  required
+                >
+                  <option value="">Select your department</option>
+                  {DEPARTMENTS.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+                {errors.department && <p className="mt-1 text-xs text-red-600">{errors.department}</p>}
               </div>
               <div>
                 <label className="text-sm font-medium text-slate-700">Password</label>

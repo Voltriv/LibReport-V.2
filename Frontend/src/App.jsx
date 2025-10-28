@@ -25,6 +25,7 @@ const UserManagement = safeLazy(() => import("./pages/UserManagement"));
 const BooksManagement = safeLazy(() => import("./pages/BooksManagement"));
 const BooksLibrary = safeLazy(() => import("./pages/BooksLibrary"));
 const Admins = safeLazy(() => import("./pages/Admins"));
+const Faculty = safeLazy(() => import("./pages/Faculty"));
 
 // === Student Pages ===
 const StudentLayout = safeLazy(() => import("./student/StudentLayout"));
@@ -232,6 +233,16 @@ function App() {
                 <RequireAuth>
                   <RequireAdmin>
                     <BooksManagement />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/faculty"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <Faculty />
                   </RequireAdmin>
                 </RequireAuth>
               }

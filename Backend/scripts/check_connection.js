@@ -32,7 +32,7 @@ const { resolveMongoConfig } = require('../db/uri');
     const names = (await db.listCollections().toArray()).map(c => c.name).sort();
     console.log('Collections:', names.join(', ') || '(none)');
 
-    const targets = ['users', 'admins', 'books', 'loans', 'visits', 'uploads.files', 'uploads.chunks'];
+    const targets = ['users', 'faculty', 'admins', 'books', 'loans', 'visits', 'uploads.files', 'uploads.chunks'];
     for (const col of targets) {
       try {
         const count = await db.collection(col).estimatedDocumentCount();

@@ -65,7 +65,7 @@ const Admin = mongoose.model('Admin', adminSchema);
 async function ensureDefaultAdmin() {
   const rawEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
   const email = rawEmail ? String(rawEmail).trim().toLowerCase() : '';
-  const adminId = String(process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '03-2324-03224').trim();
+  const adminId = String(process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '03-2324-032224').trim();
   const fullName = String(process.env.ADMIN_NAME || 'Librarian').trim() || 'Librarian';
   const password = process.env.ADMIN_PASSWORD || 'Password123';
 

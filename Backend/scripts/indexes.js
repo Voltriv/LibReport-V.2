@@ -58,6 +58,17 @@ const { resolveMongoConfig } = require('../db/uri');
       { key: { email: 1 }, name: 'admin_email_unique', unique: true, partialFilterExpression: { email: { $exists: true } } }
     ]);
 
+    await db.collection('faculty').createIndexes([
+      { key: { facultyId: 1 }, name: 'faculty_facultyId_unique', unique: true },
+      {
+        key: { email: 1 },
+        name: 'faculty_email_unique',
+        unique: true,
+        partialFilterExpression: { email: { $type: 'string', $exists: true, $ne: '' } }
+      },
+      { key: { department: 1, status: 1 }, name: 'faculty_department_status' }
+    ]);
+
     console.log('Indexes created');
   } catch (e) {
     console.error('Index error:', e.message);
