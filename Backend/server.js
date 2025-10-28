@@ -294,6 +294,13 @@ function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const VALID_LIBRARY_DAYS = [1, 2, 3, 4, 5, 6];
+const DEFAULT_LIBRARY_HOURS = VALID_LIBRARY_DAYS.map((dayOfWeek) => ({
+  dayOfWeek,
+  open: '08:00',
+  close: '17:00'
+}));
+
 function readNumericQueryParam(value, options = {}) {
   const { defaultValue, min, max, integer = false, name = 'value' } = options;
   const hasValue = !(value === undefined || value === null || value === '');
@@ -1925,7 +1932,19 @@ app.get('/api/reports/overdue', authRequired, async (req, res) => {
 // --- Hours
 app.get('/api/hours', authRequired, async (req, res) => {
   const branch = String(req.query.branch || 'Main');
-  const items = await Hours.find({ branch }).sort({ dayOfWeek: 1 }).lean();
+  await Hours.deleteMany({ branch, dayOfWeek: { $nin: VALID_LIBRARY_DAYS } });
+  await Promise.all(
+    DEFAULT_LIBRARY_HOURS.map(({ dayOfWeek, open, close }) =>
+      Hours.updateOne(
+        { branch, dayOfWeek },
+        { $set: { branch, dayOfWeek, open, close } },
+        { upsert: true, runValidators: true }
+      )
+    )
+  );
+  const items = await Hours.find({ branch, dayOfWeek: { $in: VALID_LIBRARY_DAYS } })
+    .sort({ dayOfWeek: 1 })
+    .lean();
   res.json({ branch, items });
 });
 
@@ -1933,10 +1952,14 @@ app.put('/api/hours/:branch/:day', adminRequired, async (req, res) => {
   const branch = String(req.params.branch);
   const day = Number(req.params.day);
   const { open, close } = req.body || {};
-  if (!open || !close) return res.status(400).json({ error: 'open and close required' });
+  if (!Number.isInteger(day) || !VALID_LIBRARY_DAYS.includes(day)) {
+    return res.status(400).json({ error: 'Library hours are tracked for Monday through Saturday only' });
+  }
+  const nextOpen = open ? String(open) : '08:00';
+  const nextClose = close ? String(close) : '17:00';
   const doc = await Hours.findOneAndUpdate(
     { branch, dayOfWeek: day },
-    { branch, dayOfWeek: day, open, close },
+    { branch, dayOfWeek: day, open: nextOpen, close: nextClose },
     { new: true, upsert: true, runValidators: true }
   ).lean();
   res.json(doc);

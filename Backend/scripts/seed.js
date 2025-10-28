@@ -223,13 +223,12 @@ async function main() {
 
   const branch = 'Main';
   const hours = [
-    { dayOfWeek: 0, open: '10:00', close: '14:00' },
-    { dayOfWeek: 1, open: '09:00', close: '18:00' },
-    { dayOfWeek: 2, open: '09:00', close: '18:00' },
-    { dayOfWeek: 3, open: '09:00', close: '18:00' },
-    { dayOfWeek: 4, open: '09:00', close: '18:00' },
-    { dayOfWeek: 5, open: '09:00', close: '17:00' },
-    { dayOfWeek: 6, open: '10:00', close: '14:00' }
+    { dayOfWeek: 1, open: '08:00', close: '17:00' },
+    { dayOfWeek: 2, open: '08:00', close: '17:00' },
+    { dayOfWeek: 3, open: '08:00', close: '17:00' },
+    { dayOfWeek: 4, open: '08:00', close: '17:00' },
+    { dayOfWeek: 5, open: '08:00', close: '17:00' },
+    { dayOfWeek: 6, open: '08:00', close: '17:00' }
   ].map(h => ({ _id: `${branch}-${h.dayOfWeek}`, branch, ...h }));
   await db.collection('hours').bulkWrite(upsertsFromArray(hours), { bypassDocumentValidation: true });
 
