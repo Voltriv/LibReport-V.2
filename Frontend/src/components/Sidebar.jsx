@@ -19,7 +19,6 @@ const Sidebar = () => {
   ];
   const managementNav = [
     { to: "/usermanagement", label: "User Management", icon: "👥" },
-    { to: "/faculty", label: "Faculty", icon: "🎓" },
     { to: "/booksmanagement", label: "Books Management", icon: "📖" },
     { to: "/admins", label: "Admins", icon: "👤" },
   ];

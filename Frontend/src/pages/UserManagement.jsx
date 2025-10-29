@@ -15,6 +15,13 @@ const CREATE_FORM_DEFAULT = {
   confirmPassword: ""
 };
 
+// User status has been simplified to a single "available" state. Any legacy
+// values returned by the API are coerced into the unified label.
+const normalizeStatus = (status) =>
+  typeof status === "string" && status.trim().toLowerCase() === "available"
+    ? "available"
+    : "available";
+
 const mapApiUsers = (rows = []) =>
   (rows || []).map((u) => ({
     id: u._id || u.id,
@@ -23,7 +30,7 @@ const mapApiUsers = (rows = []) =>
     role: u.role || "-",
     department: u.department || "-",
     registrationDate: u.createdAt ? new Date(u.createdAt).toLocaleString() : "-",
-    status: u.status || "active"
+    status: normalizeStatus(u.status)
   }));
 
 const formatStudentId = (raw) => {
@@ -58,7 +65,7 @@ const UserManagement = () => {
 
   const [selectedUser, setSelectedUser] = useState(null);
   const handleEdit = (user) => {
-    setSelectedUser({ ...user });
+    setSelectedUser({ ...user, status: normalizeStatus(user.status) });
     setIsModalOpen(true);
   };
 
@@ -66,8 +73,9 @@ const UserManagement = () => {
     if (!selectedUser) return setIsModalOpen(false);
     try {
       await api.patch(`/admin/users/${selectedUser.id}/role`, { role: selectedUser.role || "student" });
-      if (selectedUser.status) {
-        await api.patch(`/admin/users/${selectedUser.id}/status`, { status: selectedUser.status });
+      const statusPayload = normalizeStatus(selectedUser.status);
+      if (statusPayload) {
+        await api.patch(`/admin/users/${selectedUser.id}/status`, { status: statusPayload });
       }
       setIsModalOpen(false);
       const r = await api.get("/admin/users");
@@ -79,7 +87,8 @@ const UserManagement = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setSelectedUser((prev) => ({ ...prev, [name]: value }));
+    const nextValue = name === "status" ? normalizeStatus(value) : value;
+    setSelectedUser((prev) => ({ ...prev, [name]: nextValue }));
   };
 
   const openCreateModal = () => {
@@ -131,7 +140,7 @@ const UserManagement = () => {
       await api.post("/admin/users", {
         ...createForm,
         role: "Faculty",
-        status: "active"
+        status: "available"
       });
       const r = await api.get("/admin/users");
       setUsers(mapApiUsers(r.data || []));
@@ -226,7 +235,7 @@ const UserManagement = () => {
         </div>
 
         {/* Stats Cards */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
           <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800 p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -244,30 +253,14 @@ const UserManagement = () => {
           <div className="rounded-2xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-green-600 dark:text-green-400">Active Users</p>
+                <p className="text-sm font-medium text-green-600 dark:text-green-400">Available Users</p>
                 <p className="mt-2 text-2xl font-bold text-green-900 dark:text-green-100">
-                  {users.filter(u => u.status === 'active').length}
+                  {users.filter((u) => normalizeStatus(u.status) === 'available').length}
                 </p>
               </div>
               <div className="h-10 w-10 rounded-xl bg-green-500 flex items-center justify-center">
                 <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 ring-1 ring-amber-200 dark:ring-amber-800 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Pending Users</p>
-                <p className="mt-2 text-2xl font-bold text-amber-900 dark:text-amber-100">
-                  {users.filter(u => u.status === 'pending').length}
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-amber-500 flex items-center justify-center">
-                <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
             </div>
@@ -322,23 +315,9 @@ const UserManagement = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.registrationDate}</td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          user.status === "disabled"
-                            ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                            : user.status === "pending"
-                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
-                            : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                        }`}
-                      >
-                        <div className={`h-1.5 w-1.5 rounded-full mr-1.5 ${
-                          user.status === "disabled"
-                            ? "bg-red-400"
-                            : user.status === "pending"
-                            ? "bg-amber-400"
-                            : "bg-green-400"
-                        }`}></div>
-                        {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                        <div className="h-1.5 w-1.5 rounded-full mr-1.5 bg-green-400"></div>
+                        Available
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -544,13 +523,12 @@ const UserManagement = () => {
                   <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Status</label>
                   <select
                     name="status"
-                    value={selectedUser.status}
+                    value={normalizeStatus(selectedUser.status)}
                     onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    disabled
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    <option value="active">Active</option>
-                    <option value="disabled">Disabled</option>
-                    <option value="pending">Pending</option>
+                    <option value="available">Available</option>
                   </select>
                 </div>
               </div>

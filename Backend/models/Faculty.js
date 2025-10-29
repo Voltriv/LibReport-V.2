@@ -17,8 +17,13 @@ const facultySchema = new mongoose.Schema(
       type: String,
       trim: true,
       lowercase: true,
-      // Convert "" (or whitespace-only) to undefined so it won't be indexed
-      set: (v) => (v && v.trim() ? v : undefined),
+      // Convert "" (or whitespace-only) to undefined so it won't be indexed.
+      // Guard against non-string values to avoid calling `.trim()` on them.
+      set: (v) => {
+        if (typeof v !== 'string') return undefined;
+        const trimmed = v.trim();
+        return trimmed ? trimmed : undefined;
+      },
       validate: {
         validator: (v) => !v || validator.isEmail(v),
         message: 'Email must be a valid address'
@@ -38,8 +43,8 @@ const facultySchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     status: {
       type: String,
-      enum: ['active', 'disabled', 'pending'],
-      default: 'active'
+      enum: ['available'],
+      default: 'available'
     }
   },
   {

@@ -42,7 +42,7 @@ const userSchema = new mongoose.Schema(
       default: 'student',
       trim: true
     },
-    status: { type: String, enum: ['active','disabled','pending'], default: 'active' }
+    status: { type: String, enum: ['available'], default: 'available' }
   },
   { timestamps: true }
 );
