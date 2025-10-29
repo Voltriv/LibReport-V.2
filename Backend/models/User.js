@@ -38,11 +38,11 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     role: {
       type: String,
-      enum: ['student', 'faculty', 'staff', 'admin', 'librarian', 'librarian_staff'],
+      enum: ['Student', 'faculty', 'staff', 'admin', 'librarian', 'librarian_staff'],
       default: 'student',
       trim: true
     },
-    status: { type: String, enum: ['available'], default: 'available' }
+    status: { type: String, enum: ['active', 'disabled'], default: 'active' }
   },
   { timestamps: true }
 );

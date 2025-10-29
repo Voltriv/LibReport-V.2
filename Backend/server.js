@@ -796,7 +796,7 @@ app.post('/api/auth/signup', async (req, res) => {
       department: departmentNorm,
       passwordHash,
       role: 'student',
-      status: 'available'
+      status: 'active'
     });
     const token = signToken(doc);
     return res.status(201).json({
@@ -1067,6 +1067,176 @@ app.delete('/api/admins/:id', elevatedAdminRequired, async (req, res) => {
   const out = await Admin.findByIdAndDelete(req.params.id).lean();
   if (!out) return res.status(404).json({ error: 'Not found' });
   res.status(204).send();
+});
+
+// --- Faculty management
+app.get('/api/faculty', adminRequired, async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  const filter = {};
+  if (q) {
+    const safe = escapeRegex(q);
+    filter.$or = [
+      { fullName: new RegExp(safe, 'i') },
+      { email: new RegExp(safe, 'i') },
+      { facultyId: new RegExp(safe, 'i') },
+      { department: new RegExp(safe, 'i') }
+    ];
+  }
+  const items = await Faculty.find(filter)
+    .select('fullName email facultyId department status createdAt')
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .lean();
+  res.json(items);
+});
+
+app.post('/api/faculty', adminRequired, async (req, res) => {
+  try {
+    const { facultyId, fullName, email, department, password, confirmPassword } = req.body || {};
+    if (!facultyId || !fullName || !department || !password || !confirmPassword) {
+      return res.status(400).json({ error: 'facultyId, fullName, department, password, confirmPassword required' });
+    }
+    if (String(password) !== String(confirmPassword)) {
+      return res.status(400).json({ error: 'Passwords do not match' });
+    }
+    if (String(password).length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Password must be at least 8 chars and contain letters and numbers' });
+    }
+
+    const facultyIdNorm = String(facultyId).trim();
+    const fullNameNorm = String(fullName).trim();
+    const departmentNorm = String(department).trim();
+    const emailNorm = email ? String(email).trim().toLowerCase() : undefined;
+
+    if (!STUDENT_ID_REGEX.test(facultyIdNorm)) {
+      return res.status(400).json({ error: 'Faculty ID must match 00-0000-000000 pattern' });
+    }
+    if (!/^[A-Za-z .'-]+$/.test(fullNameNorm)) {
+      return res.status(400).json({ error: 'Full name may contain letters, spaces, apostrophes, hyphens, and periods only' });
+    }
+    if (!departmentNorm) {
+      return res.status(400).json({ error: 'Department is required' });
+    }
+    if (emailNorm && !validator.isEmail(emailNorm)) {
+      return res.status(400).json({ error: 'Email must be valid' });
+    }
+
+    const [existingFaculty, userCollision, adminCollision] = await Promise.all([
+      Faculty.findOne({
+        $or: [
+          { facultyId: facultyIdNorm },
+          emailNorm ? { email: emailNorm } : null
+        ].filter(Boolean)
+      }).lean(),
+      User.findOne({
+        $or: [
+          { studentId: facultyIdNorm },
+          emailNorm ? { email: emailNorm } : null
+        ].filter(Boolean)
+      }).lean(),
+      Admin.findOne({
+        $or: [
+          { adminId: facultyIdNorm },
+          emailNorm ? { email: emailNorm } : null
+        ].filter(Boolean)
+      }).lean()
+    ]);
+
+    if (existingFaculty) {
+      return res.status(409).json({ error: 'Faculty ID or email already exists' });
+    }
+    if (userCollision || adminCollision) {
+      return res.status(409).json({ error: 'ID or email already assigned to another account' });
+    }
+
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const doc = await Faculty.create({
+      facultyId: facultyIdNorm,
+      fullName: fullNameNorm,
+      email: emailNorm,
+      department: departmentNorm,
+      passwordHash,
+      status: 'active'
+    });
+
+    return res.status(201).json({
+      id: String(doc._id),
+      facultyId: doc.facultyId,
+      fullName: doc.fullName,
+      email: doc.email,
+      department: doc.department,
+      status: doc.status
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || 'Create failed' });
+  }
+});
+
+app.patch('/api/faculty/:id', adminRequired, async (req, res) => {
+  try {
+    const doc = await Faculty.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+
+    const update = {};
+    if (req.body.fullName !== undefined) {
+      const fullNameNorm = String(req.body.fullName).trim();
+      if (!/^[A-Za-z .'-]+$/.test(fullNameNorm)) {
+        return res.status(400).json({ error: 'Full name may contain letters, spaces, apostrophes, hyphens, and periods only' });
+      }
+      update.fullName = fullNameNorm;
+    }
+    if (req.body.department !== undefined) {
+      const deptNorm = String(req.body.department).trim();
+      if (!deptNorm) return res.status(400).json({ error: 'Department is required' });
+      update.department = deptNorm;
+    }
+    if (req.body.status !== undefined) {
+      const allowed = ['active', 'disabled', 'pending'];
+      if (!allowed.includes(req.body.status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
+      update.status = req.body.status;
+    }
+    if (req.body.email !== undefined) {
+      const emailNorm = req.body.email ? String(req.body.email).trim().toLowerCase() : undefined;
+      if (emailNorm && !validator.isEmail(emailNorm)) {
+        return res.status(400).json({ error: 'Email must be valid' });
+      }
+      if (emailNorm !== doc.email) {
+        const conflict = await Faculty.findOne({ _id: { $ne: doc._id }, email: emailNorm }).lean();
+        if (conflict) return res.status(409).json({ error: 'Email already exists' });
+        const otherCollision = await Promise.all([
+          User.findOne({ email: emailNorm }).lean(),
+          Admin.findOne({ email: emailNorm }).lean()
+        ]);
+        if (otherCollision.some(Boolean)) {
+          return res.status(409).json({ error: 'Email already assigned to another account' });
+        }
+      }
+      update.email = emailNorm;
+    }
+    if (req.body.newPassword) {
+      const next = String(req.body.newPassword);
+      if (next.length < 8 || !/[A-Za-z]/.test(next) || !/[0-9]/.test(next)) {
+        return res.status(400).json({ error: 'Password must be at least 8 chars and contain letters and numbers' });
+      }
+      update.passwordHash = await bcrypt.hash(next, 10);
+    }
+
+    Object.assign(doc, update);
+    await doc.save();
+
+    return res.json({
+      id: String(doc._id),
+      facultyId: doc.facultyId,
+      fullName: doc.fullName,
+      email: doc.email,
+      department: doc.department,
+      status: doc.status
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || 'Update failed' });
+  }
 });
 
 // Request password reset (returns token for demo; normally emailed)
@@ -2183,8 +2353,6 @@ app.get('/api/admin/users', adminRequired, async (req, res) => {
   res.json(items);
 });
 
-// Faculty accounts are provisioned through the admin users endpoints;
-// the legacy /api/faculty routes have been removed in favor of a single flow.
 app.post('/api/admin/users', adminRequired, async (req, res) => {
   try {
     const { studentId, email, fullName, department, password, confirmPassword, role, status } = req.body || {};
@@ -2220,7 +2388,7 @@ app.post('/api/admin/users', adminRequired, async (req, res) => {
     const roleNorm = typeof role === 'string' && allowedRoles.includes(role.trim().toLowerCase())
       ? role.trim().toLowerCase()
       : 'faculty';
-    const allowedStatuses = ['available'];
+    const allowedStatuses = ['active', 'disabled'];
     const statusNorm = typeof status === 'string' && allowedStatuses.includes(status.trim().toLowerCase())
       ? status.trim().toLowerCase()
       : 'available';

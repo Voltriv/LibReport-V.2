@@ -15,12 +15,29 @@ const CREATE_FORM_DEFAULT = {
   confirmPassword: ""
 };
 
-// User status has been simplified to a single "available" state. Any legacy
-// values returned by the API are coerced into the unified label.
-const normalizeStatus = (status) =>
-  typeof status === "string" && status.trim().toLowerCase() === "available"
-    ? "available"
-    : "available";
+// Normalize API status values to supported options.
+const normalizeStatus = (status) => {
+  const value = typeof status === "string" ? status.trim().toLowerCase() : "";
+  return value === "disabled" ? "disabled" : "active"; // treats 'available', 'pending', etc. as 'active' for editing
+};
+
+const getStatusDisplay = (status) => {
+  const normalized = normalizeStatus(status);
+  if (normalized === "disabled") {
+    return {
+      label: "Disabled",
+      badgeClass:
+        "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400",
+      dotClass: "bg-red-400"
+    };
+  }
+  return {
+    label: "Active",
+    badgeClass:
+      "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400",
+    dotClass: "bg-green-400"
+  };
+};
 
 const mapApiUsers = (rows = []) =>
   (rows || []).map((u) => ({
@@ -30,7 +47,7 @@ const mapApiUsers = (rows = []) =>
     role: u.role || "-",
     department: u.department || "-",
     registrationDate: u.createdAt ? new Date(u.createdAt).toLocaleString() : "-",
-    status: normalizeStatus(u.status)
+    status: u.status || "active"
   }));
 
 const formatStudentId = (raw) => {
@@ -54,6 +71,7 @@ const UserManagement = () => {
   const [createErrors, setCreateErrors] = useState({});
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
+
   useEffect(() => {
     api
       .get("/admin/users")
@@ -64,19 +82,21 @@ const UserManagement = () => {
   }, []);
 
   const [selectedUser, setSelectedUser] = useState(null);
+
   const handleEdit = (user) => {
-    setSelectedUser({ ...user, status: normalizeStatus(user.status) });
+    setSelectedUser({ ...user });
     setIsModalOpen(true);
   };
 
   const handleSave = async () => {
     if (!selectedUser) return setIsModalOpen(false);
     try {
-      await api.patch(`/admin/users/${selectedUser.id}/role`, { role: selectedUser.role || "student" });
-      const statusPayload = normalizeStatus(selectedUser.status);
-      if (statusPayload) {
-        await api.patch(`/admin/users/${selectedUser.id}/status`, { status: statusPayload });
-      }
+      const role = (selectedUser.role || "student").toLowerCase();
+      const status = normalizeStatus(selectedUser.status);
+
+      await api.patch(`/admin/users/${selectedUser.id}/role`, { role });
+      await api.patch(`/admin/users/${selectedUser.id}/status`, { status });
+
       setIsModalOpen(false);
       const r = await api.get("/admin/users");
       setUsers(mapApiUsers(r.data || []));
@@ -87,8 +107,7 @@ const UserManagement = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    const nextValue = name === "status" ? normalizeStatus(value) : value;
-    setSelectedUser((prev) => ({ ...prev, [name]: nextValue }));
+    setSelectedUser((prev) => ({ ...prev, [name]: value }));
   };
 
   const openCreateModal = () => {
@@ -139,8 +158,8 @@ const UserManagement = () => {
       setCreating(true);
       await api.post("/admin/users", {
         ...createForm,
-        role: "Faculty",
-        status: "available"
+        role: "faculty",
+        status: "active" // keep consistent with Active/Disabled
       });
       const r = await api.get("/admin/users");
       setUsers(mapApiUsers(r.data || []));
@@ -255,7 +274,7 @@ const UserManagement = () => {
               <div>
                 <p className="text-sm font-medium text-green-600 dark:text-green-400">Available Users</p>
                 <p className="mt-2 text-2xl font-bold text-green-900 dark:text-green-100">
-                  {users.filter((u) => normalizeStatus(u.status) === 'available').length}
+                  {users.filter((u) => normalizeStatus(u.status) === 'active').length}
                 </p>
               </div>
               <div className="h-10 w-10 rounded-xl bg-green-500 flex items-center justify-center">
@@ -265,6 +284,7 @@ const UserManagement = () => {
               </div>
             </div>
           </div>
+          
         </section>
 
         {/* Users Table */}
@@ -292,47 +312,58 @@ const UserManagement = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-stone-700">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-brand-green to-brand-greenDark flex items-center justify-center">
-                          <span className="text-sm font-bold text-white">
-                            {user.fullName.split(' ').map(n => n[0]).join('').toUpperCase()}
-                          </span>
+                {users.map((user) => {
+                  const statusDisplay = getStatusDisplay(user.status);
+                  const initials = user.fullName
+                    ? user.fullName
+                        .split(" ")
+                        .filter(Boolean)
+                        .map((n) => n[0] || "")
+                        .join("")
+                        .toUpperCase()
+                    : "";
+                  return (
+                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-brand-green to-brand-greenDark flex items-center justify-center">
+                            <span className="text-sm font-bold text-white">{initials}</span>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-slate-900 dark:text-stone-100">{user.fullName}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-sm font-medium text-slate-900 dark:text-stone-100">{user.fullName}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400 font-mono">{user.studentId}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.department}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-stone-700 text-slate-800 dark:text-stone-200">
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.registrationDate}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                        <div className="h-1.5 w-1.5 rounded-full mr-1.5 bg-green-400"></div>
-                        Available
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-stone-300 bg-slate-100 dark:bg-stone-800 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
-                        onClick={() => handleEdit(user)}
-                      >
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400 font-mono">{user.studentId}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.department}</td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-stone-700 text-slate-800 dark:text-stone-200">
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.registrationDate}</td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusDisplay.badgeClass}`}
+                        >
+                          <div className={`h-1.5 w-1.5 rounded-full mr-1.5 ${statusDisplay.dotClass}`}></div>
+                          {statusDisplay.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-stone-300 bg-slate-100 dark:bg-stone-800 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+                          onClick={() => handleEdit(user)}
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -524,11 +555,16 @@ const UserManagement = () => {
                   <select
                     name="status"
                     value={normalizeStatus(selectedUser.status)}
-                    onChange={handleInputChange}
-                    disabled
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-70"
+                    onChange={(e) =>
+                      setSelectedUser((prev) => ({
+                        ...prev,
+                        status: normalizeStatus(e.target.value),
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                   >
-                    <option value="available">Available</option>
+                    <option value="active">Active</option>
+                    <option value="disabled">Disabled</option>
                   </select>
                 </div>
               </div>

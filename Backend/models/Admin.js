@@ -7,7 +7,7 @@ const adminSchema = new mongoose.Schema(
     fullName: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ['librarian', 'librarian_staff'], default: 'librarian_staff' },
-    status: { type: String, enum: ['available'], default: 'available' }
+    status: { type: String, enum: ['active', 'disabled'], default: 'active' }
   },
   { timestamps: true }
 );

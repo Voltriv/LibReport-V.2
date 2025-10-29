@@ -43,8 +43,8 @@ function log(ok, msg, extra) {
     const d = await jget('/dashboard', token);
     log(d.status === 200 && !!d.json?.counts, 'Dashboard ok', JSON.stringify(d.json?.counts || {}));
 
-    const usersList = await jget('/admin/users', token);
-    log(usersList.status === 200 && Array.isArray(usersList.json), 'Admin users ok', `count=${(usersList.json || []).length}`);
+    const facultyList = await jget('/faculty', token);
+    log(facultyList.status === 200 && Array.isArray(facultyList.json), 'Faculty list ok', `count=${(facultyList.json || []).length}`);
 
     const b = await jget('/books/library?q=Clean', token).catch((e) => ({ error: e }));
     if (b?.error) {

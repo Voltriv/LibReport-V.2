@@ -17,7 +17,7 @@ Stores student accounts that can access the student portal.
 | `barcode` | String | Optional. Unique + sparse. Not used in the current UI but kept for legacy imports. |
 | `passwordHash` | String | Required. Bcrypt hash of the password. |
 | `role` | String | Defaults to `student`. Can also be `librarian` or `librarian_staff` when elevated. |
-| `status` | String | Always `available`. Default `available`. |
+| `status` | String | Enum `active` or `disabled`. Default `active`. |
 | `createdAt` / `updatedAt` | Date | Auto-managed timestamps. |
 
 **Indexes**
@@ -53,7 +53,7 @@ Stores librarian and librarian staff administrator accounts.
 | `fullName` | String | Required. Trimmed. |
 | `passwordHash` | String | Required. Bcrypt hash. |
 | `role` | String | Enum `librarian` (highest) or `librarian_staff` (support role). Defaults to `librarian_staff`. |
-| `status` | String | Always `available`. Default `available`. |
+| `status` | String | Enum `active` or `disabled`. Default `active`. |
 | `createdAt` / `updatedAt` | Date | Auto-managed timestamps. |
 
 **Indexes**
