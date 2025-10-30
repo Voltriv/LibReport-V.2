@@ -4,10 +4,17 @@ import api from "../api";
 const GenReport = ({ onClose }) => {
   const currentDate = new Date().toLocaleDateString();
   const currentTime = new Date().toLocaleTimeString();
-  const [counts, setCounts] = useState({ users: 0, books: 0, activeLoans: 0, visitsToday: 0 });
+  const [counts, setCounts] = useState({
+    users: 0,
+    disabledUsers: 0,
+    totalUsers: 0,
+    books: 0,
+    activeLoans: 0,
+    visitsToday: 0
+  });
 
   useEffect(() => {
-    api.get('/dashboard').then(r => setCounts(r.data.counts)).catch(()=>{});
+    api.get('/dashboard').then(r => setCounts((prev) => ({ ...prev, ...r.data.counts }))).catch(()=>{});
   }, []);
 
   return (
@@ -20,8 +27,10 @@ const GenReport = ({ onClose }) => {
 
         <div className="mt-4 rounded-lg bg-stone-50 dark:bg-stone-950 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
           <h3 className="text-sm font-medium text-slate-700 dark:text-stone-200">Summary</h3>
-          <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+          <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             <div className="flex items-center justify-between"><span className="text-slate-500">Active Users</span><span className="font-semibold text-slate-900 dark:text-stone-100">{counts.users}</span></div>
+            <div className="flex items-center justify-between"><span className="text-slate-500">Disabled Users</span><span className="font-semibold text-slate-900 dark:text-stone-100">{counts.disabledUsers}</span></div>
+            <div className="flex items-center justify-between"><span className="text-slate-500">Total Users</span><span className="font-semibold text-slate-900 dark:text-stone-100">{counts.totalUsers || counts.users + counts.disabledUsers}</span></div>
             <div className="flex items-center justify-between"><span className="text-slate-500">Books Borrowed</span><span className="font-semibold text-slate-900 dark:text-stone-100">{counts.activeLoans}</span></div>
             <div className="flex items-center justify-between"><span className="text-slate-500">Total Books</span><span className="font-semibold text-slate-900 dark:text-stone-100">{counts.books}</span></div>
             <div className="flex items-center justify-between"><span className="text-slate-500">Visits Today</span><span className="font-semibold text-slate-900 dark:text-stone-100">{counts.visitsToday}</span></div>

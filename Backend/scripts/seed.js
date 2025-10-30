@@ -127,7 +127,7 @@ async function main() {
       barcode: 'LR-000101',
       passwordHash: demoHash,
       role: 'student',
-      status: 'available',
+      status: 'active',
       department: 'CAHS'
     },
     {
@@ -138,7 +138,7 @@ async function main() {
       barcode: 'LR-000102',
       passwordHash: demoHash,
       role: 'student',
-      status: 'available',
+      status: 'active',
       department: 'CITE'
     },
     {
@@ -149,7 +149,7 @@ async function main() {
       barcode: 'LR-000103',
       passwordHash: demoHash,
       role: 'faculty',
-      status: 'available'
+      status: 'active'
     }
   ];
   await db.collection('users').insertMany(userDocs, { ordered: false, bypassDocumentValidation: true });

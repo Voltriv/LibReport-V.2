@@ -40,15 +40,18 @@ const getStatusDisplay = (status) => {
 };
 
 const mapApiUsers = (rows = []) =>
-  (rows || []).map((u) => ({
-    id: u._id || u.id,
-    fullName: u.fullName || u.name || "-",
-    studentId: u.studentId || "-",
-    role: u.role || "-",
-    department: u.department || "-",
-    registrationDate: u.createdAt ? new Date(u.createdAt).toLocaleString() : "-",
-    status: u.status || "active"
-  }));
+  (rows || []).map((u) => {
+    const role = typeof u.role === "string" ? u.role.trim().toLowerCase() : "student";
+    return {
+      id: u._id || u.id,
+      fullName: u.fullName || u.name || "-",
+      studentId: u.studentId || "-",
+      role,
+      department: u.department || "-",
+      registrationDate: u.createdAt ? new Date(u.createdAt).toLocaleString() : "-",
+      status: normalizeStatus(u.status)
+    };
+  });
 
 const formatStudentId = (raw) => {
   const digits = String(raw || "").replace(/\D/g, "").slice(0, 12);
@@ -82,32 +85,63 @@ const UserManagement = () => {
   }, []);
 
   const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedUserOriginal, setSelectedUserOriginal] = useState(null);
+
+  const closeEditModal = () => {
+    setIsModalOpen(false);
+    setSelectedUser(null);
+    setSelectedUserOriginal(null);
+  };
 
   const handleEdit = (user) => {
-    setSelectedUser({ ...user });
+    const normalized = {
+      ...user,
+      role: typeof user.role === "string" ? user.role.toLowerCase() : "student",
+      status: normalizeStatus(user.status)
+    };
+    setSelectedUser(normalized);
+    setSelectedUserOriginal({ role: normalized.role, status: normalized.status });
     setIsModalOpen(true);
   };
 
   const handleSave = async () => {
-    if (!selectedUser) return setIsModalOpen(false);
+    if (!selectedUser) {
+      closeEditModal();
+      return;
+    }
     try {
       const role = (selectedUser.role || "student").toLowerCase();
       const status = normalizeStatus(selectedUser.status);
 
-      await api.patch(`/admin/users/${selectedUser.id}/role`, { role });
-      await api.patch(`/admin/users/${selectedUser.id}/status`, { status });
+      const updates = [];
+      if (!selectedUserOriginal || role !== selectedUserOriginal.role) {
+        updates.push(api.patch(`/admin/users/${selectedUser.id}/role`, { role }));
+      }
+      if (!selectedUserOriginal || status !== selectedUserOriginal.status) {
+        updates.push(api.patch(`/admin/users/${selectedUser.id}/status`, { status }));
+      }
 
-      setIsModalOpen(false);
+      if (updates.length === 0) {
+        closeEditModal();
+        return;
+      }
+
+      await Promise.all(updates);
+
+      closeEditModal();
       const r = await api.get("/admin/users");
       setUsers(mapApiUsers(r.data || []));
     } catch {
-      setIsModalOpen(false);
+      closeEditModal();
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setSelectedUser((prev) => ({ ...prev, [name]: value }));
+    setSelectedUser((prev) => ({
+      ...prev,
+      [name]: name === "role" ? value.toLowerCase() : value
+    }));
   };
 
   const openCreateModal = () => {
@@ -269,17 +303,17 @@ const UserManagement = () => {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800 p-6">
+          <div className="rounded-2xl bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 ring-1 ring-red-200 dark:ring-red-800 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-green-600 dark:text-green-400">Available Users</p>
-                <p className="mt-2 text-2xl font-bold text-green-900 dark:text-green-100">
-                  {users.filter((u) => normalizeStatus(u.status) === 'active').length}
+                <p className="text-sm font-medium text-red-600 dark:text-red-400">Disabled Users</p>
+                <p className="mt-2 text-2xl font-bold text-red-900 dark:text-red-100">
+                  {users.filter((u) => normalizeStatus(u.status) === 'disabled').length}
                 </p>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-green-500 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-xl bg-red-500 flex items-center justify-center">
                 <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </div>
             </div>
@@ -572,7 +606,7 @@ const UserManagement = () => {
               <div className="mt-8 flex items-center justify-end gap-3">
                 <button
                   className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={closeEditModal}
                 >
                   Cancel
                 </button>

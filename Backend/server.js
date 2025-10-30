@@ -113,6 +113,12 @@ function sanitizeFilename(name) {
   return name.replace(/[^A-Za-z0-9._-]+/g, '_');
 }
 
+function normalizeUserStatus(rawStatus) {
+  const value = typeof rawStatus === 'string' ? rawStatus.trim().toLowerCase() : '';
+  if (value === 'disabled' || value === 'inactive') return 'disabled';
+  return 'active';
+}
+
 async function removeStoredFile(stored) {
   if (!stored) return;
   const entry =
@@ -444,7 +450,7 @@ connectMongo().catch((err) => {
 });
 
 // --- User model
-const { User, Admin, Book, Loan, Visit, Hours, PasswordReset } = require('./models');
+const { User, Admin, Faculty, Book, Loan, Visit, Hours, PasswordReset } = require('./models');
 // Models loaded from ./models (legacy inline schema removed)
 
 class HttpError extends Error {
@@ -1278,11 +1284,20 @@ app.get('/api/dashboard', authRequired, async (_req, res) => {
   startOfDay.setHours(0, 0, 0, 0);
 
   // run counts + top books in parallel
+  const activeStatusFilter = { status: { $ne: 'disabled' } };
+  const disabledStatusFilter = { status: 'disabled' };
+  const studentRoleFilter = { role: { $in: ['student', 'Student'] } };
+  const facultyRoleFilter = { role: { $in: ['faculty', 'Faculty'] } };
+
   const countsPromise = Promise.all([
-    User.countDocuments({ role: 'student' }), // students
-    Faculty.countDocuments(),                 // facultyCount
-    Book.countDocuments(),                    // books
-    Loan.countDocuments({ returnedAt: null }),// activeLoans
+    User.countDocuments({ ...studentRoleFilter, ...activeStatusFilter }), // active students
+    User.countDocuments({ ...studentRoleFilter, ...disabledStatusFilter }), // disabled students
+    User.countDocuments({ ...facultyRoleFilter, ...activeStatusFilter }), // active faculty
+    User.countDocuments({ ...facultyRoleFilter, ...disabledStatusFilter }), // disabled faculty
+    Faculty.countDocuments(), // total faculty records (legacy directory)
+    Book.countDocuments(), // books in catalog
+    Loan.countDocuments({ returnedAt: null }), // activeLoans
+    Loan.countDocuments({ returnedAt: null, dueAt: { $lt: now } }), // overdue loans
     Visit.countDocuments({ enteredAt: { $gte: startOfDay } }) // visitsToday
   ]);
 
@@ -1300,12 +1315,29 @@ app.get('/api/dashboard', authRequired, async (_req, res) => {
     Loan.aggregate(topBooksPipeline).allowDiskUse(true)
   ]);
 
-  const [students, facultyCount, books, activeLoans, visitsToday] = counts;
+  const [
+    activeStudents,
+    disabledStudents,
+    activeFaculty,
+    disabledFaculty,
+    facultyDirectoryTotal,
+    books,
+    activeLoans,
+    overdue,
+    visitsToday
+  ] = counts;
+
+  const totalFacultyAccounts = activeFaculty + disabledFaculty;
+  const facultyCount = Math.max(totalFacultyAccounts, facultyDirectoryTotal);
+  const activeUsers = activeStudents + activeFaculty;
+  const disabledUsers = disabledStudents + disabledFaculty;
+  const totalUsers = activeUsers + disabledUsers;
 
   res.json({
     counts: {
-      users: students + facultyCount,
-      students,
+      users: activeUsers,
+      disabledUsers,
+      students: activeStudents,
       faculty: facultyCount,
       books,
       activeLoans,
@@ -2388,10 +2420,7 @@ app.post('/api/admin/users', adminRequired, async (req, res) => {
     const roleNorm = typeof role === 'string' && allowedRoles.includes(role.trim().toLowerCase())
       ? role.trim().toLowerCase()
       : 'faculty';
-    const allowedStatuses = ['active', 'disabled'];
-    const statusNorm = typeof status === 'string' && allowedStatuses.includes(status.trim().toLowerCase())
-      ? status.trim().toLowerCase()
-      : 'available';
+    const statusNorm = normalizeUserStatus(status);
 
     const existing = await User.findOne({
       $or: [
@@ -2491,7 +2520,12 @@ app.patch('/api/admin/users/:id/role', adminRequired, async (req, res) => {
 app.patch('/api/admin/users/:id/status', adminRequired, async (req, res) => {
   const { status } = req.body || {};
   if (!status) return res.status(400).json({ error: 'status required' });
-  const user = await User.findByIdAndUpdate(req.params.id, { status }, { new: true, runValidators: true }).lean();
+  const normalizedStatus = normalizeUserStatus(status);
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    { status: normalizedStatus },
+    { new: true, runValidators: true }
+  ).lean();
   if (!user) return res.status(404).json({ error: 'Not found' });
   res.json({ id: String(user._id), status: user.status });
 });

@@ -29,7 +29,15 @@ const Dashboard = () => {
     navigate("/signin", { replace: true });
   };
 
-  const [counts, setCounts] = useState({ users: 0, books: 0, activeLoans: 0, visitsToday: 0, overdue: 0 });
+  const [counts, setCounts] = useState({
+    users: 0,
+    disabledUsers: 0,
+    totalUsers: 0,
+    books: 0,
+    activeLoans: 0,
+    visitsToday: 0,
+    overdue: 0
+  });
   const [topBooks, setTopBooks] = useState([]);
   const [heat, setHeat] = useState([]);
 
@@ -144,7 +152,9 @@ const Dashboard = () => {
               <div>
                 <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Active Users</p>
                 <p className="mt-2 text-3xl font-bold text-purple-900 dark:text-purple-100">{counts.users}</p>
-                <p className="text-xs text-purple-500 dark:text-purple-300 mt-1">Registered members</p>
+                <p className="text-xs text-purple-500 dark:text-purple-300 mt-1">
+                  Disabled: {counts.disabledUsers} | Total: {counts.totalUsers || counts.users + counts.disabledUsers}
+                </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                 <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
