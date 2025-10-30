@@ -11,16 +11,16 @@ const Sidebar = () => {
     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 group";
   const activeLink = "bg-white/20 text-white shadow-lg ring-1 ring-white/20";
   const primaryNav = [
-    { to: "/dashboard", label: "Dashboard", icon: "📊" },
-    { to: "/tracker", label: "Tracker", icon: "📍" },
-    { to: "/usage-heatmaps", label: "Usage Heatmaps", icon: "🔥" },
-    { to: "/reports", label: "Reports", icon: "📈" },
-    { to: "/library", label: "Library", icon: "📚" },
+    { to: "/dashboard", label: "Dashboard", icon: "" },
+    { to: "/tracker", label: "Tracker", icon: "" },
+    { to: "/usage-heatmaps", label: "Usage Heatmaps", icon: "" },
+    { to: "/reports", label: "Reports", icon: "" },
+    { to: "/library", label: "Library", icon: "" },
   ];
   const managementNav = [
-    { to: "/usermanagement", label: "User Management", icon: "👥" },
-    { to: "/booksmanagement", label: "Books Management", icon: "📖" },
-    { to: "/admins", label: "Admins", icon: "👤" },
+    { to: "/usermanagement", label: "User Management", icon: "" },
+    { to: "/booksmanagement", label: "Books Management", icon: "" },
+    { to: "/admins", label: "Admins", icon: "" },
   ];
 
   return (
