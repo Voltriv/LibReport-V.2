@@ -6,6 +6,18 @@ import { useNavigate } from "react-router-dom";
 import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
+const DEFAULT_RANGE_HOURS = 24;
+
+const createDefaultStats = () => ({
+  inbound: { total: 0, today: 0, range: 0 },
+  outbound: { total: 0, today: 0, range: 0 },
+  overdue: 0,
+  active: 0,
+  activeLoans: 0,
+  rangeHours: DEFAULT_RANGE_HOURS,
+  rangeSince: null,
+  startOfDay: null
+});
 
 function formatStudentId(raw) {
   const digits = String(raw || '').replace(/\D/g, '').slice(0, 12);
@@ -30,7 +42,7 @@ const Tracker = () => {
   };
 
   const [logs, setLogs] = useState([]);
-  const [stats, setStats] = useState({ outbound: 0, inbound: 0, overdue: 0, active: 0, activeLoans: 0 });
+  const [stats, setStats] = useState(() => createDefaultStats());
   const [feed, setFeed] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,16 +50,27 @@ const Tracker = () => {
 
   const refreshStats = useCallback(async () => {
     try {
-      const { data } = await api.get('/tracker/stats');
-      setStats({
-        outbound: data.outbound || 0,
-        inbound: data.inbound || 0,
-        overdue: data.overdue || 0,
-        active: data.active || 0,
-        activeLoans: data.activeLoans || 0
-      });
+      const { data } = await api.get('/tracker/stats', { params: { hours: DEFAULT_RANGE_HOURS } });
+      const next = createDefaultStats();
+      next.inbound = {
+        total: data?.totals?.inbound ?? data?.inbound ?? 0,
+        today: data?.today?.inbound ?? 0,
+        range: data?.inbound ?? 0
+      };
+      next.outbound = {
+        total: data?.totals?.outbound ?? data?.outbound ?? 0,
+        today: data?.today?.outbound ?? 0,
+        range: data?.outbound ?? 0
+      };
+      next.overdue = data?.overdue ?? 0;
+      next.active = data?.active ?? 0;
+      next.activeLoans = data?.activeLoans ?? 0;
+      next.rangeHours = data?.range?.hours ?? next.rangeHours;
+      next.rangeSince = data?.range?.since ?? null;
+      next.startOfDay = data?.today?.startOfDay ?? null;
+      setStats(next);
     } catch {
-      setStats({ outbound: 0, inbound: 0, overdue: 0, active: 0, activeLoans: 0 });
+      setStats(createDefaultStats());
     }
   }, []);
 
@@ -162,6 +185,47 @@ const Tracker = () => {
     } finally { setBusy(false); }
   }
 
+  const formatNumber = (value) => {
+    const num = Number(value ?? 0);
+    return Number.isFinite(num) ? num.toLocaleString() : '0';
+  };
+
+  const rangeLabel = stats.rangeHours ? `Last ${stats.rangeHours}h` : null;
+  const rangeSinceLabel = (() => {
+    if (!stats.rangeSince) return null;
+    const dt = new Date(stats.rangeSince);
+    return Number.isNaN(dt.getTime()) ? null : dt.toLocaleString();
+  })();
+  const startOfDayLabel = (() => {
+    if (!stats.startOfDay) return null;
+    const dt = new Date(stats.startOfDay);
+    return Number.isNaN(dt.getTime()) ? null : dt.toLocaleDateString();
+  })();
+  const inboundSubtitle = [
+    `Today: ${formatNumber(stats.inbound.today)}`,
+    rangeLabel ? `${rangeLabel}: ${formatNumber(stats.inbound.range)}` : null
+  ]
+    .filter(Boolean)
+    .join(' • ');
+  const outboundSubtitle = [
+    `Today: ${formatNumber(stats.outbound.today)}`,
+    rangeLabel ? `${rangeLabel}: ${formatNumber(stats.outbound.range)}` : null
+  ]
+    .filter(Boolean)
+    .join(' • ');
+  const trackerCards = [
+    { label: 'Total Outbound', value: stats.outbound.total, color: 'blue', icon: '📤', subtitle: outboundSubtitle },
+    { label: 'Total Inbound', value: stats.inbound.total, color: 'green', icon: '📥', subtitle: inboundSubtitle },
+    { label: 'Overdue', value: stats.overdue, color: 'red', icon: '⚠️', subtitle: 'Loans past due' },
+    {
+      label: 'Active Visits',
+      value: stats.active,
+      color: 'purple',
+      icon: '👥',
+      subtitle: `Active loans: ${formatNumber(stats.activeLoans)}`
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <Sidebar />
@@ -206,13 +270,8 @@ const Tracker = () => {
         </div>
 
         {/* Stats Cards */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-          {[
-            { label: 'Outbound', value: stats.outbound, color: 'blue', icon: '📤' },
-            { label: 'Inbound', value: stats.inbound, color: 'green', icon: '📥' },
-            { label: 'Overdue', value: stats.overdue, color: 'red', icon: '⚠️' },
-            { label: 'Active Visits', value: stats.active, color: 'purple', icon: '👥' }
-          ].map((c) => (
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-3">
+          {trackerCards.map((c) => (
             <div key={c.label} className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${
               c.color === 'blue' ? 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800' :
               c.color === 'green' ? 'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800' :
@@ -232,7 +291,15 @@ const Tracker = () => {
                     c.color === 'green' ? 'text-green-900 dark:text-green-100' :
                     c.color === 'red' ? 'text-red-900 dark:text-red-100' :
                     'text-purple-900 dark:text-purple-100'
-                  }`}>{c.value}</p>
+                  }`}>{formatNumber(c.value)}</p>
+                  {c.subtitle && (
+                    <p className={`text-xs mt-1 ${
+                      c.color === 'blue' ? 'text-blue-500 dark:text-blue-300' :
+                      c.color === 'green' ? 'text-green-500 dark:text-green-300' :
+                      c.color === 'red' ? 'text-red-500 dark:text-red-300' :
+                      'text-purple-500 dark:text-purple-300'
+                    }`}>{c.subtitle}</p>
+                  )}
                 </div>
                 <div className={`h-12 w-12 rounded-xl ${
                   c.color === 'blue' ? 'bg-blue-500' :
@@ -246,6 +313,12 @@ const Tracker = () => {
             </div>
           ))}
         </section>
+        {(rangeSinceLabel || startOfDayLabel) && (
+          <p className="text-xs text-slate-500 dark:text-stone-400 mb-5">
+            {rangeLabel ? `${rangeLabel} window since ${rangeSinceLabel || 'recently'}. ` : ''}
+            {startOfDayLabel ? `Daily counts reset at midnight (${startOfDayLabel}).` : ''}
+          </p>
+        )}
 
         {/* Manual Entry */}
         <section className="grid grid-cols-1 gap-6 mb-8">

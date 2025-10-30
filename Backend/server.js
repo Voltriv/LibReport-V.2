@@ -1341,7 +1341,9 @@ app.get('/api/dashboard', authRequired, async (_req, res) => {
       faculty: facultyCount,
       books,
       activeLoans,
-      visitsToday
+      overdue,
+      visitsToday,
+      totalUsers
     },
     topBooks
   });
@@ -1453,20 +1455,56 @@ app.get('/api/visits/recent', authRequired, async (req, res) => {
 });
 
 // Tracker dashboard stats (visits + loans snapshot)
-app.get('/api/tracker/stats', adminRequired, async (_req, res) => {
+app.get('/api/tracker/stats', adminRequired, async (req, res) => {
+  let hours;
+  try {
+    hours = readNumericQueryParam(req.query.hours ?? req.query.range ?? req.query.window, {
+      name: 'hours',
+      defaultValue: 24,
+      min: 1,
+      max: 24 * 14
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
   const now = new Date();
   const startOfDay = new Date(now);
   startOfDay.setHours(0, 0, 0, 0);
+  const since = new Date(now.getTime() - hours * 60 * 60 * 1000);
 
-  const [inbound, outbound, overdue, activeVisits, activeLoans] = await Promise.all([
+  const [
+    inboundRange,
+    outboundRange,
+    inboundToday,
+    outboundToday,
+    inboundTotal,
+    outboundTotal,
+    overdue,
+    activeVisits,
+    activeLoans
+  ] = await Promise.all([
+    Visit.countDocuments({ enteredAt: { $gte: since } }),
+    Visit.countDocuments({ exitedAt: { $ne: null, $gte: since } }),
     Visit.countDocuments({ enteredAt: { $gte: startOfDay } }),
     Visit.countDocuments({ exitedAt: { $ne: null, $gte: startOfDay } }),
+    Visit.countDocuments(),
+    Visit.countDocuments({ exitedAt: { $ne: null } }),
     Loan.countDocuments({ returnedAt: null, dueAt: { $lt: now } }),
     Visit.countDocuments({ exitedAt: null }),
     Loan.countDocuments({ returnedAt: null })
   ]);
 
-  res.json({ inbound, outbound, overdue, active: activeVisits, activeLoans });
+  res.json({
+    inbound: inboundRange,
+    outbound: outboundRange,
+    overdue,
+    active: activeVisits,
+    activeLoans,
+    range: { hours, since: since.toISOString() },
+    today: { inbound: inboundToday, outbound: outboundToday, startOfDay: startOfDay.toISOString() },
+    totals: { inbound: inboundTotal, outbound: outboundTotal }
+  });
 });
 
 // Recent loan activity for tracker quick log
