@@ -7,6 +7,7 @@ import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../ap
 
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
 const DEFAULT_RANGE_HOURS = 24;
+const PAGE_SIZE = 10;
 
 const createDefaultStats = () => ({
   inbound: { total: 0, today: 0, range: 0 },
@@ -42,6 +43,7 @@ const Tracker = () => {
   };
 
   const [logs, setLogs] = useState([]);
+  const [logsPage, setLogsPage] = useState(1);
   const [stats, setStats] = useState(() => createDefaultStats());
   const [feed, setFeed] = useState([]);
   const [input, setInput] = useState('');
@@ -89,8 +91,10 @@ const Tracker = () => {
         user: row.user || 'Unknown user'
       }));
       setLogs(items);
+      setLogsPage(1);
     } catch {
       setLogs([]);
+      setLogsPage(1);
     }
   }, []);
 
@@ -103,6 +107,15 @@ const Tracker = () => {
     const timer = setInterval(refreshLogs, 30000);
     return () => clearInterval(timer);
   }, [refreshLogs]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil((logs.length || 0) / PAGE_SIZE));
+    setLogsPage((prev) => {
+      if (prev > maxPage) return maxPage;
+      if (prev < 1) return 1;
+      return prev;
+    });
+  }, [logs]);
 
   useEffect(() => {
     let t;
@@ -213,6 +226,12 @@ const Tracker = () => {
   ]
     .filter(Boolean)
     .join(' • ');
+  const logsPageCount = Math.max(1, Math.ceil((logs.length || 0) / PAGE_SIZE));
+  const safeLogsPage = Math.min(Math.max(logsPage, 1), logsPageCount);
+  const logsStartIndex = (safeLogsPage - 1) * PAGE_SIZE;
+  const paginatedLogs = logs.slice(logsStartIndex, logsStartIndex + PAGE_SIZE);
+  const logsShowingStart = logs.length === 0 ? 0 : logsStartIndex + 1;
+  const logsShowingEnd = Math.min(logsStartIndex + PAGE_SIZE, logs.length);
   const trackerCards = [
     { label: 'Total Outbound', value: stats.outbound.total, color: 'blue', icon: '📤', subtitle: outboundSubtitle },
     { label: 'Total Inbound', value: stats.inbound.total, color: 'green', icon: '📥', subtitle: inboundSubtitle },
@@ -399,8 +418,8 @@ const Tracker = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {logs.map((log, i) => (
-                  <tr key={i} className="text-slate-800 dark:text-stone-100">
+                {paginatedLogs.map((log, i) => (
+                  <tr key={logsStartIndex + i} className="text-slate-800 dark:text-stone-100">
                     <td className="py-2 pr-4">
                       <span
                         className={`inline-flex items-center rounded px-2 py-0.5 text-xs text-white ${
@@ -429,6 +448,40 @@ const Tracker = () => {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-stone-700 dark:text-stone-400 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              {logs.length === 0
+                ? 'No logs to display'
+                : `Showing ${logsShowingStart}-${logsShowingEnd} of ${logs.length} ${logs.length === 1 ? 'log' : 'logs'}`}
+            </span>
+            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-stone-300">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                onClick={() => setLogsPage((prev) => Math.max(1, prev - 1))}
+                disabled={logs.length === 0 || safeLogsPage <= 1}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Prev
+              </button>
+              <span className="text-xs font-medium">
+                Page {logs.length === 0 ? 0 : safeLogsPage} of {logs.length === 0 ? 0 : logsPageCount}
+              </span>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                onClick={() => setLogsPage((prev) => Math.min(logsPageCount, prev + 1))}
+                disabled={logs.length === 0 || safeLogsPage >= logsPageCount}
+              >
+                Next
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
           </div>
           <p className="mt-3 text-xs text-slate-500 dark:text-stone-400">Active loans: {stats.activeLoans}</p>
         </section>

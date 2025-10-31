@@ -61,6 +61,8 @@ const formatStudentId = (raw) => {
   return [part1, part2, part3].filter(Boolean).join("-");
 };
 
+const PAGE_SIZE = 10;
+
 const UserManagement = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -69,6 +71,7 @@ const UserManagement = () => {
   const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ ...CREATE_FORM_DEFAULT });
   const [createErrors, setCreateErrors] = useState({});
@@ -80,9 +83,19 @@ const UserManagement = () => {
       .get("/admin/users")
       .then((r) => {
         setUsers(mapApiUsers(r.data || []));
+        setCurrentPage(1);
       })
       .catch(() => setUsers([]));
   }, []);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil((users.length || 0) / PAGE_SIZE));
+    setCurrentPage((prev) => {
+      if (prev > maxPage) return maxPage;
+      if (prev < 1) return 1;
+      return prev;
+    });
+  }, [users]);
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedUserOriginal, setSelectedUserOriginal] = useState(null);
@@ -131,6 +144,7 @@ const UserManagement = () => {
       closeEditModal();
       const r = await api.get("/admin/users");
       setUsers(mapApiUsers(r.data || []));
+      setCurrentPage(1);
     } catch {
       closeEditModal();
     }
@@ -197,6 +211,7 @@ const UserManagement = () => {
       });
       const r = await api.get("/admin/users");
       setUsers(mapApiUsers(r.data || []));
+      setCurrentPage(1);
       setIsCreateModalOpen(false);
       setCreateForm({ ...CREATE_FORM_DEFAULT });
       setCreateErrors({});
@@ -226,6 +241,13 @@ const UserManagement = () => {
       if (name) setUserName(name);
     }
   }, []);
+
+  const pageCount = Math.max(1, Math.ceil((users.length || 0) / PAGE_SIZE));
+  const safePage = Math.min(Math.max(currentPage, 1), pageCount);
+  const startIndex = (safePage - 1) * PAGE_SIZE;
+  const paginatedUsers = users.slice(startIndex, startIndex + PAGE_SIZE);
+  const showingStart = users.length === 0 ? 0 : startIndex + 1;
+  const showingEnd = Math.min(startIndex + PAGE_SIZE, users.length);
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
@@ -331,7 +353,7 @@ const UserManagement = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead className="bg-slate-50 dark:bg-stone-800">
@@ -346,60 +368,106 @@ const UserManagement = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-stone-700">
-                {users.map((user) => {
-                  const statusDisplay = getStatusDisplay(user.status);
-                  const initials = user.fullName
-                    ? user.fullName
-                        .split(" ")
-                        .filter(Boolean)
-                        .map((n) => n[0] || "")
-                        .join("")
-                        .toUpperCase()
-                    : "";
-                  return (
-                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-brand-green to-brand-greenDark flex items-center justify-center">
-                            <span className="text-sm font-bold text-white">{initials}</span>
+                {paginatedUsers.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-6 py-10 text-center text-sm text-slate-500 dark:text-stone-400"
+                    >
+                      No users to display.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedUsers.map((user) => {
+                    const statusDisplay = getStatusDisplay(user.status);
+                    const initials = user.fullName
+                      ? user.fullName
+                          .split(" ")
+                          .filter(Boolean)
+                          .map((n) => n[0] || "")
+                          .join("")
+                          .toUpperCase()
+                      : "";
+                    return (
+                      <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-brand-green to-brand-greenDark flex items-center justify-center">
+                              <span className="text-sm font-bold text-white">{initials}</span>
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-slate-900 dark:text-stone-100">{user.fullName}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="text-sm font-medium text-slate-900 dark:text-stone-100">{user.fullName}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400 font-mono">{user.studentId}</td>
-                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.department}</td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-stone-700 text-slate-800 dark:text-stone-200">
-                          {user.role}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.registrationDate}</td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusDisplay.badgeClass}`}
-                        >
-                          <div className={`h-1.5 w-1.5 rounded-full mr-1.5 ${statusDisplay.dotClass}`}></div>
-                          {statusDisplay.label}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-stone-300 bg-slate-100 dark:bg-stone-800 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
-                          onClick={() => handleEdit(user)}
-                        >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          Edit
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400 font-mono">{user.studentId}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.department}</td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-stone-700 text-slate-800 dark:text-stone-200">
+                            {user.role}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.registrationDate}</td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusDisplay.badgeClass}`}
+                          >
+                            <div className={`h-1.5 w-1.5 rounded-full mr-1.5 ${statusDisplay.dotClass}`}></div>
+                            {statusDisplay.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-stone-300 bg-slate-100 dark:bg-stone-800 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+                            onClick={() => handleEdit(user)}
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-t border-slate-200 dark:border-stone-700 bg-slate-50/60 dark:bg-stone-900/60">
+            <div className="text-sm text-slate-600 dark:text-stone-300">
+              {users.length === 0
+                ? "No users found"
+                : `Showing ${showingStart}-${showingEnd} of ${users.length} ${users.length === 1 ? "user" : "users"}`}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-white dark:bg-stone-800 text-slate-700 dark:text-stone-200 ring-1 ring-slate-200 dark:ring-stone-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-stone-700 transition-colors duration-200"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={safePage <= 1}
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Previous
+              </button>
+              <div className="text-sm font-medium text-slate-600 dark:text-stone-200">
+                Page {safePage} of {pageCount}
+              </div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-white dark:bg-stone-800 text-slate-700 dark:text-stone-200 ring-1 ring-slate-200 dark:ring-stone-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-stone-700 transition-colors duration-200"
+                onClick={() => setCurrentPage((prev) => Math.min(pageCount, prev + 1))}
+                disabled={safePage >= pageCount || users.length === 0}
+              >
+                Next
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
           </div>
         </section>
 
