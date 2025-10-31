@@ -37,8 +37,6 @@ const StudentBorrowedBooks = safeLazy(() => import("./student/StudentBorrowedBoo
 const StudentBorrowRequests = safeLazy(() => import("./student/StudentBorrowRequests"));
 const StudentOverdueBooks = safeLazy(() => import("./student/StudentOverdueBooks"));
 const StudentBorrowingHistory = safeLazy(() => import("./student/StudentBorrowingHistory"));
-const StudentBorrowRequests = safeLazy(() => import("./student/StudentBorrowRequests"));
-
 // === Route Guards ===
 function RequireAuth({ children }) {
   if (!hasStoredToken()) return <Navigate to="/signin" replace />;
@@ -160,11 +158,7 @@ function App() {
                 }
               />
               <Route
-<<<<<<< ours
-
                 path="requests"
-                path="borrow-requests"
-                path="borrow-requests"
                 element={
                   <RequireStudent>
                     <StudentBorrowRequests />
@@ -172,8 +166,6 @@ function App() {
                 }
               />
               <Route
-=======
->>>>>>> theirs
                 path="overdue-books"
                 element={
                   <RequireStudent>
