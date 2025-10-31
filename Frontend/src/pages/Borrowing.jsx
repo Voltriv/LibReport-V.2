@@ -1,6 +1,7 @@
 import React from "react";
 import Sidebar from "../components/Sidebar";
 import api from "../api";
+import usePagination from "../hooks/usePagination";
 
 const PAGE_SIZE = 10;
 
@@ -9,12 +10,6 @@ const STATUS_OPTIONS = [
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
   { value: "all", label: "All" }
-];
-
-const HISTORY_FILTERS = [
-  { value: "all", label: "All" },
-  { value: "returned", label: "Returned" },
-  { value: "overdue", label: "Overdue" }
 ];
 
 const STATUS_LABELS = {
@@ -26,42 +21,32 @@ const STATUS_LABELS = {
   cancelled_by_student: "Cancelled"
 };
 
-function normalizeLoanPayload(raw = {}, { activeLabel = "Active" } = {}) {
-  const id = raw.id || raw._id || raw.loanId || raw.requestId || null;
+function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
   const book = raw.book || {};
-  const borrower = raw.user || raw.borrower || {};
+  const user = raw.user || {};
 
-  const title = book.title || raw.title || "";
-  const bookCode = book.bookCode || book.code || raw.bookCode || "";
+  const borrowedAt = raw.borrowedAt ? new Date(raw.borrowedAt) : null;
+  const dueAt = raw.dueAt ? new Date(raw.dueAt) : null;
+  const returnedAt = raw.returnedAt ? new Date(raw.returnedAt) : null;
 
-  const borrowerName =
-    borrower.name ||
-    borrower.fullName ||
-    raw.borrowerName ||
-    raw.student ||
-    raw.studentName ||
-    "";
-  const borrowerStudentId = borrower.studentId || raw.studentId || raw.borrowerStudentId || "";
-
-  const borrowedAtRaw = raw.borrowedAt || raw.requestedAt || raw.createdAt || null;
-  const dueAtRaw = raw.dueAt || null;
-
-  let status = raw.status;
-  if (!status) {
-    status = raw.isOverdue ? "Overdue" : activeLabel;
-  }
+  const status =
+    raw.statusLabel ||
+    raw.status ||
+    raw.statusKey ||
+    (returnedAt ? "Returned" : statusFallback);
 
   return {
     ...raw,
-    id: id ? String(id) : undefined,
-    title,
-    bookCode,
-    borrowerName,
-    borrowerStudentId,
-    student: raw.student || borrowerName || undefined,
-    borrowedAt: borrowedAtRaw ? new Date(borrowedAtRaw) : null,
-    dueAt: dueAtRaw ? new Date(dueAtRaw) : null,
-    returnedAt: raw.returnedAt ? new Date(raw.returnedAt) : null,
+    id: raw.id || raw._id || raw.loanId || raw.requestId || undefined,
+    bookId: raw.bookId || book.id || book._id || null,
+    title: raw.title || book.title || "",
+    bookCode: raw.bookCode || book.bookCode || "",
+    borrowerId: raw.borrowerId || user.id || user._id || raw.userId || null,
+    borrowerName: raw.borrowerName || user.fullName || user.name || raw.student || "",
+    borrowerStudentId: raw.borrowerStudentId || user.studentId || "",
+    borrowedAt,
+    dueAt,
+    returnedAt,
     status
   };
 }
@@ -106,17 +91,10 @@ const Borrowing = () => {
   const [requests, setRequests] = React.useState([]);
   const [requestsLoading, setRequestsLoading] = React.useState(false);
   const [requestsError, setRequestsError] = React.useState(null);
-  const [requestPage, setRequestPage] = React.useState(1);
 
   const [activeLoans, setActiveLoans] = React.useState([]);
   const [loansLoading, setLoansLoading] = React.useState(false);
   const [loansError, setLoansError] = React.useState(null);
-
-  const [historyFilter, setHistoryFilter] = React.useState("all");
-  const [loanHistory, setLoanHistory] = React.useState([]);
-  const [historyLoading, setHistoryLoading] = React.useState(false);
-  const [historyError, setHistoryError] = React.useState(null);
-  const [historyMeta, setHistoryMeta] = React.useState({ page: 1, limit: 0, total: 0 });
 
   const [approvalTarget, setApprovalTarget] = React.useState(null);
   const [approvalBusy, setApprovalBusy] = React.useState(false);
@@ -132,17 +110,36 @@ const Borrowing = () => {
   const [returnTarget, setReturnTarget] = React.useState(null);
   const [returnBusy, setReturnBusy] = React.useState(false);
   const [returnError, setReturnError] = React.useState(null);
-  const [loanPage, setLoanPage] = React.useState(1);
 
   const { toast, showToast, hideToast } = useToast();
 
-  const resetReturnState = React.useCallback(() => {
-    setReturnTarget(null);
-    setReturnError(null);
-    setReturnBusy(false);
-  }, []);
+  const {
+    page: requestPage,
+    pageCount: requestPageCount,
+    pageItems: paginatedRequests,
+    showingStart: requestShowingStart,
+    showingEnd: requestShowingEnd,
+    isFirstPage: isRequestFirstPage,
+    isLastPage: isRequestLastPage,
+    nextPage: goToNextRequestPage,
+    prevPage: goToPreviousRequestPage,
+    totalItems: totalRequestCount
+  } = usePagination(requests, PAGE_SIZE);
 
-  const loadRequests = React.useCallback(async () => {
+  const {
+    page: loanPage,
+    pageCount: loanPageCount,
+    pageItems: paginatedLoans,
+    showingStart: loanShowingStart,
+    showingEnd: loanShowingEnd,
+    isFirstPage: isLoanFirstPage,
+    isLastPage: isLoanLastPage,
+    nextPage: goToNextLoanPage,
+    prevPage: goToPreviousLoanPage,
+    totalItems: totalLoanCount
+  } = usePagination(activeLoans, PAGE_SIZE);
+
+const loadRequests = React.useCallback(async () => {
     setRequestsLoading(true);
     setRequestsError(null);
     try {
@@ -182,11 +179,9 @@ const Borrowing = () => {
           };
         })
       );
-      setRequestPage(1);
     } catch (err) {
       setRequests([]);
       setRequestsError(err?.response?.data?.error || "Failed to load borrow requests.");
-      setRequestPage(1);
     } finally {
       setRequestsLoading(false);
     }
@@ -198,43 +193,14 @@ const Borrowing = () => {
     try {
       const { data } = await api.get("/loans/active");
       const items = Array.isArray(data?.items) ? data.items : [];
-      setActiveLoans(items.map((item) => normalizeLoanPayload(item, { activeLabel: "On Time" })));
-      setLoanPage(1);
+      setActiveLoans(items.map((item) => normalizeLoanEntry(item, { statusFallback: "On Time" })));
     } catch (err) {
       setActiveLoans([]);
       setLoansError(err?.response?.data?.error || "Failed to load active loans.");
-      setLoanPage(1);
     } finally {
       setLoansLoading(false);
     }
   }, []);
-
-  const loadLoanHistory = React.useCallback(async () => {
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      const params = {};
-      if (historyFilter && historyFilter !== "all") {
-        params.status = historyFilter;
-      }
-      params.limit = 100;
-      const { data } = await api.get("/loans/history", { params });
-      const items = Array.isArray(data?.items) ? data.items : [];
-      setLoanHistory(items.map((item) => normalizeLoanPayload(item, { activeLabel: "Active" })));
-      const meta = {
-        page: Number(data?.page) || 1,
-        limit: Number(data?.limit) || (items.length > 0 ? items.length : 1),
-        total: Number(data?.total) || items.length
-      };
-      setHistoryMeta(meta);
-    } catch (err) {
-      setLoanHistory([]);
-      setHistoryMeta({ page: 1, limit: 0, total: 0 });
-      setHistoryError(err?.response?.data?.error || "Failed to load loan history.");
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [historyFilter]);
 
   React.useEffect(() => {
     loadRequests();
@@ -243,81 +209,12 @@ const Borrowing = () => {
   React.useEffect(() => {
     loadActiveLoans();
   }, [loadActiveLoans]);
-
-  React.useEffect(() => {
-    loadLoanHistory();
-  }, [loadLoanHistory]);
-
   const pendingCount = React.useMemo(
     () => requests.filter((req) => req.status === "pending").length,
     [requests]
   );
 
-  const historyRangeLabel = React.useMemo(() => {
-    const total = historyMeta?.total || 0;
-    if (!total) return "No history records available.";
-    const page = historyMeta?.page || 1;
-    const limit = historyMeta?.limit || (loanHistory.length > 0 ? loanHistory.length : 1);
-    const start = (Math.max(page, 1) - 1) * Math.max(limit, 1) + 1;
-    const end = Math.min(total, start + loanHistory.length - 1);
-    return `Showing ${start}-${end} of ${total}`;
-  }, [historyMeta, loanHistory.length]);
-
-  const requestPageCount = React.useMemo(() => {
-    if (!requests.length) return 1;
-    return Math.ceil(requests.length / PAGE_SIZE);
-  }, [requests.length]);
-
-  const safeRequestPage = React.useMemo(
-    () => Math.min(requestPageCount, Math.max(1, requestPage)),
-    [requestPage, requestPageCount]
-  );
-
-  const paginatedRequests = React.useMemo(() => {
-    if (!requests.length) return [];
-    const start = (safeRequestPage - 1) * PAGE_SIZE;
-    return requests.slice(start, start + PAGE_SIZE);
-  }, [requests, safeRequestPage]);
-
-  const requestShowingStart = React.useMemo(() => {
-    if (!requests.length) return 0;
-    return (safeRequestPage - 1) * PAGE_SIZE + 1;
-  }, [requests.length, safeRequestPage]);
-
-  const requestShowingEnd = React.useMemo(() => {
-    if (!requests.length) return 0;
-    const start = (safeRequestPage - 1) * PAGE_SIZE;
-    return Math.min(requests.length, start + paginatedRequests.length);
-  }, [paginatedRequests.length, requests.length, safeRequestPage]);
-
-  const loanPageCount = React.useMemo(() => {
-    if (!activeLoans.length) return 1;
-    return Math.ceil(activeLoans.length / PAGE_SIZE);
-  }, [activeLoans.length]);
-
-  const safeLoanPage = React.useMemo(
-    () => Math.min(loanPageCount, Math.max(1, loanPage)),
-    [loanPage, loanPageCount]
-  );
-
-  const paginatedLoans = React.useMemo(() => {
-    if (!activeLoans.length) return [];
-    const start = (safeLoanPage - 1) * PAGE_SIZE;
-    return activeLoans.slice(start, start + PAGE_SIZE);
-  }, [activeLoans, safeLoanPage]);
-
-  const loanShowingStart = React.useMemo(() => {
-    if (!activeLoans.length) return 0;
-    return (safeLoanPage - 1) * PAGE_SIZE + 1;
-  }, [activeLoans.length, safeLoanPage]);
-
-  const loanShowingEnd = React.useMemo(() => {
-    if (!activeLoans.length) return 0;
-    const start = (safeLoanPage - 1) * PAGE_SIZE;
-    return Math.min(activeLoans.length, start + paginatedLoans.length);
-  }, [activeLoans.length, paginatedLoans.length, safeLoanPage]);
-
-  const handleApprove = React.useCallback(
+const handleApprove = React.useCallback(
     async ({ days, note }) => {
       if (!approvalTarget) return;
       setApprovalBusy(true);
@@ -334,14 +231,14 @@ const Borrowing = () => {
         await api.post(`/loans/requests/${approvalTarget.id}/approve`, payload);
         setApprovalTarget(null);
         showToast("Request approved");
-        await Promise.all([loadRequests(), loadActiveLoans(), loadLoanHistory()]);
+        await Promise.all([loadRequests(), loadActiveLoans()]);
       } catch (err) {
         setApprovalError(err?.response?.data?.error || "Failed to approve request.");
       } finally {
         setApprovalBusy(false);
       }
     },
-    [approvalTarget, loadActiveLoans, loadLoanHistory, loadRequests, showToast]
+    [approvalTarget, loadActiveLoans, loadRequests, showToast]
   );
 
   const handleReject = React.useCallback(
@@ -387,7 +284,7 @@ const Borrowing = () => {
         await api.post(`/loans/${renewTarget.id}/renewal`, payload);
         setRenewTarget(null);
         showToast("Loan renewed");
-        await Promise.all([loadActiveLoans(), loadLoanHistory()]);
+        await loadActiveLoans();
       } catch (err) {
         const message = err?.response?.data?.error || err?.message || "Failed to renew loan.";
         setRenewError(message);
@@ -395,7 +292,7 @@ const Borrowing = () => {
         setRenewBusy(false);
       }
     },
-    [renewTarget, loadActiveLoans, loadLoanHistory, showToast]
+    [renewTarget, loadActiveLoans, showToast]
   );
 
   const handleReturn = React.useCallback(async () => {
@@ -404,15 +301,16 @@ const Borrowing = () => {
     setReturnError(null);
     try {
       await api.post(`/loans/${returnTarget.id}/return`);
+      setReturnTarget(null);
       showToast("Loan marked as returned");
-      await Promise.all([loadActiveLoans(), loadLoanHistory()]);
-      resetReturnState();
+      await loadActiveLoans();
     } catch (err) {
-      setReturnError(err?.response?.data?.error || "Failed to mark loan as returned.");
+      const message = err?.response?.data?.error || "Failed to mark loan as returned.";
+      setReturnError(message);
     } finally {
       setReturnBusy(false);
     }
-  }, [returnTarget, loadActiveLoans, loadLoanHistory, resetReturnState, showToast]);
+  }, [returnTarget, loadActiveLoans, showToast]);
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
@@ -637,18 +535,18 @@ const Borrowing = () => {
             {!requestsLoading && (
               <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-stone-700 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-sm text-slate-600 dark:text-stone-300">
-                  {requests.length === 0
+                  {totalRequestCount === 0
                     ? "No requests found"
-                    : `Showing ${requestShowingStart}-${requestShowingEnd} of ${requests.length} ${
-                        requests.length === 1 ? "request" : "requests"
+                    : `Showing ${requestShowingStart}-${requestShowingEnd} of ${totalRequestCount} ${
+                        totalRequestCount === 1 ? "request" : "requests"
                       }`}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
-                    onClick={() => setRequestPage((prev) => Math.max(1, prev - 1))}
-                    disabled={requests.length === 0 || safeRequestPage <= 1}
+                    onClick={goToPreviousRequestPage}
+                    disabled={requestsLoading || totalRequestCount === 0 || isRequestFirstPage}
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -656,13 +554,13 @@ const Borrowing = () => {
                     Previous
                   </button>
                   <div className="text-sm font-medium text-slate-600 dark:text-stone-200">
-                    Page {requests.length === 0 ? 0 : safeRequestPage} of {requests.length === 0 ? 0 : requestPageCount}
+                    Page {totalRequestCount === 0 ? 0 : requestPage} of {totalRequestCount === 0 ? 0 : requestPageCount}
                   </div>
                   <button
                     type="button"
                     className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
-                    onClick={() => setRequestPage((prev) => Math.min(requestPageCount, prev + 1))}
-                    disabled={requests.length === 0 || safeRequestPage >= requestPageCount}
+                    onClick={goToNextRequestPage}
+                    disabled={requestsLoading || totalRequestCount === 0 || isRequestLastPage}
                   >
                     Next
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -677,18 +575,18 @@ const Borrowing = () => {
             <div>
               {loansLoading
                 ? "Loading loans..."
-                : activeLoans.length === 0
+                : totalLoanCount === 0
                 ? "No active loans found"
-                : `Showing ${loanShowingStart}-${loanShowingEnd} of ${activeLoans.length} ${
-                    activeLoans.length === 1 ? "loan" : "loans"
+                : `Showing ${loanShowingStart}-${loanShowingEnd} of ${totalLoanCount} ${
+                    totalLoanCount === 1 ? "loan" : "loans"
                   }`}
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
-                onClick={() => setLoanPage((prev) => Math.max(1, prev - 1))}
-                disabled={loansLoading || activeLoans.length === 0 || safeLoanPage <= 1}
+                onClick={goToPreviousLoanPage}
+                disabled={loansLoading || totalLoanCount === 0 || isLoanFirstPage}
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -696,13 +594,13 @@ const Borrowing = () => {
                 Previous
               </button>
               <div className="text-sm font-medium text-slate-600 dark:text-stone-200">
-                Page {activeLoans.length === 0 ? 0 : safeLoanPage} of {activeLoans.length === 0 ? 0 : loanPageCount}
+                Page {totalLoanCount === 0 ? 0 : loanPage} of {totalLoanCount === 0 ? 0 : loanPageCount}
               </div>
               <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
-                onClick={() => setLoanPage((prev) => Math.min(loanPageCount, prev + 1))}
-                disabled={loansLoading || activeLoans.length === 0 || safeLoanPage >= loanPageCount}
+                onClick={goToNextLoanPage}
+                disabled={loansLoading || totalLoanCount === 0 || isLoanLastPage}
               >
                 Next
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -821,28 +719,26 @@ const Borrowing = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="inline-flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setRenewTarget(loan);
-                                setRenewError(null);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-                              type="button"
-                            >
-                              Renew
-                            </button>
-                            <button
-                              onClick={() => {
-                                setReturnTarget(loan);
-                                setReturnError(null);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg bg-brand-green px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-brand-greenDark focus:outline-none focus:ring-2 focus:ring-brand-green/30"
-                              type="button"
-                            >
-                              Mark returned
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => {
+                              setRenewTarget(loan);
+                              setRenewError(null);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                            type="button"
+                          >
+                            Renew
+                          </button>
+                          <button
+                            onClick={() => {
+                              setReturnTarget(loan);
+                              setReturnError(null);
+                            }}
+                            className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                            type="button"
+                          >
+                            Mark returned
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -852,116 +748,6 @@ const Borrowing = () => {
             </div>
           </div>
         </section>
-
-        <section className="mt-10">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Loan history</h2>
-              <p className="text-sm text-slate-600 dark:text-stone-400">{historyRangeLabel}</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {HISTORY_FILTERS.map((filter) => {
-                const isActive = historyFilter === filter.value;
-                return (
-                  <button
-                    key={filter.value}
-                    type="button"
-                    className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                      isActive
-                        ? "bg-brand-green text-white shadow-sm"
-                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
-                    }`}
-                    onClick={() => setHistoryFilter(filter.value)}
-                    disabled={historyLoading && isActive}
-                  >
-                    {filter.label}
-                    {isActive && historyLoading && (
-                      <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                        />
-                      </svg>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {historyError && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
-              {historyError}
-            </div>
-          )}
-
-          <div className="rounded-3xl bg-white shadow-xl ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
-            {historyLoading ? (
-              <div className="space-y-2 p-6 text-sm text-slate-500 dark:text-stone-400">
-                <div className="h-4 w-1/3 animate-pulse rounded bg-slate-200 dark:bg-stone-700" />
-                <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200 dark:bg-stone-700" />
-                <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200 dark:bg-stone-700" />
-              </div>
-            ) : loanHistory.length === 0 ? (
-              <div className="p-6 text-sm text-slate-500 dark:text-stone-400">
-                No history records available.
-              </div>
-            ) : (
-              <ul className="divide-y divide-slate-200 text-sm dark:divide-stone-800">
-                {loanHistory.slice(0, 8).map((entry) => {
-                  const statusClass =
-                    entry.status === "Overdue"
-                      ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200"
-                      : entry.status === "Returned"
-                      ? "bg-slate-100 text-slate-600 dark:bg-stone-800 dark:text-stone-200"
-                      : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200";
-                  return (
-                    <li
-                      key={entry.id || `${entry.bookCode || ""}-${entry.borrowerStudentId || ""}-${entry.borrowedAt || ""}`}
-                      className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="flex-1">
-                        <div className="font-semibold text-slate-900 dark:text-stone-100">
-                          {entry.title || "Untitled"}
-                        </div>
-                        <div className="text-xs text-slate-500 dark:text-stone-400">
-                          {entry.borrowerName || "Unknown"}{" "}
-                          {entry.borrowerStudentId ? `(${entry.borrowerStudentId})` : ""}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-stone-400 sm:text-right">
-                        <span>
-                          Borrowed {entry.borrowedAt ? entry.borrowedAt.toLocaleDateString() : "--"}
-                        </span>
-                        <span>
-                          Due {entry.dueAt ? entry.dueAt.toLocaleDateString() : "--"}
-                        </span>
-                        {entry.returnedAt ? (
-                          <span>Returned {entry.returnedAt.toLocaleDateString()}</span>
-                        ) : null}
-                      </div>
-                      <span
-                        className={`inline-flex min-w-[6rem] items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}
-                      >
-                        {entry.status}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </section>
-
       </main>
 
       <ApprovalDialog
@@ -989,7 +775,7 @@ const Borrowing = () => {
         loan={returnTarget}
         busy={returnBusy}
         error={returnError}
-        onClose={resetReturnState}
+        onClose={() => setReturnTarget(null)}
         onSubmit={handleReturn}
       />
     </div>
@@ -1224,35 +1010,45 @@ function RenewDialog({ loan, busy, error, onClose, onSubmit }) {
 function ReturnDialog({ loan, busy, error, onClose, onSubmit }) {
   if (!loan) return null;
 
+  const borrowedLabel = loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--";
+  const dueLabel = loan.dueAt ? loan.dueAt.toLocaleDateString() : "--";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
       <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-stone-900">
         <h3 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Mark loan as returned</h3>
         <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">
           Confirm that <span className="font-semibold">{loan.title}</span> borrowed by
-          <span className="font-semibold"> {loan.student || "this student"}</span> has been returned.
+          <span className="font-semibold"> {loan.student || "a student"}</span> has been returned.
         </p>
-        {error && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
-            {error}
+        <dl className="mt-4 grid grid-cols-1 gap-2 text-sm text-slate-600 dark:text-stone-300 sm:grid-cols-2">
+          <div>
+            <dt className="font-semibold">Borrowed</dt>
+            <dd>{borrowedLabel}</dd>
           </div>
+          <div>
+            <dt className="font-semibold">Due</dt>
+            <dd>{dueLabel}</dd>
+          </div>
+        </dl>
+        {error && (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
         )}
         <div className="mt-6 flex justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
             className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-            disabled={busy}
           >
             Cancel
           </button>
           <button
             type="button"
-            onClick={onSubmit}
             disabled={busy}
-            className="inline-flex items-center justify-center rounded-xl bg-brand-green px-4 py-2 text-sm font-semibold text-white shadow hover:bg-brand-greenDark focus:outline-none focus:ring-2 focus:ring-brand-green/30 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={onSubmit}
+            className="inline-flex items-center justify-center rounded-xl bg-brand-green px-4 py-2 text-sm font-semibold text-white shadow hover:bg-brand-greenDark focus:outline-none focus:ring-2 focus:ring-brand-green/30 disabled:opacity-60"
           >
-            {busy ? "Marking..." : "Mark as Returned"}
+            {busy ? "Marking..." : "Confirm return"}
           </button>
         </div>
       </div>
@@ -1261,5 +1057,6 @@ function ReturnDialog({ loan, busy, error, onClose, onSubmit }) {
 }
 
 export default Borrowing;
+
 
 
