@@ -114,23 +114,24 @@ const StudentCatalog = () => {
 
   const handleBorrowBook = React.useCallback(async (bookId, bookTitle) => {
     if (borrowingId) return;
-    
+
     setBorrowingId(bookId);
     setBorrowFeedback(null);
-    
+
     try {
-      const response = await api.post('/student/borrow', { bookId });
-      
+      const response = await api.post('/student/borrow-requests', { bookId });
+      const estimated = response.data?.estimatedDueAt
+        ? new Date(response.data.estimatedDueAt).toLocaleDateString()
+        : null;
+
       setBorrowFeedback({
         bookId,
         type: 'success',
         title: bookTitle,
-        dueDate: new Date(response.data.dueAt).toLocaleDateString()
+        dueDate: estimated,
+        message: 'Your request has been submitted and is awaiting approval from the library team.'
       });
-      
-      // Refresh the catalog to update availability
-      load({ reset: true });
-      
+
     } catch (err) {
       const message = err.response?.data?.error || 'Failed to borrow book. Please try again.';
       setBorrowFeedback({
@@ -142,7 +143,7 @@ const StudentCatalog = () => {
     } finally {
       setBorrowingId(null);
     }
-  }, [borrowingId, load]);
+  }, [borrowingId]);
 
   React.useEffect(() => {
     load({ reset: true });
@@ -433,11 +434,18 @@ const StudentCatalog = () => {
                               <polyline points="22 4 12 14.01 9 11.01"/>
                             </svg>
                           </div>
-                          <p className="mt-3 text-sm font-semibold">Borrowed successfully</p>
+                          <p className="mt-3 text-sm font-semibold">Request submitted</p>
                           <p className="mt-1 text-xs">
-                            You have borrowed "{borrowFeedback?.title}".<br />
-                            Due date: {borrowFeedback?.dueDate}
+                            Your request for "{borrowFeedback?.title}" is awaiting librarian approval.
+                            {borrowFeedback?.dueDate && (
+                              <>
+                                <br />Estimated due date: {borrowFeedback?.dueDate}
+                              </>
+                            )}
                           </p>
+                          {borrowFeedback?.message && (
+                            <p className="mt-2 text-xs text-green-700">{borrowFeedback.message}</p>
+                          )}
                         </>
                       ) : (
                         <>

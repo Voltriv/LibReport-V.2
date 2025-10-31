@@ -35,18 +35,14 @@ const Reports = () => {
   const [loadingReport, setLoadingReport] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const [printing, setPrinting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const printReport = () => {
     try {
-      setPrinting(true);
       // Allow layout to settle before print
       setTimeout(() => {
         window.print();
-        setTimeout(() => setPrinting(false), 300);
       }, 50);
     } catch {
-      setPrinting(false);
     }
   };
 

@@ -7,5 +7,5 @@ module.exports = {
   Visit: require('./Visit'),
   Hours: require('./Hours'),
   PasswordReset: require('./PasswordReset'),
-  Faculty: require('./Faculty')
+  BorrowRequest: require('./BorrowRequest')
 };

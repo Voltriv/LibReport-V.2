@@ -450,7 +450,17 @@ connectMongo().catch((err) => {
 });
 
 // --- User model
-const { User, Admin, Faculty, Book, Loan, Visit, Hours, PasswordReset } = require('./models');
+const {
+  User,
+  Admin,
+  Faculty,
+  Book,
+  Loan,
+  Visit,
+  Hours,
+  PasswordReset,
+  BorrowRequest
+} = require('./models');
 // Models loaded from ./models (legacy inline schema removed)
 
 class HttpError extends Error {
@@ -531,6 +541,90 @@ async function borrowBookCore({ borrowerId, bookId, daysRaw, enforceUniqueLoan }
 function sendError(res, err, fallbackMessage) {
   const status = Number.isInteger(err?.status) ? err.status : 500;
   res.status(status).json({ error: err?.message || fallbackMessage });
+}
+
+function normalizeBorrowRequestAggregate(doc) {
+  if (!doc) return null;
+  const user = doc.user || {};
+  const book = doc.book || {};
+  const processedBy = doc.processedByUser || {};
+  return {
+    id: String(doc._id),
+    status: doc.status,
+    requestedAt: doc.createdAt ? doc.createdAt.toISOString() : null,
+    processedAt: doc.processedAt ? doc.processedAt.toISOString() : null,
+    updatedAt: doc.updatedAt ? doc.updatedAt.toISOString() : null,
+    dueAt: doc.dueAt ? doc.dueAt.toISOString() : null,
+    daysRequested: typeof doc.daysRequested === 'number' ? doc.daysRequested : null,
+    message: doc.message || '',
+    adminNote: doc.adminNote || '',
+    loanId: doc.loanId ? String(doc.loanId) : null,
+    user:
+      user && user._id
+        ? {
+            id: String(user._id),
+            name: user.fullName || user.name || user.email || '',
+            email: user.email || '',
+            studentId: user.studentId || ''
+          }
+        : null,
+    book:
+      book && book._id
+        ? {
+            id: String(book._id),
+            title: book.title || '',
+            author: book.author || '',
+            code: book.bookCode || ''
+          }
+        : null,
+    processedBy:
+      processedBy && processedBy._id
+        ? {
+            id: String(processedBy._id),
+            name: processedBy.fullName || processedBy.name || processedBy.email || '',
+            email: processedBy.email || ''
+          }
+        : null
+  };
+}
+
+async function aggregateBorrowRequests(match = {}, options = {}) {
+  const pipeline = [{ $match: match }];
+  if (options.sort) {
+    pipeline.push({ $sort: options.sort });
+  } else {
+    pipeline.push({ $sort: { createdAt: -1 } });
+  }
+  pipeline.push(
+    { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+    { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } },
+    { $unwind: { path: '$book', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'admins', localField: 'processedBy', foreignField: '_id', as: 'processedByUser' } },
+    { $unwind: { path: '$processedByUser', preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        _id: 1,
+        status: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        processedAt: 1,
+        dueAt: 1,
+        daysRequested: 1,
+        message: 1,
+        adminNote: 1,
+        loanId: 1,
+        user: '$user',
+        book: '$book',
+        processedByUser: '$processedByUser'
+      }
+    }
+  );
+  if (typeof options.limit === 'number') {
+    pipeline.push({ $limit: options.limit });
+  }
+  const docs = await BorrowRequest.aggregate(pipeline).exec();
+  return docs.map((doc) => normalizeBorrowRequestAggregate(doc));
 }
 
 // Separate Admin collection (loaded from ./models)
@@ -2012,6 +2106,80 @@ app.post('/api/loans/borrow', adminRequired, async (req, res) => {
   }
 });
 
+// Student borrow requests
+app.post('/api/student/borrow-requests', studentRequired, async (req, res) => {
+  const { bookId, days: daysRaw, note } = req.body || {};
+  if (!bookId) return res.status(400).json({ error: 'bookId required' });
+  if (!mongoose.Types.ObjectId.isValid(String(bookId))) {
+    return res.status(400).json({ error: 'bookId must be a valid identifier' });
+  }
+
+  const userId = String(req.user.sub);
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: 'invalid user id' });
+  }
+
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+  const bookObjectId = new mongoose.Types.ObjectId(String(bookId));
+
+  const book = await Book.findById(bookObjectId).lean();
+  if (!book) return res.status(404).json({ error: 'Book not found' });
+
+  const activeLoan = await Loan.findOne({
+    userId: userObjectId,
+    bookId: bookObjectId,
+    returnedAt: null
+  }).lean();
+  if (activeLoan) {
+    return res.status(400).json({ error: 'You already have this book borrowed' });
+  }
+
+  const pending = await BorrowRequest.findOne({
+    userId: userObjectId,
+    bookId: bookObjectId,
+    status: 'pending'
+  }).lean();
+  if (pending) {
+    return res.status(400).json({ error: 'You already have a pending request for this book' });
+  }
+
+  let chosenDays;
+  try {
+    chosenDays = resolveLoanDuration(daysRaw);
+  } catch (err) {
+    return res.status(err?.status || 400).json({ error: err.message });
+  }
+
+  const trimmedNote = note ? String(note).trim().slice(0, 500) : '';
+
+  const request = await BorrowRequest.create({
+    userId: userObjectId,
+    bookId: bookObjectId,
+    daysRequested: chosenDays,
+    message: trimmedNote
+  });
+
+  const estimatedDueAt = new Date(Date.now() + chosenDays * 24 * 60 * 60 * 1000);
+
+  res.status(201).json({
+    id: String(request._id),
+    status: request.status,
+    requestedAt: request.createdAt ? request.createdAt.toISOString() : null,
+    daysRequested: request.daysRequested,
+    estimatedDueAt: estimatedDueAt.toISOString()
+  });
+});
+
+app.get('/api/student/borrow-requests', studentRequired, async (req, res) => {
+  const userId = String(req.user.sub || '');
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: 'invalid user id' });
+  }
+
+  const requests = await aggregateBorrowRequests({ userId: new mongoose.Types.ObjectId(userId) });
+  res.json({ items: requests });
+});
+
 // Student self-service borrowing
 app.post('/api/student/borrow', studentRequired, async (req, res) => {
   const { bookId, days: daysRaw } = req.body || {};
@@ -2069,6 +2237,170 @@ app.post('/api/student/renew', studentRequired, async (req, res) => {
     bookId: String(bookId),
     borrowedAt: loan.borrowedAt,
     dueAt: loan.dueAt
+  });
+});
+
+app.get('/api/loans/requests', adminRequired, async (req, res) => {
+  const statusRaw = String(req.query?.status || '').trim().toLowerCase();
+  const match = {};
+  if (statusRaw && statusRaw !== 'all' && ['pending', 'approved', 'rejected', 'cancelled'].includes(statusRaw)) {
+    match.status = statusRaw;
+  }
+
+  const requests = await aggregateBorrowRequests(match);
+  res.json({ items: requests });
+});
+
+app.post('/api/loans/requests/:id/approve', adminRequired, async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(String(id))) {
+    return res.status(400).json({ error: 'Invalid request id' });
+  }
+
+  const request = await BorrowRequest.findById(id);
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  if (request.status !== 'pending') {
+    return res.status(400).json({ error: 'Request has already been processed' });
+  }
+
+  const { days: daysRaw, note } = req.body || {};
+  let chosenDays;
+  try {
+    const fallback = request.daysRequested ?? undefined;
+    chosenDays = resolveLoanDuration(typeof daysRaw === 'undefined' ? fallback : daysRaw);
+  } catch (err) {
+    return res.status(err?.status || 400).json({ error: err.message });
+  }
+
+  const borrowerId = request.userId;
+  const bookId = request.bookId;
+
+  const existingLoan = await Loan.findOne({ userId: borrowerId, bookId, returnedAt: null }).lean();
+  if (existingLoan) {
+    request.status = 'cancelled';
+    request.processedAt = new Date();
+    if (mongoose.Types.ObjectId.isValid(String(req.user?.sub))) {
+      request.processedBy = new mongoose.Types.ObjectId(String(req.user.sub));
+    }
+    request.adminNote = 'Automatically cancelled: borrower already has an active loan for this title.';
+    await request.save();
+    return res
+      .status(409)
+      .json({ error: 'Borrower already has this book checked out. Request has been marked as cancelled.' });
+  }
+
+  let loan;
+  try {
+    ({ loan } = await borrowBookCore({
+      borrowerId,
+      bookId,
+      daysRaw: chosenDays,
+      enforceUniqueLoan: true
+    }));
+  } catch (err) {
+    return sendError(res, err, 'Failed to approve request');
+  }
+
+  request.status = 'approved';
+  request.daysRequested = chosenDays;
+  request.loanId = loan._id;
+  request.dueAt = loan.dueAt;
+  request.processedAt = new Date();
+  if (mongoose.Types.ObjectId.isValid(String(req.user?.sub))) {
+    request.processedBy = new mongoose.Types.ObjectId(String(req.user.sub));
+  }
+  if (note) {
+    request.adminNote = String(note).trim().slice(0, 500);
+  }
+  await request.save();
+
+  const [details] = await aggregateBorrowRequests({ _id: request._id });
+  res.json({
+    message: 'Request approved',
+    request: details,
+    loan: {
+      id: String(loan._id),
+      userId: String(loan.userId),
+      bookId: String(loan.bookId),
+      borrowedAt: loan.borrowedAt instanceof Date ? loan.borrowedAt.toISOString() : loan.borrowedAt,
+      dueAt: loan.dueAt instanceof Date ? loan.dueAt.toISOString() : loan.dueAt
+    }
+  });
+});
+
+app.post('/api/loans/requests/:id/reject', adminRequired, async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(String(id))) {
+    return res.status(400).json({ error: 'Invalid request id' });
+  }
+
+  const request = await BorrowRequest.findById(id);
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  if (request.status !== 'pending') {
+    return res.status(400).json({ error: 'Request has already been processed' });
+  }
+
+  const { note } = req.body || {};
+  request.status = 'rejected';
+  request.processedAt = new Date();
+  if (mongoose.Types.ObjectId.isValid(String(req.user?.sub))) {
+    request.processedBy = new mongoose.Types.ObjectId(String(req.user.sub));
+  }
+  if (note) {
+    request.adminNote = String(note).trim().slice(0, 500);
+  }
+  await request.save();
+
+  const [details] = await aggregateBorrowRequests({ _id: request._id });
+  res.json({ message: 'Request rejected', request: details });
+});
+
+app.post('/api/loans/:id/renewal', adminRequired, async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(String(id))) {
+    return res.status(400).json({ error: 'Invalid loan id' });
+  }
+
+  const loan = await Loan.findById(id);
+  if (!loan) return res.status(404).json({ error: 'Loan not found' });
+  if (loan.returnedAt) {
+    return res.status(400).json({ error: 'Loan has already been returned' });
+  }
+
+  const { days: daysRaw, dueAt: dueAtRaw } = req.body || {};
+  let newDueAt;
+  if (dueAtRaw) {
+    const parsed = new Date(dueAtRaw);
+    if (Number.isNaN(parsed.getTime())) {
+      return res.status(400).json({ error: 'dueAt must be a valid date' });
+    }
+    newDueAt = parsed;
+  } else {
+    let chosenDays;
+    try {
+      chosenDays = resolveLoanDuration(daysRaw);
+    } catch (err) {
+      return res.status(err?.status || 400).json({ error: err.message });
+    }
+    const now = new Date();
+    const baseDate = loan.dueAt && loan.dueAt > now ? loan.dueAt : now;
+    newDueAt = new Date(baseDate.getTime() + chosenDays * 24 * 60 * 60 * 1000);
+  }
+
+  loan.dueAt = newDueAt;
+  await loan.save();
+
+  await BorrowRequest.updateMany({ loanId: loan._id }, { $set: { dueAt: loan.dueAt } });
+
+  res.json({
+    message: 'Loan renewed successfully',
+    loan: {
+      id: String(loan._id),
+      userId: String(loan.userId),
+      bookId: String(loan.bookId),
+      borrowedAt: loan.borrowedAt instanceof Date ? loan.borrowedAt.toISOString() : loan.borrowedAt,
+      dueAt: loan.dueAt instanceof Date ? loan.dueAt.toISOString() : loan.dueAt
+    }
   });
 });
 

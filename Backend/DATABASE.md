@@ -110,6 +110,28 @@ Tracks borrowing activity between students and books.
 
 Default borrowing period: The backend uses an environment-configurable default for loan durations. If a client does not provide `days` when creating a loan, `LOAN_DAYS_DEFAULT` is applied. The example `.env` sets this to `28`, doubling the previous 14‑day window.
 
+### `borrowrequests`
+Intermediate queue that stores borrowing and renewal decisions awaiting librarian approval.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `_id` | ObjectId | Primary key. |
+| `userId` | ObjectId | Student requesting the item. Required reference to `users`. |
+| `bookId` | ObjectId | Target book. Required reference to `books`. |
+| `status` | String | `pending`, `approved`, `rejected`, or `cancelled`. Defaults to `pending`. |
+| `daysRequested` | Number | Desired loan duration captured at request time. |
+| `message` | String | Optional note supplied by the requester. |
+| `adminNote` | String | Optional response recorded by staff while approving/rejecting. |
+| `processedBy` | ObjectId | Admin/librarian who handled the request (references `admins`). |
+| `processedAt` | Date | Timestamp when the request was resolved. |
+| `loanId` | ObjectId | Linked `loans` document after approval. |
+| `dueAt` | Date | Current due date for the resulting loan (kept in sync on renewals). |
+| `createdAt` / `updatedAt` | Date | Auto timestamps. `createdAt` represents the request submission time. |
+
+**Indexes**
+- `{ userId: 1, bookId: 1, status: 1 }` prevents duplicate pending requests per title.
+- `{ status: 1, createdAt: -1 }` supports queue views ordered by newest submissions.
+
 ### `visits`
 Lobby tracker for student entry and exit logs.
 
