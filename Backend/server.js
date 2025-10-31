@@ -16,7 +16,11 @@ const crypto = require('node:crypto');
 const { EventEmitter } = require('node:events');
 
 // Student/Admin ID format shared with models
-const { STUDENT_ID_REGEX } = require('./models/validators');
+const {
+  STUDENT_ID_REGEX,
+  USER_ROLE_VALUES,
+  normalizeUserRole: normalizeRoleValue
+} = require('./models/validators');
 
 const app = express();
 app.set('etag', 'strong');
@@ -117,6 +121,45 @@ function normalizeUserStatus(rawStatus) {
   const value = typeof rawStatus === 'string' ? rawStatus.trim().toLowerCase() : '';
   if (value === 'disabled' || value === 'inactive') return 'disabled';
   return 'active';
+}
+
+const USER_ROLE_DEFAULT = USER_ROLE_VALUES[0];
+
+function parseUserRole(rawRole) {
+  const normalized = normalizeRoleValue(rawRole);
+  if (normalized && USER_ROLE_VALUES.includes(normalized)) {
+    return normalized;
+  }
+  return null;
+}
+
+function resolveUserRole(rawRole, fallback = USER_ROLE_DEFAULT) {
+  const normalized = parseUserRole(rawRole);
+  if (normalized) return normalized;
+  if (typeof fallback !== 'undefined') {
+    const fallbackNormalized = parseUserRole(fallback);
+    if (fallbackNormalized) return fallbackNormalized;
+  }
+  return USER_ROLE_DEFAULT;
+}
+
+function buildRoleFilter(...roles) {
+  const values = new Set();
+  for (const role of roles) {
+    if (role === undefined || role === null) continue;
+    const normalized = parseUserRole(role);
+    if (normalized) values.add(normalized);
+    const raw = String(role).trim();
+    if (raw) {
+      values.add(raw);
+      const capitalized = raw.charAt(0).toUpperCase() + raw.slice(1);
+      values.add(capitalized);
+    }
+  }
+  if (!values.size) {
+    return { role: { $exists: true } };
+  }
+  return { role: { $in: Array.from(values) } };
 }
 
 async function removeStoredFile(stored) {
@@ -855,7 +898,8 @@ app.use((req, res, next) => {
 });
 // --- Auth helpers ---
 function signToken(user) {
-  return jwt.sign({ sub: String(user._id), email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  const safeRole = resolveUserRole(user?.role);
+  return jwt.sign({ sub: String(user._id), email: user.email, role: safeRole }, JWT_SECRET, { expiresIn: '7d' });
 }
 
 function authRequired(req, res, next) {
@@ -969,7 +1013,7 @@ app.post('/api/auth/signup', async (req, res) => {
         studentId: doc.studentId,
         email: doc.email,
         fullName: doc.fullName,
-        role: doc.role,
+        role: resolveUserRole(doc.role, 'student'),
         department: doc.department
       }
     });
@@ -1001,7 +1045,16 @@ app.post('/api/auth/admin-signup', async (req, res) => {
     const passwordHash = await bcrypt.hash(String(password), 10);
     const doc = await Admin.create({ adminId: adminIdNorm, email: emailNorm, fullName: fullNameNorm, role: 'librarian', passwordHash });
     const token = signToken(doc);
-    return res.status(201).json({ token, user: { id: String(doc._id), studentId: doc.adminId, email: doc.email, fullName: doc.fullName, role: doc.role } });
+    return res.status(201).json({
+      token,
+      user: {
+        id: String(doc._id),
+        studentId: doc.adminId,
+        email: doc.email,
+        fullName: doc.fullName,
+        role: resolveUserRole(doc.role, 'librarian')
+      }
+    });
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -1067,7 +1120,7 @@ app.post('/api/auth/login', async (req, res) => {
   const ok = await bcrypt.compare(String(password), account.passwordHash);
   if (!ok) return res.status(401).json({ error: 'invalid credentials' });
 
-  const role = account.role || (isAdmin ? 'librarian' : isFaculty ? 'faculty' : 'student');
+  const role = resolveUserRole(account.role, isAdmin ? 'librarian' : isFaculty ? 'faculty' : 'student');
   const baseAccount = typeof account.toObject === 'function' ? account.toObject() : account;
   const token = signToken({ ...baseAccount, role });
 
@@ -1086,7 +1139,15 @@ app.post('/api/auth/login', async (req, res) => {
 // Current user info
 app.get('/api/auth/me', authRequired, async (req, res) => {
   let admin = await Admin.findById(req.user.sub).lean();
-  if (admin) return res.json({ id: String(admin._id), studentId: admin.adminId, email: admin.email, fullName: admin.fullName, role: admin.role });
+  if (admin) {
+    return res.json({
+      id: String(admin._id),
+      studentId: admin.adminId,
+      email: admin.email,
+      fullName: admin.fullName,
+      role: resolveUserRole(admin.role, 'librarian')
+    });
+  }
   const user = await User.findById(req.user.sub).lean();
   if (user) {
     return res.json({
@@ -1094,13 +1155,19 @@ app.get('/api/auth/me', authRequired, async (req, res) => {
       studentId: user.studentId,
       email: user.email,
       fullName: user.fullName,
-      role: user.role,
+      role: resolveUserRole(user.role, 'student'),
       department: user.department || ''
     });
   }
   const faculty = await Faculty.findById(req.user.sub).lean();
   if (faculty) {
-    return res.json({ id: String(faculty._id), studentId: faculty.facultyId, email: faculty.email, fullName: faculty.fullName, role: 'faculty' });
+    return res.json({
+      id: String(faculty._id),
+      studentId: faculty.facultyId,
+      email: faculty.email,
+      fullName: faculty.fullName,
+      role: resolveUserRole(faculty.role, 'faculty')
+    });
   }
   return res.status(404).json({ error: 'not found' });
 });
@@ -1116,7 +1183,7 @@ app.get('/api/student/me', studentRequired, async (req, res) => {
     fullName: user.fullName,
     department: user.department || '',
     status: user.status,
-    role: user.role || 'student',
+    role: resolveUserRole(user.role, 'student'),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   });
@@ -1167,7 +1234,7 @@ app.patch('/api/student/me', studentRequired, async (req, res) => {
     fullName: user.fullName,
     department: user.department || '',
     status: user.status,
-    role: user.role || 'student',
+    role: resolveUserRole(user.role, 'student'),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   });
@@ -1188,8 +1255,16 @@ app.get('/api/admins', elevatedAdminRequired, async (req, res) => {
       ]
     };
   }
-  const items = await Admin.find(filter).select('adminId fullName email role status createdAt').limit(200).sort({ createdAt: -1 }).lean();
-  res.json(items);
+  const items = await Admin.find(filter)
+    .select('adminId fullName email role status createdAt')
+    .limit(200)
+    .sort({ createdAt: -1 })
+    .lean();
+  const formatted = items.map((doc) => ({
+    ...doc,
+    role: resolveUserRole(doc.role, 'librarian_staff')
+  }));
+  res.json(formatted);
 });
 
 app.post('/api/admins', elevatedAdminRequired, async (req, res) => {
@@ -1204,11 +1279,18 @@ app.post('/api/admins', elevatedAdminRequired, async (req, res) => {
     }
     const exists = await Admin.findOne({ $or: [ { adminId: adminIdNorm }, emailNorm ? { email: emailNorm } : null ].filter(Boolean) });
     if (exists) return res.status(409).json({ error: 'adminId or email already exists' });
-    const allowedRoles = ['librarian', 'librarian_staff'];
-    const normalizedRole = allowedRoles.includes(role) ? role : 'librarian_staff';
+    const allowedRoles = new Set(['librarian', 'librarian_staff']);
+    const parsedRole = parseUserRole(role);
+    const normalizedRole = parsedRole && allowedRoles.has(parsedRole) ? parsedRole : 'librarian_staff';
     const passwordHash = await bcrypt.hash(String(password), 10);
     const doc = await Admin.create({ adminId: adminIdNorm, email: emailNorm, fullName: fullNameNorm, role: normalizedRole, passwordHash });
-    res.status(201).json({ id: String(doc._id), adminId: doc.adminId, fullName: doc.fullName, email: doc.email, role: doc.role });
+    res.status(201).json({
+      id: String(doc._id),
+      adminId: doc.adminId,
+      fullName: doc.fullName,
+      email: doc.email,
+      role: resolveUserRole(doc.role, normalizedRole)
+    });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
@@ -1219,16 +1301,24 @@ app.patch('/api/admins/:id', elevatedAdminRequired, async (req, res) => {
     if (req.body.email !== undefined) update.email = req.body.email ? String(req.body.email).toLowerCase() : undefined;
     if (req.body.status) update.status = String(req.body.status);
     if (req.body.role) {
-      const allowedRoles = ['librarian', 'librarian_staff'];
-      if (!allowedRoles.includes(req.body.role)) {
+      const allowedRoles = new Set(['librarian', 'librarian_staff']);
+      const parsedRole = parseUserRole(req.body.role);
+      if (!parsedRole || !allowedRoles.has(parsedRole)) {
         return res.status(400).json({ error: 'invalid role' });
       }
-      update.role = req.body.role;
+      update.role = parsedRole;
     }
     if (req.body.newPassword) update.passwordHash = await bcrypt.hash(String(req.body.newPassword), 10);
     const doc = await Admin.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true }).lean();
     if (!doc) return res.status(404).json({ error: 'Not found' });
-    res.json({ id: String(doc._id), adminId: doc.adminId, fullName: doc.fullName, email: doc.email, role: doc.role, status: doc.status });
+    res.json({
+      id: String(doc._id),
+      adminId: doc.adminId,
+      fullName: doc.fullName,
+      email: doc.email,
+      role: resolveUserRole(doc.role, update.role),
+      status: doc.status
+    });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
@@ -1449,8 +1539,8 @@ app.get('/api/dashboard', authRequired, async (_req, res) => {
   // run counts + top books in parallel
   const activeStatusFilter = { status: { $ne: 'disabled' } };
   const disabledStatusFilter = { status: 'disabled' };
-  const studentRoleFilter = { role: { $in: ['student', 'Student'] } };
-  const facultyRoleFilter = { role: { $in: ['faculty', 'Faculty'] } };
+  const studentRoleFilter = buildRoleFilter('student');
+  const facultyRoleFilter = buildRoleFilter('faculty');
 
   const countsPromise = Promise.all([
     User.countDocuments({ ...studentRoleFilter, ...activeStatusFilter }), // active students
@@ -2897,8 +2987,15 @@ app.get('/api/admin/users', adminRequired, async (req, res) => {
       ]
     };
   }
-  const items = await User.find(filter).select('fullName email studentId role department status createdAt').limit(200).lean();
-  res.json(items);
+  const items = await User.find(filter)
+    .select('fullName email studentId role department status createdAt')
+    .limit(200)
+    .lean();
+  const formatted = items.map((doc) => ({
+    ...doc,
+    role: resolveUserRole(doc.role, 'student')
+  }));
+  res.json(formatted);
 });
 
 app.post('/api/admin/users', adminRequired, async (req, res) => {
@@ -2932,10 +3029,7 @@ app.post('/api/admin/users', adminRequired, async (req, res) => {
       return res.status(400).json({ error: 'Department is required' });
     }
 
-    const allowedRoles = ['student', 'faculty', 'staff', 'admin', 'librarian', 'librarian_staff'];
-    const roleNorm = typeof role === 'string' && allowedRoles.includes(role.trim().toLowerCase())
-      ? role.trim().toLowerCase()
-      : 'faculty';
+    const roleNorm = resolveUserRole(role, 'faculty');
     const statusNorm = normalizeUserStatus(status);
 
     const existing = await User.findOne({
@@ -2999,7 +3093,7 @@ app.post('/api/admin/users', adminRequired, async (req, res) => {
       studentId: doc.studentId,
       email: doc.email,
       fullName: doc.fullName,
-      role: doc.role,
+      role: resolveUserRole(doc.role, roleNorm),
       department: doc.department,
       status: doc.status,
       createdAt: doc.createdAt
@@ -3012,9 +3106,12 @@ app.post('/api/admin/users', adminRequired, async (req, res) => {
 app.patch('/api/admin/users/:id/role', adminRequired, async (req, res) => {
   const { role } = req.body || {};
   if (!role) return res.status(400).json({ error: 'role required' });
-  const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true, runValidators: true }).lean();
+  const parsedRole = parseUserRole(role);
+  if (!parsedRole) return res.status(400).json({ error: 'invalid role' });
+  const user = await User.findByIdAndUpdate(req.params.id, { role: parsedRole }, { new: true, runValidators: true }).lean();
   if (!user) return res.status(404).json({ error: 'Not found' });
-  if (user.role === 'faculty') {
+  const userRole = resolveUserRole(user.role, parsedRole);
+  if (userRole === 'faculty') {
     await Faculty.findOneAndUpdate(
       { facultyId: user.studentId },
       {
@@ -3029,7 +3126,7 @@ app.patch('/api/admin/users/:id/role', adminRequired, async (req, res) => {
   } else {
     await Faculty.findOneAndDelete({ facultyId: user.studentId });
   }
-  res.json({ id: String(user._id), role: user.role });
+  res.json({ id: String(user._id), role: userRole });
 });
 
 // --- Admin: toggle user status
@@ -3053,7 +3150,10 @@ app.get('/api/users/lookup', authRequired, async (req, res) => {
   if (!filter) return res.status(400).json({ error: 'studentId, email, or barcode required' });
   const user = await User.findOne(filter).select('fullName email studentId role status').lean();
   if (!user) return res.status(404).json({ error: 'Not found' });
-  res.json(user);
+  res.json({
+    ...user,
+    role: resolveUserRole(user.role, 'student')
+  });
 });
 
 app.get('/api/books/lookup', authRequired, async (req, res) => {
