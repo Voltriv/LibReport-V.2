@@ -34,8 +34,10 @@ const StudentSignIn = safeLazy(() => import("./student/StudentSignIn"));
 const StudentSignUp = safeLazy(() => import("./student/StudentSignUp"));
 const StudentAccount = safeLazy(() => import("./student/StudentAccount"));
 const StudentBorrowedBooks = safeLazy(() => import("./student/StudentBorrowedBooks"));
+const StudentBorrowRequests = safeLazy(() => import("./student/StudentBorrowRequests"));
 const StudentOverdueBooks = safeLazy(() => import("./student/StudentOverdueBooks"));
 const StudentBorrowingHistory = safeLazy(() => import("./student/StudentBorrowingHistory"));
+const StudentBorrowRequests = safeLazy(() => import("./student/StudentBorrowRequests"));
 
 // === Route Guards ===
 function RequireAuth({ children }) {
@@ -134,6 +136,14 @@ function App() {
                 }
               />
               <Route
+                path="borrow-requests"
+                element={
+                  <RequireStudent>
+                    <StudentBorrowRequests />
+                  </RequireStudent>
+                }
+              />
+              <Route
                 path="borrowed-books"
                 element={
                   <RequireStudent>
@@ -142,6 +152,28 @@ function App() {
                 }
               />
               <Route
+                path="borrow-requests"
+                element={
+                  <RequireStudent>
+                    <StudentBorrowRequests />
+                  </RequireStudent>
+                }
+              />
+              <Route
+<<<<<<< ours
+
+                path="requests"
+                path="borrow-requests"
+                path="borrow-requests"
+                element={
+                  <RequireStudent>
+                    <StudentBorrowRequests />
+                  </RequireStudent>
+                }
+              />
+              <Route
+=======
+>>>>>>> theirs
                 path="overdue-books"
                 element={
                   <RequireStudent>

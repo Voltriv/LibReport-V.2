@@ -109,7 +109,7 @@ const StudentAccount = () => {
                   <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-brand-green-soft/20 to-brand-gold-soft/20 border border-brand-green/10">
                     <div>
                       <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Student ID</dt>
-                      <dd className="text-lg font-bold text-slate-900 mt-1">{profile.studentId}</dd>
+                      <dd className="text-lg font-bold text-slate-900 mt-1">{profile.studentId || "--"}</dd>
                     </div>
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green text-white">
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -126,10 +126,14 @@ const StudentAccount = () => {
                     </div>
                     <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
                       <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Status</dt>
-                      <dd className="text-lg font-bold text-slate-900 mt-1 capitalize">{profile.status}</dd>
+                      <dd className="text-lg font-bold text-slate-900 mt-1 capitalize">{profile.status || "--"}</dd>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                      <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Department</dt>
+                      <dd className="text-lg font-bold text-slate-900 mt-1">{profile.department || "--"}</dd>
                     </div>
                   </div>
-                  
+
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
                     <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Email Address</dt>
                     <dd className="text-lg font-bold text-slate-900 mt-1">{profile.email}</dd>
@@ -232,7 +236,7 @@ const StudentAccount = () => {
             <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-brand-green-soft/20 to-brand-gold-soft/20 border border-brand-green/10">
               <p className="text-xs text-slate-600 leading-relaxed">
                 <span className="font-semibold text-slate-700">Need assistance outside library hours?</span><br/>
-                Submit a request and our librarians will reach out on the next business day.
+                Email <a href="mailto:librarian@university.edu" className="font-semibold text-brand-greenDark underline decoration-brand-green/40 decoration-2 underline-offset-4 hover:text-brand-gold">librarian@university.edu</a> and our team will follow up on the next business day.
               </p>
             </div>
           </aside>

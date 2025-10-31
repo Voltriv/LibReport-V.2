@@ -69,31 +69,36 @@ const StudentBorrowingHistory = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
-                {history.map((item) => (
-                  <tr key={item.id}>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <div className="text-sm font-medium text-slate-900">{item.title}</div>
-                      <div className="text-sm text-slate-500">{item.author}</div>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
-                      {new Date(item.borrowedAt).toLocaleDateString()}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
-                      {item.returnedAt ? new Date(item.returnedAt).toLocaleDateString() : "N/A"}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                        item.status === "Returned" 
-                          ? "bg-green-100 text-green-800" 
-                          : item.status === "Overdue" 
-                          ? "bg-red-100 text-red-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {history.map((item) => {
+                  const key = item.id || item._id || `${item.bookId}-${item.borrowedAt}`;
+                  const title = item.title || "Untitled item";
+                  const author = item.author || "Unknown author";
+                  const borrowedLabel = item.borrowedAt ? new Date(item.borrowedAt).toLocaleDateString() : "--";
+                  const returnedLabel = item.returnedAt ? new Date(item.returnedAt).toLocaleDateString() : "N/A";
+                  return (
+                    <tr key={key}>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <div className="text-sm font-medium text-slate-900">{title}</div>
+                        <div className="text-sm text-slate-500">{author}</div>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">{borrowedLabel}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">{returnedLabel}</td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                            item.status === "Returned"
+                              ? "bg-green-100 text-green-800"
+                              : item.status === "Overdue"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-blue-100 text-blue-800"
+                          }`}
+                        >
+                          {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

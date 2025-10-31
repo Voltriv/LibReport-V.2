@@ -7,6 +7,7 @@ const borrowRequestSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     bookId: { type: mongoose.Schema.Types.ObjectId, ref: 'Book', required: true },
     status: { type: String, enum: STATUS_VALUES, default: 'pending' },
+    requestType: { type: String, enum: ['borrow', 'renewal'], default: 'borrow' },
     daysRequested: { type: Number, default: null },
     message: { type: String, default: '' },
     adminNote: { type: String, default: '' },
@@ -18,7 +19,7 @@ const borrowRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-borrowRequestSchema.index({ userId: 1, bookId: 1, status: 1 });
+borrowRequestSchema.index({ userId: 1, bookId: 1, requestType: 1, status: 1 });
 borrowRequestSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('BorrowRequest', borrowRequestSchema);

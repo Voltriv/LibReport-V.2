@@ -4,6 +4,57 @@ const env = require('../utils/dotenv');
 env.config({ path: path.resolve(process.cwd(), '.env') });
 const { MongoClient, ObjectId } = require('mongodb');
 const { resolveMongoConfig } = require('../db/uri');
+
+const MEMORY_SERVER_VERSION =
+  process.env.MONGO_MEMORY_SERVER_VERSION ||
+  process.env.MONGO_MEMORY_VERSION ||
+  '7.0.5';
+const MEMORY_SERVER_DOWNLOAD_DIR = process.env.MONGO_MEMORY_DOWNLOAD_DIR || process.env.MONGOMS_DOWNLOAD_DIR;
+const MEMORY_SERVER_SYSTEM_BINARY =
+  process.env.MONGO_MEMORY_SYSTEM_BINARY ||
+  process.env.MONGOMS_SYSTEM_BINARY;
+const MEMORY_SERVER_OS = (() => {
+  const dist =
+    process.env.MONGO_MEMORY_OS_DIST ||
+    process.env.MONGO_MEMORY_OS ||
+    process.env.MONGOMS_OS_DIST ||
+    process.env.MONGOMS_OS ||
+    '';
+  const release =
+    process.env.MONGO_MEMORY_OS_RELEASE ||
+    process.env.MONGO_MEMORY_OS_VERSION ||
+    process.env.MONGOMS_OS_RELEASE ||
+    process.env.MONGOMS_OS_VERSION ||
+    process.env.MONGO_MEMORY_OS_FALLBACK_RELEASE ||
+    '';
+  if (dist || release) {
+    return {
+      dist: (dist || 'ubuntu').toLowerCase(),
+      release: release || '20.04'
+    };
+  }
+  return undefined;
+})();
+const MEMORY_SERVER_SKIP_MD5 = String(
+  process.env.MONGO_MEMORY_SKIP_MD5 ||
+    process.env.MONGOMS_SKIP_MD5 ||
+    process.env.MONGO_MEMORY_DISABLE_MD5 ||
+    ''
+)
+  .toLowerCase()
+  .trim() === 'true';
+
+function buildMemoryServerOptions() {
+  const binary = { version: MEMORY_SERVER_VERSION };
+  if (MEMORY_SERVER_DOWNLOAD_DIR) binary.downloadDir = MEMORY_SERVER_DOWNLOAD_DIR;
+  if (MEMORY_SERVER_SYSTEM_BINARY) binary.systemBinary = MEMORY_SERVER_SYSTEM_BINARY;
+  if (MEMORY_SERVER_OS) binary.os = MEMORY_SERVER_OS;
+  if (MEMORY_SERVER_SKIP_MD5) {
+    binary.skipMD5 = true;
+    binary.checkMD5 = false;
+  }
+  return { binary };
+}
 let { uri, dbName } = resolveMongoConfig();
 const USE_MEMORY_DB = String(process.env.USE_MEMORY_DB || '').toLowerCase() === 'true';
 let mem;
@@ -46,7 +97,7 @@ function upsertsFromArray(arr, key = '_id') {
 async function main() {
   if (USE_MEMORY_DB) {
     const { MongoMemoryServer } = require('mongodb-memory-server');
-    mem = await MongoMemoryServer.create();
+    mem = await MongoMemoryServer.create(buildMemoryServerOptions());
     uri = mem.getUri();
   }
   if (!uri) throw new Error('MONGO_URI not set');

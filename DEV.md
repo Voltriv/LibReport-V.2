@@ -86,6 +86,12 @@ Switching Between Atlas and Local
   - Run `npm run dev:backend`.
 - In-memory (fast demo/testing; not shared)
   - `npm run dev:backend:memory` or root `npm run dev`.
+  - If the memory server download is blocked on your network, set one or more of the following before starting the backend:
+    - `MONGO_MEMORY_VERSION` to target a specific MongoDB release (for example `7.0.5`).
+    - `MONGO_MEMORY_OS_RELEASE` / `MONGO_MEMORY_OS_DIST` to force an older Ubuntu package (for example `20.04`).
+    - `MONGO_MEMORY_SYSTEM_BINARY` to reuse an already installed `mongod` binary on disk.
+    - Optional: `MONGO_MEMORY_DOWNLOAD_DIR` to reuse a shared download/cache directory.
+  - Set `USE_MEMORY_DB=false` to skip the fallback entirely when you prefer a real MongoDB instance.
 
 Data Migration (Local -> Atlas)
 

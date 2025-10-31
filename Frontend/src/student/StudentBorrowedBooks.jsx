@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import api from "../api";
 
 const StudentBorrowedBooks = () => {
@@ -8,7 +9,7 @@ const StudentBorrowedBooks = () => {
   const [returningId, setReturningId] = React.useState(null);
   const [returnSuccess, setReturnSuccess] = React.useState(null);
   const [renewingId, setRenewingId] = React.useState(null);
-  const [renewSuccess, setRenewSuccess] = React.useState(null);
+  const [renewFeedback, setRenewFeedback] = React.useState(null);
 
   React.useEffect(() => {
     const fetchBorrowedBooks = async () => {
@@ -41,7 +42,7 @@ const StudentBorrowedBooks = () => {
     
     setReturningId(bookId);
     setError("");
-    setRenewSuccess(null);
+    setRenewFeedback(null);
     
     try {
       await api.post('/student/return', { bookId });
@@ -66,18 +67,27 @@ const StudentBorrowedBooks = () => {
     setRenewingId(bookId);
     setError("");
     setReturnSuccess(null);
-    
+    setRenewFeedback(null);
+
     try {
       const { data } = await api.post('/student/renew', { bookId });
-      
-      setRenewSuccess({
+      const estimated = data?.request?.estimatedDueAt
+        ? new Date(data.request.estimatedDueAt).toLocaleDateString()
+        : null;
+
+      setRenewFeedback({
+        type: 'success',
         title: bookTitle,
-        dueDate: new Date(data.dueAt).toLocaleDateString()
+        dueDate: estimated,
+        message:
+          data?.message ||
+          'Your renewal request has been submitted and is awaiting librarian approval.'
       });
-      
+
       await refreshBorrowed();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to renew book. Please try again.');
+      setRenewFeedback(null);
     } finally {
       setRenewingId(null);
     }
@@ -123,20 +133,73 @@ const StudentBorrowedBooks = () => {
           </div>
         )}
 
-        {renewSuccess && (
-          <div className="mb-6 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-            <div className="flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3"/>
-                <path d="M12 7v5l3 3"/>
+        {renewFeedback && (
+          <div
+            className={`mb-6 rounded-md border px-4 py-3 text-sm ${
+              renewFeedback.type === 'success'
+                ? 'border-blue-200 bg-blue-50 text-blue-700'
+                : 'border-red-200 bg-red-50 text-red-600'
+            }`}
+          >
+            <div className="flex items-start gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mt-0.5"
+              >
+                {renewFeedback.type === 'success' ? (
+                  <>
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3" />
+                    <path d="M12 7v5l3 3" />
+                  </>
+                ) : (
+                  <>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </>
+                )}
               </svg>
-              <span>
-                <strong>Renewed!</strong> "{renewSuccess.title}" is now due on {renewSuccess.dueDate}.
-              </span>
+              <div className="flex-1">
+                <p className="font-semibold">
+                  {renewFeedback.type === 'success'
+                    ? `Renewal request sent for "${renewFeedback.title}"`
+                    : renewFeedback.title || 'Renewal update'}
+                </p>
+                <p className="mt-1 leading-relaxed">
+                  {renewFeedback.message}
+                  {renewFeedback.dueDate && (
+                    <>
+                      {' '}
+                      Estimated new due date: {renewFeedback.dueDate}.
+                    </>
+                  )}
+                </p>
+                <div className="mt-2 text-xs">
+                  <Link
+                    to="/student/borrow-requests"
+                    className="font-semibold text-blue-600 underline-offset-2 hover:text-blue-800 hover:underline"
+                    onClick={() => setRenewFeedback(null)}
+                  >
+                    View request status
+                  </Link>
+                </div>
+              </div>
             </div>
             <button
-              onClick={() => setRenewSuccess(null)}
-              className="mt-2 text-blue-600 hover:text-blue-800 underline"
+              onClick={() => setRenewFeedback(null)}
+              className={`mt-2 inline-flex items-center text-xs font-semibold underline transition ${
+                renewFeedback.type === 'success'
+                  ? 'text-blue-600 hover:text-blue-800'
+                  : 'text-red-600 hover:text-red-800'
+              }`}
             >
               Dismiss
             </button>
@@ -156,24 +219,44 @@ const StudentBorrowedBooks = () => {
         ) : books.length > 0 ? (
           <div className="space-y-4">
             {books.map((book) => {
+              const key = book.id || book._id || book.bookId || `borrowed-${book.title}`;
               const isRenewingThis = renewingId === book.bookId;
               const isRenewingAny = Boolean(renewingId);
               const isReturningThis = returningId === book.bookId;
               const isReturningAny = Boolean(returningId);
               return (
-                <div key={book.id} className="rounded-lg bg-white p-6 shadow-sm">
+                <div key={key} className="rounded-lg bg-white p-6 shadow-sm">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                      <h2 className="text-xl font-semibold text-slate-900">{book.title}</h2>
-                      <p className="text-sm text-slate-600">By {book.author}</p>
+                      <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+                      <p className="text-sm text-slate-600">By {author}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <span className="inline-flex items-center rounded-full bg-brand-green-soft px-3 py-1 text-xs font-medium text-brand-green">
-                          Due: {new Date(book.dueAt).toLocaleDateString()}
+                          Due: {dueLabel}
                         </span>
                         <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                          Borrowed: {new Date(book.borrowedAt).toLocaleDateString()}
+                          Borrowed: {borrowedLabel}
                         </span>
+                        {renewalPending && (
+                          <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                            Renewal pending approval
+                          </span>
+                        )}
                       </div>
+                      {renewalPending && book.pendingRenewal && (
+                        <p className="mt-2 text-xs text-slate-500">
+                          Requested on{' '}
+                          {book.pendingRenewal.requestedAt
+                            ? new Date(book.pendingRenewal.requestedAt).toLocaleString()
+                            : 'pending'}
+                          {typeof book.pendingRenewal.daysRequested === 'number' && (
+                            <>
+                              {' • '}Extends by {book.pendingRenewal.daysRequested} day
+                              {book.pendingRenewal.daysRequested === 1 ? '' : 's'}
+                            </>
+                          )}
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <button 

@@ -354,6 +354,62 @@ const AUTO_MEMORY_FALLBACK =
     .trim() !== 'false';
 // Default borrowing period in days. Can be overridden via environment.
 const DEFAULT_LOAN_DAYS = Number(process.env.LOAN_DAYS_DEFAULT || 28);
+const MEMORY_SERVER_VERSION =
+  process.env.MONGO_MEMORY_SERVER_VERSION ||
+  process.env.MONGO_MEMORY_VERSION ||
+  '7.0.5';
+const MEMORY_SERVER_DOWNLOAD_DIR = process.env.MONGO_MEMORY_DOWNLOAD_DIR || process.env.MONGOMS_DOWNLOAD_DIR;
+const MEMORY_SERVER_SYSTEM_BINARY =
+  process.env.MONGO_MEMORY_SYSTEM_BINARY ||
+  process.env.MONGOMS_SYSTEM_BINARY;
+const MEMORY_SERVER_OS = (() => {
+  const dist =
+    process.env.MONGO_MEMORY_OS_DIST ||
+    process.env.MONGO_MEMORY_OS ||
+    process.env.MONGOMS_OS_DIST ||
+    process.env.MONGOMS_OS ||
+    '';
+  const release =
+    process.env.MONGO_MEMORY_OS_RELEASE ||
+    process.env.MONGO_MEMORY_OS_VERSION ||
+    process.env.MONGOMS_OS_RELEASE ||
+    process.env.MONGOMS_OS_VERSION ||
+    process.env.MONGO_MEMORY_OS_FALLBACK_RELEASE ||
+    '';
+  if (dist || release) {
+    return {
+      dist: (dist || 'ubuntu').toLowerCase(),
+      release: release || '20.04'
+    };
+  }
+  return undefined;
+})();
+const MEMORY_SERVER_SKIP_MD5 = String(
+  process.env.MONGO_MEMORY_SKIP_MD5 ||
+    process.env.MONGOMS_SKIP_MD5 ||
+    process.env.MONGO_MEMORY_DISABLE_MD5 ||
+    ''
+)
+  .toLowerCase()
+  .trim() === 'true';
+
+function buildMemoryServerOptions() {
+  const binary = { version: MEMORY_SERVER_VERSION };
+  if (MEMORY_SERVER_DOWNLOAD_DIR) {
+    binary.downloadDir = MEMORY_SERVER_DOWNLOAD_DIR;
+  }
+  if (MEMORY_SERVER_SYSTEM_BINARY) {
+    binary.systemBinary = MEMORY_SERVER_SYSTEM_BINARY;
+  }
+  if (MEMORY_SERVER_OS) {
+    binary.os = MEMORY_SERVER_OS;
+  }
+  if (MEMORY_SERVER_SKIP_MD5) {
+    binary.skipMD5 = true;
+    binary.checkMD5 = false;
+  }
+  return { binary };
+}
 
 if (!JWT_SECRET) {
   console.error('Missing JWT_SECRET environment variable. Set Backend/.env JWT_SECRET before starting the backend.');
@@ -388,7 +444,7 @@ mongoose.connection.on('disconnected', () => {
 async function startMemoryDatabase(reason) {
   try {
     const { MongoMemoryServer } = require('mongodb-memory-server');
-    const mem = await MongoMemoryServer.create();
+    const mem = await MongoMemoryServer.create(buildMemoryServerOptions());
     MONGO_URI = mem.getUri();
     await mongoose.connect(MONGO_URI, { dbName: DB_NAME, serverSelectionTimeoutMS: 10000, family: 4 });
     initUploadBucket();
@@ -400,7 +456,12 @@ async function startMemoryDatabase(reason) {
     }
     await ensureDefaultAdmin();
   } catch (err) {
-    console.error('Failed to start in-memory MongoDB:', err.message);
+    const details = err?.stack || err?.message || String(err);
+    console.error('Failed to start in-memory MongoDB:', details);
+    console.error(
+      'Tips: specify MONGO_MEMORY_VERSION, MONGO_MEMORY_OS_RELEASE (e.g. 20.04), or MONGO_MEMORY_SYSTEM_BINARY to use an existing mongod binary. '
+        + 'Set USE_MEMORY_DB=false to skip the in-memory fallback.'
+    );
     process.exit(1);
   }
 }
@@ -551,6 +612,7 @@ function normalizeBorrowRequestAggregate(doc) {
   return {
     id: String(doc._id),
     status: doc.status,
+    requestType: doc.requestType || 'borrow',
     requestedAt: doc.createdAt ? doc.createdAt.toISOString() : null,
     processedAt: doc.processedAt ? doc.processedAt.toISOString() : null,
     updatedAt: doc.updatedAt ? doc.updatedAt.toISOString() : null,
@@ -613,6 +675,7 @@ async function aggregateBorrowRequests(match = {}, options = {}) {
         daysRequested: 1,
         message: 1,
         adminNote: 1,
+        requestType: 1,
         loanId: 1,
         user: '$user',
         book: '$book',
@@ -956,59 +1019,6 @@ app.post('/api/auth/login', async (req, res) => {
   const lookup = String(studentId).trim();
   let account = null;
   let isAdmin = false;
-
-  if (STUDENT_ID_REGEX.test(lookup)) {
-
-    account = await Admin.findOne({ adminId: lookup });
-    if (account) isAdmin = true;
-    if (!account) account = await User.findOne({ studentId: lookup });
-  }
-  if (!account && lookup.includes('@')) {
-    account = await Admin.findOne({ email: lookup.toLowerCase() });
-    if (account) isAdmin = true;
-    if (!account) account = await User.findOne({ email: lookup.toLowerCase() });
-  }
-  if (!account) {
-    // Final fallback: allow admins to log in with legacy studentId without dashes
-    const digitsOnly = lookup.replace(/[^0-9]/g, '');
-    if (digitsOnly.length === 12) {
-      const dashed = `${digitsOnly.slice(0, 2)}-${digitsOnly.slice(2, 6)}-${digitsOnly.slice(6)}`;
-      account = await Admin.findOne({ adminId: dashed });
-      if (account) isAdmin = true;
-      if (!account) account = await User.findOne({ studentId: dashed });
-    }
-    if (!account) {
-      account = await Admin.findOne({ adminId: digitsOnly });
-      if (account) isAdmin = true;
-      if (!account) account = await User.findOne({ studentId: digitsOnly });
-    }
-  }
-  if (!account) return res.status(401).json({ error: 'invalid credentials' });
-
-  const ok = await bcrypt.compare(String(password), account.passwordHash);
-  if (!ok) return res.status(401).json({ error: 'invalid credentials' });
-
-  const role = account.role || (isAdmin ? 'librarian' : isFaculty ? 'faculty' : 'student');
-  const baseAccount = typeof account.toObject === 'function' ? account.toObject() : account;
-  const token = signToken({ ...baseAccount, role });
-  const payload = {
-    id: String(account._id),
-    studentId: account.adminId || account.studentId || account.facultyId,
-    email: account.email,
-    fullName: account.fullName,
-    role
-  };
-  return res.json({ token, user: payload });
-});app.post('/api/auth/login', async (req, res) => {
-  const { password, studentId } = req.body || {};
-  if (!studentId || !password) return res.status(400).json({ error: 'studentId and password required' });
-  if (!NO_DB && !(mongoose.connection.readyState === 1 || DB_READY)) {
-    return res.status(503).json({ error: 'Database not ready' });
-  }
-
-  const lookup = String(studentId).trim();
-  let account = null;
-  let isAdmin = false;
   let isFaculty = false;
 
   // Numeric ID pattern first
@@ -1066,12 +1076,12 @@ app.post('/api/auth/login', async (req, res) => {
     studentId: account.adminId || account.studentId || account.facultyId,
     email: account.email,
     fullName: account.fullName,
-    role
+    role,
+    department: account.department
   };
 
   return res.json({ token, user: payload });
 });
-
 
 // Current user info
 app.get('/api/auth/me', authRequired, async (req, res) => {
@@ -1079,7 +1089,14 @@ app.get('/api/auth/me', authRequired, async (req, res) => {
   if (admin) return res.json({ id: String(admin._id), studentId: admin.adminId, email: admin.email, fullName: admin.fullName, role: admin.role });
   const user = await User.findById(req.user.sub).lean();
   if (user) {
-    return res.json({ id: String(user._id), studentId: user.studentId, email: user.email, fullName: user.fullName, role: user.role });
+    return res.json({
+      id: String(user._id),
+      studentId: user.studentId,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      department: user.department || ''
+    });
   }
   const faculty = await Faculty.findById(req.user.sub).lean();
   if (faculty) {
@@ -1097,6 +1114,7 @@ app.get('/api/student/me', studentRequired, async (req, res) => {
     studentId: user.studentId,
     email: user.email,
     fullName: user.fullName,
+    department: user.department || '',
     status: user.status,
     role: user.role || 'student',
     createdAt: user.createdAt,
@@ -2137,7 +2155,8 @@ app.post('/api/student/borrow-requests', studentRequired, async (req, res) => {
   const pending = await BorrowRequest.findOne({
     userId: userObjectId,
     bookId: bookObjectId,
-    status: 'pending'
+    status: 'pending',
+    requestType: 'borrow'
   }).lean();
   if (pending) {
     return res.status(400).json({ error: 'You already have a pending request for this book' });
@@ -2156,7 +2175,8 @@ app.post('/api/student/borrow-requests', studentRequired, async (req, res) => {
     userId: userObjectId,
     bookId: bookObjectId,
     daysRequested: chosenDays,
-    message: trimmedNote
+    message: trimmedNote,
+    requestType: 'borrow'
   });
 
   const estimatedDueAt = new Date(Date.now() + chosenDays * 24 * 60 * 60 * 1000);
@@ -2164,6 +2184,7 @@ app.post('/api/student/borrow-requests', studentRequired, async (req, res) => {
   res.status(201).json({
     id: String(request._id),
     status: request.status,
+    requestType: request.requestType,
     requestedAt: request.createdAt ? request.createdAt.toISOString() : null,
     daysRequested: request.daysRequested,
     estimatedDueAt: estimatedDueAt.toISOString()
@@ -2206,19 +2227,36 @@ app.post('/api/student/borrow', studentRequired, async (req, res) => {
 
 // Student self-service renew
 app.post('/api/student/renew', studentRequired, async (req, res) => {
-  const { bookId, days: daysRaw } = req.body || {};
+  const { bookId, days: daysRaw, note } = req.body || {};
   if (!bookId) return res.status(400).json({ error: 'bookId required' });
   if (!mongoose.Types.ObjectId.isValid(String(bookId))) {
     return res.status(400).json({ error: 'bookId must be a valid identifier' });
   }
 
-  const userId = req.user.sub;
+  const userId = String(req.user.sub || '');
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: 'invalid user id' });
+  }
+
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+  const bookObjectId = new mongoose.Types.ObjectId(String(bookId));
+
   const loan = await Loan.findOne({
-    userId: new mongoose.Types.ObjectId(userId),
-    bookId: new mongoose.Types.ObjectId(bookId),
+    userId: userObjectId,
+    bookId: bookObjectId,
     returnedAt: null
   });
   if (!loan) return res.status(404).json({ error: 'Active loan not found' });
+
+  const pending = await BorrowRequest.findOne({
+    userId: userObjectId,
+    bookId: bookObjectId,
+    status: 'pending',
+    requestType: 'renewal'
+  }).lean();
+  if (pending) {
+    return res.status(400).json({ error: 'You already have a pending renewal request for this book' });
+  }
 
   let chosenDays;
   try {
@@ -2227,16 +2265,32 @@ app.post('/api/student/renew', studentRequired, async (req, res) => {
     return res.status(err?.status || 400).json({ error: err.message });
   }
 
+  const trimmedNote = note ? String(note).trim().slice(0, 500) : '';
+
   const now = new Date();
   const baseDate = loan.dueAt && loan.dueAt > now ? loan.dueAt : now;
-  loan.dueAt = new Date(baseDate.getTime() + chosenDays * 24 * 60 * 60 * 1000);
-  await loan.save();
+  const estimatedDueAt = new Date(baseDate.getTime() + chosenDays * 24 * 60 * 60 * 1000);
 
-  res.json({
-    message: 'Loan renewed successfully',
-    bookId: String(bookId),
-    borrowedAt: loan.borrowedAt,
-    dueAt: loan.dueAt
+  const request = await BorrowRequest.create({
+    userId: userObjectId,
+    bookId: bookObjectId,
+    loanId: loan._id,
+    daysRequested: chosenDays,
+    message: trimmedNote,
+    requestType: 'renewal'
+  });
+
+  res.status(201).json({
+    message: 'Renewal request submitted',
+    currentDueAt: loan.dueAt instanceof Date ? loan.dueAt.toISOString() : loan.dueAt,
+    request: {
+      id: String(request._id),
+      status: request.status,
+      requestType: request.requestType,
+      requestedAt: request.createdAt ? request.createdAt.toISOString() : new Date().toISOString(),
+      daysRequested: request.daysRequested,
+      estimatedDueAt: estimatedDueAt.toISOString()
+    }
   });
 });
 
@@ -2274,31 +2328,53 @@ app.post('/api/loans/requests/:id/approve', adminRequired, async (req, res) => {
 
   const borrowerId = request.userId;
   const bookId = request.bookId;
-
-  const existingLoan = await Loan.findOne({ userId: borrowerId, bookId, returnedAt: null }).lean();
-  if (existingLoan) {
-    request.status = 'cancelled';
-    request.processedAt = new Date();
-    if (mongoose.Types.ObjectId.isValid(String(req.user?.sub))) {
-      request.processedBy = new mongoose.Types.ObjectId(String(req.user.sub));
-    }
-    request.adminNote = 'Automatically cancelled: borrower already has an active loan for this title.';
-    await request.save();
-    return res
-      .status(409)
-      .json({ error: 'Borrower already has this book checked out. Request has been marked as cancelled.' });
-  }
+  const isRenewal = request.requestType === 'renewal';
 
   let loan;
-  try {
-    ({ loan } = await borrowBookCore({
-      borrowerId,
-      bookId,
-      daysRaw: chosenDays,
-      enforceUniqueLoan: true
-    }));
-  } catch (err) {
-    return sendError(res, err, 'Failed to approve request');
+  if (isRenewal) {
+    loan = await Loan.findOne({ userId: borrowerId, bookId, returnedAt: null });
+    if (!loan) {
+      request.status = 'cancelled';
+      request.processedAt = new Date();
+      if (mongoose.Types.ObjectId.isValid(String(req.user?.sub))) {
+        request.processedBy = new mongoose.Types.ObjectId(String(req.user.sub));
+      }
+      request.adminNote = 'Automatically cancelled: no active loan was available to renew.';
+      await request.save();
+      return res
+        .status(409)
+        .json({ error: 'No active loan found to renew. Request has been marked as cancelled.' });
+    }
+
+    const now = new Date();
+    const baseDate = loan.dueAt && loan.dueAt > now ? loan.dueAt : now;
+    loan.dueAt = new Date(baseDate.getTime() + chosenDays * 24 * 60 * 60 * 1000);
+    await loan.save();
+  } else {
+    const existingLoan = await Loan.findOne({ userId: borrowerId, bookId, returnedAt: null }).lean();
+    if (existingLoan) {
+      request.status = 'cancelled';
+      request.processedAt = new Date();
+      if (mongoose.Types.ObjectId.isValid(String(req.user?.sub))) {
+        request.processedBy = new mongoose.Types.ObjectId(String(req.user.sub));
+      }
+      request.adminNote = 'Automatically cancelled: borrower already has an active loan for this title.';
+      await request.save();
+      return res
+        .status(409)
+        .json({ error: 'Borrower already has this book checked out. Request has been marked as cancelled.' });
+    }
+
+    try {
+      ({ loan } = await borrowBookCore({
+        borrowerId,
+        bookId,
+        daysRaw: chosenDays,
+        enforceUniqueLoan: true
+      }));
+    } catch (err) {
+      return sendError(res, err, 'Failed to approve request');
+    }
   }
 
   request.status = 'approved';
@@ -2316,7 +2392,7 @@ app.post('/api/loans/requests/:id/approve', adminRequired, async (req, res) => {
 
   const [details] = await aggregateBorrowRequests({ _id: request._id });
   res.json({
-    message: 'Request approved',
+    message: isRenewal ? 'Renewal approved' : 'Request approved',
     request: details,
     loan: {
       id: String(loan._id),
@@ -2531,7 +2607,7 @@ app.get('/api/student/borrowed', studentRequired, async (req, res) => {
     { $project: { 
       _id: 1,
       bookId: '$book._id',
-      title: '$book.title', 
+      title: '$book.title',
       author: '$book.author',
       bookCode: '$book.bookCode',
       borrowedAt: 1, 
@@ -2547,9 +2623,9 @@ app.get('/api/student/overdue-books', studentRequired, async (req, res) => {
   const now = new Date();
   
   const items = await Loan.aggregate([
-    { 
-      $match: { 
-        userId: new mongoose.Types.ObjectId(userId), 
+    {
+      $match: {
+        userId: new mongoose.Types.ObjectId(userId),
         returnedAt: null,
         dueAt: { $lt: now }
       } 
@@ -2571,11 +2647,18 @@ app.get('/api/student/overdue-books', studentRequired, async (req, res) => {
   ]);
   
   // Add fine calculation (example: $1 per day overdue)
-  const booksWithFines = items.map(book => ({
-    ...book,
-    fine: Math.max(0, book.daysOverdue * 1.00)
+  const booksWithFines = items.map((book) => ({
+    id: String(book._id || book.id || ''),
+    bookId: book.bookId ? String(book.bookId) : null,
+    title: book.title || '',
+    author: book.author || '',
+    bookCode: book.bookCode || '',
+    borrowedAt: book.borrowedAt,
+    dueAt: book.dueAt,
+    daysOverdue: book.daysOverdue,
+    fine: Math.max(0, Number(book.daysOverdue || 0) * 1.0)
   }));
-  
+
   res.json({ books: booksWithFines });
 });
 
@@ -2615,7 +2698,19 @@ app.get('/api/student/borrowing-history', studentRequired, async (req, res) => {
     }
   ]);
   
-  res.json({ history: items });
+  const history = items.map((item) => ({
+    id: String(item._id || item.id || ''),
+    bookId: item.bookId ? String(item.bookId) : null,
+    title: item.title || '',
+    author: item.author || '',
+    bookCode: item.bookCode || '',
+    borrowedAt: item.borrowedAt,
+    dueAt: item.dueAt,
+    returnedAt: item.returnedAt,
+    status: item.status
+  }));
+
+  res.json({ history });
 });
 
 // --- Reports

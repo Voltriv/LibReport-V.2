@@ -169,6 +169,14 @@ const StudentLayout = () => {
                       </svg>
                       Borrowed Books
                     </Link>
+                    <Link to="/student/borrow-requests" className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors" onClick={() => setAccountDropdown(false)}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 4h16v12H5.17L4 17.17V4z"/>
+                        <path d="M8 8h8"/>
+                        <path d="M8 12h6"/>
+                      </svg>
+                      Borrow Requests
+                    </Link>
                     <Link to="/student/overdue-books" className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors" onClick={() => setAccountDropdown(false)}>
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="10"/>

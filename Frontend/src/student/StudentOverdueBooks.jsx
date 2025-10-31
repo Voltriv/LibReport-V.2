@@ -98,36 +98,47 @@ const StudentOverdueBooks = () => {
           </div>
         ) : books.length > 0 ? (
           <div className="space-y-4">
-            {books.map((book) => (
-              <div key={book.id} className="rounded-lg bg-white p-6 shadow-sm border-l-4 border-red-500">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900">{book.title}</h2>
-                    <p className="text-sm text-slate-600">By {book.author}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
-                        Due: {new Date(book.dueAt).toLocaleDateString()}
-                      </span>
-                      <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
-                        Days Overdue: {book.daysOverdue}
-                      </span>
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        Fine: ${book.fine.toFixed(2)}
-                      </span>
+            {books.map((book) => {
+              const key = book.id || book._id || book.bookId || `overdue-${book.title}`;
+              const title = book.title || "Untitled item";
+              const author = book.author || "Unknown author";
+              const dueLabel = book.dueAt ? new Date(book.dueAt).toLocaleDateString() : "--";
+              const borrowedLabel = book.borrowedAt ? new Date(book.borrowedAt).toLocaleDateString() : "--";
+              const canManage = Boolean(book.bookId);
+              return (
+                <div key={key} className="rounded-lg bg-white p-6 shadow-sm border-l-4 border-red-500">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+                      <p className="text-sm text-slate-600">By {author}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
+                          Due: {dueLabel}
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
+                          Days Overdue: {book.daysOverdue}
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                          Fine: ${book.fine.toFixed(2)}
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                          Borrowed: {borrowedLabel}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        className="btn-student-primary btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => canManage && handleReturnBook(book.bookId, title)}
+                        disabled={returning || !canManage}
+                      >
+                        {returning ? 'Returning...' : 'Return Now'}
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button 
-                      className="btn-student-primary btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={() => handleReturnBook(book.bookId, book.title)}
-                      disabled={returning}
-                    >
-                      {returning ? 'Returning...' : 'Return Now'}
-                    </button>
-                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
