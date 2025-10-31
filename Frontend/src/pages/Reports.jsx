@@ -284,7 +284,7 @@ const Reports = () => {
           body { background: #fff !important; }
         }
       `}</style>
-      <main className="px-6 md:pl-8 lg:pl-10 pr-6 py-8 md:ml-80 print-container">
+      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8 print-container">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>

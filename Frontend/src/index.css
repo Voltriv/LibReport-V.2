@@ -1,3 +1,23 @@
+:root {
+  --admin-sidebar-width: 20rem;
+  --admin-sidebar-offset: var(--admin-sidebar-width);
+}
+
+body.has-admin-sidebar {
+  --admin-sidebar-offset: var(--admin-sidebar-width);
+}
+
+body.has-admin-sidebar.admin-sidebar-collapsed {
+  --admin-sidebar-offset: 0px;
+}
+
+@media (min-width: 768px) {
+  .admin-main {
+    margin-left: var(--admin-sidebar-offset, 0);
+    transition: margin-left 240ms ease;
+  }
+}
+
 /* Theme variables */
 :root[data-theme='dark'] {
   --bg: #0b0f15;

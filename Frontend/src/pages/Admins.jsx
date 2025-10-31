@@ -92,7 +92,7 @@ const Admins = () => {
     return (
       <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
         <Sidebar />
-        <main className="px-6 md:pl-8 lg:pl-10 pr-6 py-8 md:ml-80">
+        <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Admins</h1>
           <div className="mt-6 p-6 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700">
             <p className="text-slate-700 dark:text-stone-200">You are not authorized to view this page.</p>
@@ -107,7 +107,7 @@ const Admins = () => {
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <Sidebar />
 
-      <main className="px-6 md:pl-8 lg:pl-10 pr-6 py-8 md:ml-80">
+      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>

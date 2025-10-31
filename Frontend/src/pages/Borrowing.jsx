@@ -213,7 +213,7 @@ const Borrowing = () => {
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <Sidebar />
-      <main className="px-6 md:pl-8 lg:pl-10 pr-6 py-8 md:ml-80">
+      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
         {toast && (
           <div className={`mb-6 rounded-2xl border px-4 py-3 shadow ${
             toast.type === "error"

@@ -133,14 +133,7 @@ function App() {
                   </RequireStudent>
                 }
               />
-              <Route
-                path="borrow-requests"
-                element={
-                  <RequireStudent>
-                    <StudentBorrowRequests />
-                  </RequireStudent>
-                }
-              />
+              <Route path="borrow-requests" element={<Navigate to="/student/requests" replace />} />
               <Route
                 path="borrowed-books"
                 element={
@@ -150,16 +143,8 @@ function App() {
                 }
               />
               <Route
-                path="borrow-requests"
-                element={
-                  <RequireStudent>
-                    <StudentBorrowRequests />
-                  </RequireStudent>
-                }
-              />
-              <Route
                 path="requests"
-                element={
+                  element={
                   <RequireStudent>
                     <StudentBorrowRequests />
                   </RequireStudent>

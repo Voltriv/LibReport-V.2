@@ -110,25 +110,39 @@ const StudentBorrowedBooks = () => {
         )}
 
         {returnSuccess && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/30 backdrop-blur-sm">
-            <div className="relative w-[min(90%,420px)] rounded-3xl border border-green-200 bg-white px-6 py-6 text-center text-sm text-green-700 shadow-xl">
+          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-4 text-sm text-green-700">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-green-700">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                </span>
+                <div>
+                  <p className="font-semibold text-green-800">Book returned</p>
+                  <p className="mt-1 leading-relaxed">
+                    You have returned "<strong>{returnSuccess.title}</strong>".
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setReturnSuccess(null)}
-                className="absolute right-4 top-4 rounded-full border border-green-200 px-2 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-50"
+                className="rounded-full border border-green-200 px-3 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-100"
               >
                 Dismiss
               </button>
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-700">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                  <polyline points="22,4 12,14.01 9,11.01"/>
-                </svg>
-              </div>
-              <h2 className="mt-3 text-lg font-semibold text-green-800">Success!</h2>
-              <p className="mt-2 text-sm leading-relaxed text-green-700">
-                You have returned "<strong>{returnSuccess.title}</strong>".
-              </p>
             </div>
           </div>
         )}

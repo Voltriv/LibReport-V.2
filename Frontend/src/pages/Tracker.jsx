@@ -230,7 +230,7 @@ const Tracker = () => {
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <Sidebar />
 
-      <main className="px-6 md:pl-8 lg:pl-10 pr-6 py-8 md:ml-80">
+      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
