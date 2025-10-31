@@ -220,6 +220,11 @@ const StudentBorrowedBooks = () => {
           <div className="space-y-4">
             {books.map((book) => {
               const key = book.id || book._id || book.bookId || `borrowed-${book.title}`;
+              const title = book.title || "Untitled item";
+              const author = book.author || "Unknown author";
+              const dueLabel = book.dueAt ? new Date(book.dueAt).toLocaleDateString() : "--";
+              const borrowedLabel = book.borrowedAt ? new Date(book.borrowedAt).toLocaleDateString() : "--";
+              const renewalPending = Boolean(book.pendingRenewal);
               const isRenewingThis = renewingId === book.bookId;
               const isRenewingAny = Boolean(renewingId);
               const isReturningThis = returningId === book.bookId;
