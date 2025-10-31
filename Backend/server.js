@@ -1122,6 +1122,57 @@ app.get('/api/student/me', studentRequired, async (req, res) => {
   });
 });
 
+app.patch('/api/student/me', studentRequired, async (req, res) => {
+  const { fullName, department } = req.body || {};
+  const update = {};
+
+  if (typeof fullName !== 'undefined') {
+    const trimmedName = String(fullName).trim();
+    if (!trimmedName) {
+      return res.status(400).json({ error: 'Full name is required' });
+    }
+    if (trimmedName.length > 120) {
+      return res.status(400).json({ error: 'Full name is too long' });
+    }
+    update.fullName = trimmedName;
+    update.name = trimmedName;
+  }
+
+  if (typeof department !== 'undefined') {
+    const trimmedDepartment = String(department).trim();
+    if (trimmedDepartment.length > 120) {
+      return res.status(400).json({ error: 'Department name is too long' });
+    }
+    update.department = trimmedDepartment;
+  }
+
+  if (!Object.keys(update).length) {
+    return res.status(400).json({ error: 'No changes submitted' });
+  }
+
+  update.updatedAt = new Date();
+
+  const user = await User.findByIdAndUpdate(
+    req.user.sub,
+    { $set: update },
+    { new: true, runValidators: true, context: 'query' }
+  ).lean();
+
+  if (!user) return res.status(404).json({ error: 'not found' });
+
+  return res.json({
+    id: String(user._id),
+    studentId: user.studentId,
+    email: user.email,
+    fullName: user.fullName,
+    department: user.department || '',
+    status: user.status,
+    role: user.role || 'student',
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  });
+});
+
 // --- Admins (librarians) CRUD
 // Only accessible by librarian/admin (not librarian_staff)
 app.get('/api/admins', elevatedAdminRequired, async (req, res) => {

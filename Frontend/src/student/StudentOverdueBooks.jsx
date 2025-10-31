@@ -147,8 +147,8 @@ const StudentOverdueBooks = () => {
               Great job! You don't have any overdue books at the moment.
             </p>
             <div className="mt-6">
-              <a href="/student/borrowed-books" className="btn-student-primary">
-                View My Books
+              <a href="/student/requests" className="btn-student-primary">
+                View Borrow Requests
               </a>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import logo from "../assets/fav_logo.png";
 import ThemeToggle from "./ThemeToggle";
@@ -35,7 +35,7 @@ const Sidebar = () => {
   }, []);
 
   // Ensure admin pages reserve space for the fixed sidebar
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof document === "undefined") return undefined;
     const { body } = document;
     body.classList.add("has-admin-sidebar");
@@ -74,6 +74,10 @@ const Sidebar = () => {
   const toggleButtonLabel = isDesktopCollapsed ? "Expand menu" : isOpen ? "Close menu" : "Open menu";
   const sidebarTranslate = isOpen ? "translate-x-0" : "-translate-x-full";
   const desktopTranslate = isDesktopCollapsed ? "md:-translate-x-full" : "md:translate-x-0";
+  const toggleButtonClassName = [
+    "fixed top-3 left-3 z-50 inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 shadow transition",
+    isDesktopCollapsed ? "md:inline-flex" : "md:hidden",
+  ].join(" ");
 
   const baseLink =
     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 group";
@@ -96,9 +100,10 @@ const Sidebar = () => {
     <>
       {/* Mobile hamburger */}
       <button
-        className={`fixed top-3 left-3 z-50 inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 shadow transition md:${isDesktopCollapsed ? "inline-flex" : "hidden"}`}
+        className={toggleButtonClassName}
         onClick={handleMenuToggle}
         aria-label={toggleButtonLabel}
+        aria-expanded={isDesktopCollapsed ? false : isOpen}
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-slate-700 dark:text-stone-200">
           <path fillRule="evenodd" d="M3.75 5.25a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75zm0 6a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75zm0 6a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75z" clipRule="evenodd" />

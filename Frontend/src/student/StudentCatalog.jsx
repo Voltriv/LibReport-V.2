@@ -4,6 +4,30 @@ import api, { resolveMediaUrl } from "../api";
 const limit = 12;
 const departments = ["CAHS", "CITE", "CCJE", "CEA", "CELA", "COL", "SHS"];
 
+const FEEDBACK_VARIANTS = {
+  success: {
+    wrapper: "border-green-200 bg-green-50 text-green-800",
+    iconBg: "bg-green-100 text-green-700",
+    title: "Request submitted",
+  },
+  info: {
+    wrapper: "border-blue-200 bg-blue-50 text-blue-800",
+    iconBg: "bg-blue-100 text-blue-700",
+    title: "Request update",
+  },
+  error: {
+    wrapper: "border-red-200 bg-red-50 text-red-700",
+    iconBg: "bg-red-100 text-red-700",
+    title: "Request not sent",
+  },
+};
+
+const STATUS_BADGE_CLASSES = {
+  Pending: "bg-amber-100 text-amber-700",
+  Approved: "bg-emerald-100 text-emerald-700",
+  Rejected: "bg-rose-100 text-rose-700",
+};
+
 const StudentCatalog = () => {
   const [query, setQuery] = React.useState("");
   const [tag, setTag] = React.useState("");
@@ -127,18 +151,51 @@ const StudentCatalog = () => {
       setBorrowFeedback({
         bookId,
         type: 'success',
-        title: bookTitle,
+        title: 'Request submitted',
+        header: `Pending review for "${bookTitle}"`,
+        statusLabel: 'Pending',
         dueDate: estimated,
         message: 'Your request has been submitted and is awaiting approval from the library team.'
       });
 
     } catch (err) {
-      const message = err.response?.data?.error || 'Failed to borrow book. Please try again.';
+      const serverMessage = err.response?.data?.error || 'Failed to submit your request. Please try again.';
+      const normalized = serverMessage.toLowerCase();
+      let feedback = null;
+
+      if (normalized.includes('pending request')) {
+        feedback = {
+          type: 'info',
+          title: 'Request already submitted',
+          statusLabel: 'Pending',
+          header: `Pending request for "${bookTitle}"`,
+          message: 'You already have a pending request for this title. Visit Borrow Requests for updates.',
+        };
+      } else if (normalized.includes('already have this book borrowed')) {
+        feedback = {
+          type: 'info',
+          title: 'Book already approved',
+          statusLabel: 'Approved',
+          header: `"${bookTitle}" is already checked out`,
+          message: 'This book has already been approved and is currently checked out to you.',
+        };
+      } else if (normalized.includes('rejected')) {
+        feedback = {
+          type: 'info',
+          title: 'Previous request rejected',
+          statusLabel: 'Rejected',
+          header: `Recent decision for "${bookTitle}"`,
+          message: 'Your previous request was rejected. Contact the library team if you need more details.',
+        };
+      }
+
       setBorrowFeedback({
         bookId,
-        type: 'error',
-        title: bookTitle,
-        message
+        type: feedback?.type || 'error',
+        title: feedback?.title || 'Unable to send request',
+        header: feedback?.header || `Unable to request "${bookTitle}"`,
+        statusLabel: feedback?.statusLabel,
+        message: feedback?.message || serverMessage,
       });
     } finally {
       setBorrowingId(null);
@@ -149,6 +206,12 @@ const StudentCatalog = () => {
     load({ reset: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  React.useEffect(() => {
+    if (!borrowFeedback) return undefined;
+    const timer = setTimeout(() => setBorrowFeedback(null), 6000);
+    return () => clearTimeout(timer);
+  }, [borrowFeedback]);
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -406,7 +469,7 @@ const StudentCatalog = () => {
               return `${total} total copies`;
             })();
             const isFeedbackTarget = borrowFeedback?.bookId === item._id;
-            const isSuccessFeedback = isFeedbackTarget && borrowFeedback?.type === 'success';
+            const feedbackConfig = isFeedbackTarget ? FEEDBACK_VARIANTS[borrowFeedback?.type] || FEEDBACK_VARIANTS.error : null;
             const isBorrowingThis = borrowingId === item._id;
             const isBorrowingAny = Boolean(borrowingId);
 
@@ -415,60 +478,59 @@ const StudentCatalog = () => {
                 key={item._id}
                 className="group relative flex h-full flex-col overflow-hidden rounded-3xl bg-white/95 backdrop-blur-sm shadow-sm ring-1 ring-slate-200/60 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:ring-brand-green/20"
               >
-                {isFeedbackTarget && (
+                {isFeedbackTarget && feedbackConfig && (
                   <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-white/90 backdrop-blur-sm">
                     <div
-                      className={`pointer-events-auto w-[90%] max-w-xs rounded-2xl border px-5 py-4 text-center shadow-lg ${
-                        isSuccessFeedback
-                          ? "border-green-200 bg-green-50 text-green-800"
-                          : "border-red-200 bg-red-50 text-red-700"
-                      }`}
+                      className={`pointer-events-auto w-[90%] max-w-xs rounded-2xl border px-5 py-4 text-center shadow-lg ${feedbackConfig.wrapper}`}
                       role="alert"
                       aria-live="assertive"
                     >
-                      {isSuccessFeedback ? (
-                        <>
-                          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                              <polyline points="22 4 12 14.01 9 11.01"/>
-                            </svg>
-                          </div>
-                          <p className="mt-3 text-sm font-semibold">Request submitted</p>
-                          <p className="mt-1 text-xs">
-                            Your request for "{borrowFeedback?.title}" is awaiting librarian approval.
-                            {borrowFeedback?.dueDate && (
-                              <>
-                                <br />Estimated due date: {borrowFeedback?.dueDate}
-                              </>
-                            )}
+                      <div className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full ${feedbackConfig.iconBg}`}>
+                        {borrowFeedback?.type === 'success' ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                            <polyline points="22 4 12 14.01 9 11.01" />
+                          </svg>
+                        ) : borrowFeedback?.type === 'info' ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="mt-3 flex flex-col gap-2">
+                        <div className="flex flex-col items-center gap-2">
+                          <p className="text-sm font-semibold">
+                            {borrowFeedback?.header || borrowFeedback?.title || feedbackConfig.title}
                           </p>
-                          {borrowFeedback?.message && (
-                            <p className="mt-2 text-xs text-green-700">{borrowFeedback.message}</p>
+                          {borrowFeedback?.statusLabel && (
+                            <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${STATUS_BADGE_CLASSES[borrowFeedback.statusLabel] || "bg-slate-200 text-slate-700"}`}>
+                              {borrowFeedback.statusLabel}
+                            </span>
                           )}
-                        </>
-                      ) : (
-                        <>
-                          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <circle cx="12" cy="12" r="10" />
-                              <line x1="12" y1="8" x2="12" y2="12" />
-                              <line x1="12" y1="16" x2="12.01" y2="16" />
-                            </svg>
-                          </div>
-                          <p className="mt-3 text-sm font-semibold">{borrowFeedback?.message}</p>
-                        </>
-                      )}
+                        </div>
+                        <p className="text-xs leading-relaxed">
+                          {borrowFeedback?.message}
+                          {borrowFeedback?.type === 'success' && borrowFeedback?.dueDate && (
+                            <>
+                              <br />Estimated due date: {borrowFeedback.dueDate}
+                            </>
+                          )}
+                        </p>
+                      </div>
                       <button
                         type="button"
                         onClick={() => setBorrowFeedback(null)}
-                        className={`mt-3 inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 ${
-                          isSuccessFeedback
-                            ? "text-green-700 hover:bg-green-100 focus:ring-green-300"
-                            : "text-red-700 hover:bg-red-100 focus:ring-red-300"
-                        }`}
+                        className="mt-4 inline-flex items-center gap-2 rounded-full border border-current/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide transition hover:border-current/40"
                       >
-                        Dismiss
+                        Close
                       </button>
                     </div>
                   </div>
@@ -573,7 +635,7 @@ const StudentCatalog = () => {
                                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                               </svg>
                             )}
-                            {isBorrowingThis ? 'Borrowing...' : 'Borrow Book'}
+                            {isBorrowingThis ? 'Requesting...' : 'Request Book'}
                           </span>
                         </button>
                       ) : (

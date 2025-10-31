@@ -162,13 +162,6 @@ const StudentLayout = () => {
                       </svg>
                       My Account
                     </Link>
-                    <Link to="/student/borrowed-books" className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors" onClick={() => setAccountDropdown(false)}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                      </svg>
-                      Borrowed Books
-                    </Link>
                     <Link to="/student/borrow-requests" className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors" onClick={() => setAccountDropdown(false)}>
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M4 4h16v12H5.17L4 17.17V4z"/>
@@ -245,13 +238,6 @@ const StudentLayout = () => {
                     onClick={() => setMenuOpen(false)}
                   >
                     Profile
-                  </Link>
-                  <Link
-                    to="/student/borrowed-books"
-                    className="student-nav-link w-full rounded-xl px-6 py-3 hover:bg-slate-50 text-slate-700 transition-all duration-200"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    My Books/Borrowed Books
                   </Link>
                   <Link
                     to="/student/overdue-books"

@@ -9,6 +9,15 @@ const STATUS_OPTIONS = [
   { value: "all", label: "All" }
 ];
 
+const STATUS_LABELS = {
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+  cancelled: "Cancelled",
+  cancelled_by_admin: "Cancelled",
+  cancelled_by_student: "Cancelled"
+};
+
 function useToast(timeout = 4000) {
   const [toast, setToast] = React.useState(null);
   const timeoutRef = React.useRef(null);
@@ -359,8 +368,8 @@ const Borrowing = () => {
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-brand-green/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-green-dark">
-                              {request.status.toUpperCase()}
+                            <span className="rounded-full bg-brand-green/10 px-3 py-1 text-xs font-semibold tracking-wide text-brand-green-dark">
+                              {STATUS_LABELS[request.status] || request.status}
                             </span>
                             {request.dueAt && (
                               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-stone-800 dark:text-stone-300">

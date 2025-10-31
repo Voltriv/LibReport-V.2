@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import api, { clearAuthSession, broadcastAuthChange } from "../api";
+import api, { clearAuthSession, broadcastAuthChange, getStoredUser, setStoredUser } from "../api";
 
 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -11,6 +11,11 @@ const StudentAccount = () => {
   const [loadingProfile, setLoadingProfile] = React.useState(true);
   const [hoursLoading, setHoursLoading] = React.useState(true);
   const [error, setError] = React.useState("");
+  const [editing, setEditing] = React.useState(false);
+  const [form, setForm] = React.useState({ fullName: "", department: "" });
+  const [savingProfile, setSavingProfile] = React.useState(false);
+  const [saveError, setSaveError] = React.useState("");
+  const [saveSuccess, setSaveSuccess] = React.useState("");
 
   const loadProfile = React.useCallback(async () => {
     try {
@@ -41,12 +46,101 @@ const StudentAccount = () => {
     loadHours();
   }, [loadProfile, loadHours]);
 
+  React.useEffect(() => {
+    if (profile) {
+      setForm({
+        fullName: profile.fullName || "",
+        department: profile.department || "",
+      });
+    }
+  }, [profile]);
+
+  React.useEffect(() => {
+    if (editing) {
+      setSaveSuccess("");
+    }
+  }, [editing]);
+
   const onLogout = () => {
 
     clearAuthSession();
     broadcastAuthChange();
 
     navigate("/student/signin", { replace: true });
+  };
+
+  const startEditing = () => {
+    if (!profile) return;
+    setForm({
+      fullName: profile.fullName || "",
+      department: profile.department || "",
+    });
+    setSaveError("");
+    setSaveSuccess("");
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setEditing(false);
+    setSaveError("");
+    setSavingProfile(false);
+    if (profile) {
+      setForm({
+        fullName: profile.fullName || "",
+        department: profile.department || "",
+      });
+    }
+  };
+
+  const handleFieldChange = (field) => (event) => {
+    const { value } = event.target;
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const onSaveProfile = async (event) => {
+    event.preventDefault();
+    if (!profile) return;
+
+    const trimmedName = form.fullName.trim();
+    const trimmedDepartment = form.department.trim();
+    const payload = {};
+
+    if (trimmedName !== (profile.fullName || "").trim()) {
+      payload.fullName = trimmedName;
+    }
+    if (trimmedDepartment !== (profile.department || "").trim()) {
+      payload.department = trimmedDepartment;
+    }
+
+    if (!Object.keys(payload).length) {
+      setSaveError("No changes to save.");
+      return;
+    }
+
+    setSavingProfile(true);
+    setSaveError("");
+
+    try {
+      const { data } = await api.patch("/student/me", payload);
+      setProfile(data);
+      setSaveSuccess("Profile updated successfully.");
+      setEditing(false);
+
+      const stored = getStoredUser();
+      if (stored) {
+        setStoredUser({
+          ...stored,
+          fullName: data.fullName,
+          name: data.fullName,
+          department: data.department,
+        });
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.error || "Unable to update your profile.";
+      setSaveError(msg);
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   return (
@@ -78,16 +172,44 @@ const StudentAccount = () => {
 
         <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
           <section className="rounded-3xl bg-white/95 backdrop-blur-sm p-8 shadow-xl ring-1 ring-slate-200/60">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-green-soft to-brand-gold-soft">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-green-soft to-brand-gold-soft">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">Profile Details</h2>
               </div>
-              <h2 className="text-2xl font-bold text-slate-900">Profile Details</h2>
+              {!loadingProfile && profile && (
+                <div className="flex items-center gap-2">
+                  {editing ? (
+                    <button
+                      type="button"
+                      onClick={cancelEditing}
+                      disabled={savingProfile}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+                    >
+                      Cancel
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startEditing}
+                      className="inline-flex items-center gap-2 rounded-full bg-brand-green px-4 py-2 text-sm font-semibold text-white shadow hover:bg-brand-greenDark transition"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 20h9"/>
+                        <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/>
+                      </svg>
+                      Edit profile
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-            
+
             {loadingProfile ? (
               <div className="space-y-4">
                 <div className="animate-pulse">
@@ -104,53 +226,132 @@ const StudentAccount = () => {
                 </div>
               </div>
             ) : profile ? (
-              <div className="space-y-6">
-                <div className="grid gap-4">
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-brand-green-soft/20 to-brand-gold-soft/20 border border-brand-green/10">
-                    <div>
-                      <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Student ID</dt>
-                      <dd className="text-lg font-bold text-slate-900 mt-1">{profile.studentId || "--"}</dd>
+              editing ? (
+                <form onSubmit={onSaveProfile} className="space-y-6">
+                  {saveError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{saveError}</div>
+                  )}
+                  <div className="grid gap-4">
+                    <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-brand-green-soft/20 to-brand-gold-soft/20 border border-brand-green/10">
+                      <div>
+                        <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Student ID</dt>
+                        <dd className="text-lg font-bold text-slate-900 mt-1">{profile.studentId || "--"}</dd>
+                      </div>
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                          <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
+                        </svg>
+                      </div>
                     </div>
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green text-white">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-                        <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
-                      </svg>
-                    </div>
-                  </div>
-                  
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
-                      <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Full Name</dt>
-                      <dd className="text-lg font-bold text-slate-900 mt-1">{profile.fullName}</dd>
-                    </div>
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
-                      <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Status</dt>
-                      <dd className="text-lg font-bold text-slate-900 mt-1 capitalize">{profile.status || "--"}</dd>
-                    </div>
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
-                      <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Department</dt>
-                      <dd className="text-lg font-bold text-slate-900 mt-1">{profile.department || "--"}</dd>
-                    </div>
-                  </div>
 
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
-                    <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Email Address</dt>
-                    <dd className="text-lg font-bold text-slate-900 mt-1">{profile.email}</dd>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Full Name</dt>
+                        <input
+                          type="text"
+                          value={form.fullName}
+                          onChange={handleFieldChange("fullName")}
+                          className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30"
+                          maxLength={120}
+                          required
+                        />
+                      </div>
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Status</dt>
+                        <dd className="text-lg font-bold text-slate-900 mt-1 capitalize">{profile.status || "--"}</dd>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Department</dt>
+                        <input
+                          type="text"
+                          value={form.department}
+                          onChange={handleFieldChange("department")}
+                          className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30"
+                          maxLength={120}
+                          placeholder="Department or college"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                      <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Email Address</dt>
+                      <dd className="text-lg font-bold text-slate-900 mt-1">{profile.email}</dd>
+                    </div>
+                    
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                      <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Member Since</dt>
+                      <dd className="text-lg font-bold text-slate-900 mt-1">
+                        {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        }) : "--"}
+                      </dd>
+                    </div>
                   </div>
-                  
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
-                    <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Member Since</dt>
-                    <dd className="text-lg font-bold text-slate-900 mt-1">
-                      {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      }) : "--"}
-                    </dd>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={savingProfile}
+                      className="inline-flex items-center gap-2 rounded-full bg-brand-green px-5 py-2 text-sm font-semibold text-white shadow hover:bg-brand-greenDark transition disabled:opacity-60"
+                    >
+                      {savingProfile ? "Saving..." : "Save changes"}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="space-y-6">
+                  {saveSuccess && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{saveSuccess}</div>
+                  )}
+                  <div className="grid gap-4">
+                    <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-brand-green-soft/20 to-brand-gold-soft/20 border border-brand-green/10">
+                      <div>
+                        <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Student ID</dt>
+                        <dd className="text-lg font-bold text-slate-900 mt-1">{profile.studentId || "--"}</dd>
+                      </div>
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                          <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
+                        </svg>
+                      </div>
+                    </div>
+                    
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Full Name</dt>
+                        <dd className="text-lg font-bold text-slate-900 mt-1">{profile.fullName}</dd>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Status</dt>
+                        <dd className="text-lg font-bold text-slate-900 mt-1 capitalize">{profile.status || "--"}</dd>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Department</dt>
+                        <dd className="text-lg font-bold text-slate-900 mt-1">{profile.department || "--"}</dd>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                      <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Email Address</dt>
+                      <dd className="text-lg font-bold text-slate-900 mt-1">{profile.email}</dd>
+                    </div>
+                    
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                      <dt className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Member Since</dt>
+                      <dd className="text-lg font-bold text-slate-900 mt-1">
+                        {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        }) : "--"}
+                      </dd>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )
             ) : (
               <div className="text-center py-8">
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 mx-auto mb-4">

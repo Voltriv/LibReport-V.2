@@ -33,7 +33,6 @@ const StudentCatalog = safeLazy(() => import("./student/StudentCatalog"));
 const StudentSignIn = safeLazy(() => import("./student/StudentSignIn"));
 const StudentSignUp = safeLazy(() => import("./student/StudentSignUp"));
 const StudentAccount = safeLazy(() => import("./student/StudentAccount"));
-const StudentBorrowedBooks = safeLazy(() => import("./student/StudentBorrowedBooks"));
 const StudentBorrowRequests = safeLazy(() => import("./student/StudentBorrowRequests"));
 const StudentOverdueBooks = safeLazy(() => import("./student/StudentOverdueBooks"));
 const StudentBorrowingHistory = safeLazy(() => import("./student/StudentBorrowingHistory"));
@@ -134,14 +133,6 @@ function App() {
                 }
               />
               <Route path="borrow-requests" element={<Navigate to="/student/requests" replace />} />
-              <Route
-                path="borrowed-books"
-                element={
-                  <RequireStudent>
-                    <StudentBorrowedBooks />
-                  </RequireStudent>
-                }
-              />
               <Route
                 path="requests"
                   element={
