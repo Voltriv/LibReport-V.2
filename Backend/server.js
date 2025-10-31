@@ -117,6 +117,59 @@ function sanitizeFilename(name) {
   return name.replace(/[^A-Za-z0-9._-]+/g, '_');
 }
 
+function coerceDate(raw) {
+  if (!raw) return null;
+  if (raw instanceof Date) {
+    const time = raw.getTime();
+    return Number.isNaN(time) ? null : new Date(time);
+  }
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw)) return null;
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof raw === 'string') {
+    const parsed = Date.parse(raw);
+    if (Number.isNaN(parsed)) return null;
+    const date = new Date(parsed);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (raw && typeof raw === 'object') {
+    if ('$date' in raw) {
+      return coerceDate(raw.$date);
+    }
+    if (typeof raw.toDate === 'function') {
+      try {
+        return coerceDate(raw.toDate());
+      } catch {
+        return null;
+      }
+    }
+    if (typeof raw.valueOf === 'function') {
+      const value = raw.valueOf();
+      if (value !== raw) {
+        return coerceDate(value);
+      }
+    }
+  }
+  return null;
+}
+
+function resolveLoanStatusMeta(loan, options = {}) {
+  const { now = new Date(), activeLabel = 'active' } = options;
+  const resolvedNow = coerceDate(now) || new Date();
+  const returnedAt = coerceDate(loan && loan.returnedAt);
+  if (returnedAt) {
+    return { key: 'returned', label: 'returned' };
+  }
+  const dueAt = coerceDate(loan && loan.dueAt);
+  if (dueAt && dueAt.getTime() < resolvedNow.getTime()) {
+    return { key: 'overdue', label: 'overdue' };
+  }
+  const label = typeof activeLabel === 'string' && activeLabel.trim() ? activeLabel : 'active';
+  return { key: 'active', label };
+}
+
 function normalizeUserStatus(rawStatus) {
   const value = typeof rawStatus === 'string' ? rawStatus.trim().toLowerCase() : '';
   if (value === 'disabled' || value === 'inactive') return 'disabled';
@@ -3224,5 +3277,14 @@ app.get('/api/books/lookup', authRequired, async (req, res) => {
 // Static asset routes for legacy book files have been removed
 
 const PORT = process.env.BACKEND_PORT || 4000;
-app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));
+
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));
+}
+
+module.exports = {
+  app,
+  coerceDate,
+  resolveLoanStatusMeta
+};
 
