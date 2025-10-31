@@ -34,6 +34,7 @@ function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
     raw.status ||
     raw.statusKey ||
     (returnedAt ? "Returned" : statusFallback);
+  const statusKey = (raw.statusKey || status || "").toString().trim().toLowerCase();
 
   return {
     ...raw,
@@ -47,7 +48,8 @@ function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
     borrowedAt,
     dueAt,
     returnedAt,
-    status
+    status,
+    statusKey
   };
 }
 
@@ -96,6 +98,10 @@ const Borrowing = () => {
   const [loansLoading, setLoansLoading] = React.useState(false);
   const [loansError, setLoansError] = React.useState(null);
 
+  const [loanHistory, setLoanHistory] = React.useState([]);
+  const [historyLoading, setHistoryLoading] = React.useState(false);
+  const [historyError, setHistoryError] = React.useState(null);
+
   const [approvalTarget, setApprovalTarget] = React.useState(null);
   const [approvalBusy, setApprovalBusy] = React.useState(false);
   const [approvalError, setApprovalError] = React.useState(null);
@@ -138,6 +144,19 @@ const Borrowing = () => {
     prevPage: goToPreviousLoanPage,
     totalItems: totalLoanCount
   } = usePagination(activeLoans, PAGE_SIZE);
+
+  const {
+    page: historyPage,
+    pageCount: historyPageCount,
+    pageItems: paginatedHistory,
+    showingStart: historyShowingStart,
+    showingEnd: historyShowingEnd,
+    isFirstPage: isHistoryFirstPage,
+    isLastPage: isHistoryLastPage,
+    nextPage: goToNextHistoryPage,
+    prevPage: goToPreviousHistoryPage,
+    totalItems: totalHistoryCount
+  } = usePagination(loanHistory, PAGE_SIZE);
 
 const loadRequests = React.useCallback(async () => {
     setRequestsLoading(true);
@@ -202,6 +221,21 @@ const loadRequests = React.useCallback(async () => {
     }
   }, []);
 
+  const loadLoanHistory = React.useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const { data } = await api.get("/loans/history");
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setLoanHistory(items.map((item) => normalizeLoanEntry(item, { statusFallback: "Completed" })));
+    } catch (err) {
+      setLoanHistory([]);
+      setHistoryError(err?.response?.data?.error || "Failed to load loan history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     loadRequests();
   }, [loadRequests]);
@@ -209,6 +243,10 @@ const loadRequests = React.useCallback(async () => {
   React.useEffect(() => {
     loadActiveLoans();
   }, [loadActiveLoans]);
+
+  React.useEffect(() => {
+    loadLoanHistory();
+  }, [loadLoanHistory]);
   const pendingCount = React.useMemo(
     () => requests.filter((req) => req.status === "pending").length,
     [requests]
@@ -303,14 +341,14 @@ const handleApprove = React.useCallback(
       await api.post(`/loans/${returnTarget.id}/return`);
       setReturnTarget(null);
       showToast("Loan marked as returned");
-      await loadActiveLoans();
+      await Promise.all([loadActiveLoans(), loadLoanHistory()]);
     } catch (err) {
       const message = err?.response?.data?.error || "Failed to mark loan as returned.";
       setReturnError(message);
     } finally {
       setReturnBusy(false);
     }
-  }, [returnTarget, loadActiveLoans, showToast]);
+  }, [returnTarget, loadActiveLoans, loadLoanHistory, showToast]);
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
@@ -571,6 +609,302 @@ const handleApprove = React.useCallback(
               </div>
             )}
           </div>
+        </section>
+
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Active loans</h2>
+            <button
+              onClick={loadActiveLoans}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+              type="button"
+            >
+              <svg
+                className={`h-4 w-4 ${loansLoading ? "animate-spin" : ""}`}
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 4.5v5H9M19.5 19.5v-5H15" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 19.5a7.5 7.5 0 01-3.504-6.305M15.75 4.5A7.5 7.5 0 0119.254 10.8" />
+              </svg>
+              Refresh
+            </button>
+          </div>
+
+          {loansError && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {loansError}
+            </div>
+          )}
+
+          <div className="rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
+            <div className="space-y-4">
+              {loansLoading ? (
+                [0, 1, 2].map((index) => (
+                  <div
+                    key={index}
+                    className="h-24 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-stone-800"
+                  />
+                ))
+              ) : paginatedLoans.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500 dark:border-stone-700 dark:bg-stone-950/40 dark:text-stone-400">
+                  No active loans to display.
+                </div>
+              ) : (
+                paginatedLoans.map((loan) => {
+                  const statusKey = loan.statusKey || "";
+                  const isOverdue = statusKey === "overdue";
+                  return (
+                    <div
+                      key={loan.id || loan.bookId || loan.title}
+                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-stone-700 dark:bg-stone-900/80"
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                isOverdue
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200"
+                                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
+                              }`}
+                            >
+                              {loan.status || (isOverdue ? "Overdue" : "On Time")}
+                            </span>
+                            {loan.dueAt ? (
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-stone-800 dark:text-stone-300">
+                                Due {loan.dueAt.toLocaleDateString()}
+                              </span>
+                            ) : null}
+                          </div>
+                          <h3 className="mt-3 text-lg font-semibold text-slate-900 dark:text-stone-100">
+                            {loan.title || "Untitled"}
+                          </h3>
+                          {loan.bookCode ? (
+                            <p className="text-sm text-slate-500 dark:text-stone-400">{loan.bookCode}</p>
+                          ) : null}
+                          <div className="mt-4 grid gap-2 text-sm text-slate-600 dark:text-stone-300">
+                            <p>
+                              <span className="font-medium">Borrower:</span> {loan.borrowerName || loan.student || "Unknown"}
+                            </p>
+                            {loan.borrowerStudentId ? (
+                              <p className="text-xs text-slate-500 dark:text-stone-400">Student ID: {loan.borrowerStudentId}</p>
+                            ) : null}
+                            <p>
+                              <span className="font-medium">Borrowed:</span> {loan.borrowedAt ? loan.borrowedAt.toLocaleString() : "--"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Due:</span> {loan.dueAt ? loan.dueAt.toLocaleString() : "--"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2 lg:items-end">
+                          <button
+                            onClick={() => {
+                              setRenewTarget(loan);
+                              setRenewError(null);
+                            }}
+                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                            type="button"
+                          >
+                            Renew
+                          </button>
+                          <button
+                            onClick={() => {
+                              setReturnTarget(loan);
+                              setReturnError(null);
+                            }}
+                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                            type="button"
+                          >
+                            Mark returned
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            {!loansLoading && (
+              <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-stone-700 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-slate-600 dark:text-stone-300">
+                  {totalLoanCount === 0
+                    ? "No active loans found"
+                    : `Showing ${loanShowingStart}-${loanShowingEnd} of ${totalLoanCount} ${
+                        totalLoanCount === 1 ? "loan" : "loans"
+                      }`}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
+                    onClick={goToPreviousLoanPage}
+                    disabled={loansLoading || totalLoanCount === 0 || isLoanFirstPage}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Previous
+                  </button>
+                  <div className="text-sm font-medium text-slate-600 dark:text-stone-200">
+                    Page {totalLoanCount === 0 ? 0 : loanPage} of {totalLoanCount === 0 ? 0 : loanPageCount}
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
+                    onClick={goToNextLoanPage}
+                    disabled={loansLoading || totalLoanCount === 0 || isLoanLastPage}
+                  >
+                    Next
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-12">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Loan history</h2>
+            <button
+              onClick={loadLoanHistory}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+              type="button"
+            >
+              <svg
+                className={`h-4 w-4 ${historyLoading ? "animate-spin" : ""}`}
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 4.5v5H9M19.5 19.5v-5H15" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 19.5a7.5 7.5 0 01-3.504-6.305M15.75 4.5A7.5 7.5 0 0119.254 10.8" />
+              </svg>
+              Refresh
+            </button>
+          </div>
+
+          {historyError && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {historyError}
+            </div>
+          )}
+
+          <div className="rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
+            <div className="space-y-4">
+              {historyLoading ? (
+                [0, 1, 2].map((index) => (
+                  <div key={index} className="h-24 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-stone-800" />
+                ))
+              ) : paginatedHistory.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500 dark:border-stone-700 dark:bg-stone-950/40 dark:text-stone-400">
+                  No loan history entries found.
+                </div>
+              ) : (
+                paginatedHistory.map((loan) => {
+                  const statusKey = loan.statusKey || "";
+                  let badgeClasses = "bg-slate-200 text-slate-700 dark:bg-stone-800 dark:text-stone-200";
+                  if (statusKey === "overdue") {
+                    badgeClasses = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200";
+                  } else if (statusKey === "active") {
+                    badgeClasses = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200";
+                  }
+                  return (
+                    <div
+                      key={loan.id || loan.bookId || loan.title}
+                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-stone-700 dark:bg-stone-900/80"
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeClasses}`}>
+                              {loan.status || "Returned"}
+                            </span>
+                            {loan.returnedAt ? (
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-stone-800 dark:text-stone-300">
+                                Returned {loan.returnedAt.toLocaleDateString()}
+                              </span>
+                            ) : null}
+                          </div>
+                          <h3 className="mt-3 text-lg font-semibold text-slate-900 dark:text-stone-100">
+                            {loan.title || "Untitled"}
+                          </h3>
+                          {loan.bookCode ? (
+                            <p className="text-sm text-slate-500 dark:text-stone-400">{loan.bookCode}</p>
+                          ) : null}
+                          <div className="mt-4 grid gap-2 text-sm text-slate-600 dark:text-stone-300">
+                            <p>
+                              <span className="font-medium">Borrower:</span> {loan.borrowerName || loan.student || "Unknown"}
+                            </p>
+                            {loan.borrowerStudentId ? (
+                              <p className="text-xs text-slate-500 dark:text-stone-400">Student ID: {loan.borrowerStudentId}</p>
+                            ) : null}
+                            <p>
+                              <span className="font-medium">Borrowed:</span> {loan.borrowedAt ? loan.borrowedAt.toLocaleString() : "--"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Due:</span> {loan.dueAt ? loan.dueAt.toLocaleString() : "--"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Returned:</span> {loan.returnedAt ? loan.returnedAt.toLocaleString() : "--"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            {!historyLoading && (
+              <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-stone-700 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-slate-600 dark:text-stone-300">
+                  {totalHistoryCount === 0
+                    ? "No history entries found"
+                    : `Showing ${historyShowingStart}-${historyShowingEnd} of ${totalHistoryCount} ${
+                        totalHistoryCount === 1 ? "entry" : "entries"
+                      }`}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
+                    onClick={goToPreviousHistoryPage}
+                    disabled={historyLoading || totalHistoryCount === 0 || isHistoryFirstPage}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Previous
+                  </button>
+                  <div className="text-sm font-medium text-slate-600 dark:text-stone-200">
+                    Page {totalHistoryCount === 0 ? 0 : historyPage} of {totalHistoryCount === 0 ? 0 : historyPageCount}
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
+                    onClick={goToNextHistoryPage}
+                    disabled={historyLoading || totalHistoryCount === 0 || isHistoryLastPage}
+                  >
+                    Next
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-white/40 p-4 text-sm text-slate-600 ring-1 ring-slate-200 dark:bg-stone-900/40 dark:text-stone-300 dark:ring-stone-700 sm:flex-row sm:items-center sm:justify-between">
             <div>
               {loansLoading
@@ -611,16 +945,16 @@ const handleApprove = React.useCallback(
           </div>
         </section>
 
-        <section>
+        <section className="mt-10">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Active loans</h2>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">History</h2>
             <button
-              onClick={loadActiveLoans}
+              onClick={loadLoanHistory}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
               type="button"
             >
               <svg
-                className={`h-4 w-4 ${loansLoading ? "animate-spin" : ""}`}
+                className={`h-4 w-4 ${historyLoading ? "animate-spin" : ""}`}
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -634,97 +968,80 @@ const handleApprove = React.useCallback(
             </button>
           </div>
 
-          {loansError && (
+          {historyError && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {loansError}
+              {historyError}
             </div>
           )}
 
-          <div className="overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
-            <div className="max-h-[32rem] overflow-x-auto overflow-y-auto">
-              <table className="min-w-full divide-y divide-slate-200 dark:divide-stone-800">
-                <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm dark:bg-stone-900/90">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Book
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Borrower
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Borrowed
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Due
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white text-sm dark:divide-stone-800 dark:bg-stone-900/60">
-                  {loansLoading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-6 text-center text-slate-500 dark:text-stone-400">
-                        Loading loans...
-                      </td>
-                    </tr>
-                  ) : activeLoans.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-6 text-center text-slate-500 dark:text-stone-400">
-                        No active loans to display.
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedLoans.map((loan) => (
-                      <tr key={loan.id || loan.bookId || loan.title}>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="font-medium text-slate-900 dark:text-stone-100">
-                              {loan.title || "Untitled"}
+          <div className="rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
+            <div className="space-y-4">
+              {loansLoading ? (
+                [0, 1, 2].map((index) => (
+                  <div
+                    key={index}
+                    className="h-24 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-stone-800"
+                  />
+                ))
+              ) : paginatedLoans.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500 dark:border-stone-700 dark:bg-stone-950/40 dark:text-stone-400">
+                  No active loans to display.
+                </div>
+              ) : (
+                paginatedLoans.map((loan) => {
+                  const statusKey = loan.statusKey || "";
+                  const isOverdue = statusKey === "overdue";
+                  return (
+                    <div
+                      key={loan.id || loan.bookId || loan.title}
+                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-stone-700 dark:bg-stone-900/80"
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                isOverdue
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200"
+                                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
+                              }`}
+                            >
+                              {loan.status || (isOverdue ? "Overdue" : "On Time")}
                             </span>
-                            {loan.bookCode ? (
-                              <span className="text-xs text-slate-500 dark:text-stone-400">{loan.bookCode}</span>
+                            {loan.dueAt ? (
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-stone-800 dark:text-stone-300">
+                                Due {loan.dueAt.toLocaleDateString()}
+                              </span>
                             ) : null}
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium text-slate-600 dark:text-stone-200">
-                              {loan.borrowerName || loan.student || "Unknown"}
-                            </span>
+                          <h3 className="mt-3 text-lg font-semibold text-slate-900 dark:text-stone-100">
+                            {loan.title || "Untitled"}
+                          </h3>
+                          {loan.bookCode ? (
+                            <p className="text-sm text-slate-500 dark:text-stone-400">{loan.bookCode}</p>
+                          ) : null}
+                          <div className="mt-4 grid gap-2 text-sm text-slate-600 dark:text-stone-300">
+                            <p>
+                              <span className="font-medium">Borrower:</span> {loan.borrowerName || loan.student || "Unknown"}
+                            </p>
                             {loan.borrowerStudentId ? (
-                              <span className="text-xs text-slate-500 dark:text-stone-400">{loan.borrowerStudentId}</span>
+                              <p className="text-xs text-slate-500 dark:text-stone-400">Student ID: {loan.borrowerStudentId}</p>
                             ) : null}
+                            <p>
+                              <span className="font-medium">Borrowed:</span> {loan.borrowedAt ? loan.borrowedAt.toLocaleString() : "--"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Due:</span> {loan.dueAt ? loan.dueAt.toLocaleString() : "--"}
+                            </p>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
-                          {loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--"}
-                        </td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
-                          {loan.dueAt ? loan.dueAt.toLocaleDateString() : "--"}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                              loan.status === "Overdue"
-                                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200"
-                                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
-                            }`}
-                          >
-                            {loan.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
+                        </div>
+                        <div className="flex flex-col gap-2 lg:items-end">
                           <button
                             onClick={() => {
                               setRenewTarget(loan);
                               setRenewError(null);
                             }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
                             type="button"
                           >
                             Renew
@@ -734,18 +1051,192 @@ const handleApprove = React.useCallback(
                               setReturnTarget(loan);
                               setReturnError(null);
                             }}
-                            className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
                             type="button"
                           >
                             Mark returned
                           </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
+            {!loansLoading && (
+              <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-stone-700 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-slate-600 dark:text-stone-300">
+                  {totalLoanCount === 0
+                    ? "No active loans found"
+                    : `Showing ${loanShowingStart}-${loanShowingEnd} of ${totalLoanCount} ${
+                        totalLoanCount === 1 ? "loan" : "loans"
+                      }`}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
+                    onClick={goToPreviousLoanPage}
+                    disabled={loansLoading || totalLoanCount === 0 || isLoanFirstPage}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Previous
+                  </button>
+                  <div className="text-sm font-medium text-slate-600 dark:text-stone-200">
+                    Page {totalLoanCount === 0 ? 0 : loanPage} of {totalLoanCount === 0 ? 0 : loanPageCount}
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
+                    onClick={goToNextLoanPage}
+                    disabled={loansLoading || totalLoanCount === 0 || isLoanLastPage}
+                  >
+                    Next
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-12">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Loan history</h2>
+            <button
+              onClick={loadLoanHistory}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+              type="button"
+            >
+              <svg
+                className={`h-4 w-4 ${historyLoading ? "animate-spin" : ""}`}
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 4.5v5H9M19.5 19.5v-5H15" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 19.5a7.5 7.5 0 01-3.504-6.305M15.75 4.5A7.5 7.5 0 0119.254 10.8" />
+              </svg>
+              Refresh
+            </button>
+          </div>
+
+          {historyError && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {historyError}
+            </div>
+          )}
+
+          <div className="rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
+            <div className="space-y-4">
+              {historyLoading ? (
+                [0, 1, 2].map((index) => (
+                  <div key={index} className="h-24 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-stone-800" />
+                ))
+              ) : paginatedHistory.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500 dark:border-stone-700 dark:bg-stone-950/40 dark:text-stone-400">
+                  No loan history entries found.
+                </div>
+              ) : (
+                paginatedHistory.map((loan) => {
+                  const statusKey = loan.statusKey || "";
+                  let badgeClasses = "bg-slate-200 text-slate-700 dark:bg-stone-800 dark:text-stone-200";
+                  if (statusKey === "overdue") {
+                    badgeClasses = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200";
+                  } else if (statusKey === "active") {
+                    badgeClasses = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200";
+                  }
+                  return (
+                    <div
+                      key={loan.id || loan.bookId || loan.title}
+                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-stone-700 dark:bg-stone-900/80"
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeClasses}`}>
+                              {loan.status || "Returned"}
+                            </span>
+                            {loan.returnedAt ? (
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-stone-800 dark:text-stone-300">
+                                Returned {loan.returnedAt.toLocaleDateString()}
+                              </span>
+                            ) : null}
+                          </div>
+                          <h3 className="mt-3 text-lg font-semibold text-slate-900 dark:text-stone-100">
+                            {loan.title || "Untitled"}
+                          </h3>
+                          {loan.bookCode ? (
+                            <p className="text-sm text-slate-500 dark:text-stone-400">{loan.bookCode}</p>
+                          ) : null}
+                          <div className="mt-4 grid gap-2 text-sm text-slate-600 dark:text-stone-300">
+                            <p>
+                              <span className="font-medium">Borrower:</span> {loan.borrowerName || loan.student || "Unknown"}
+                            </p>
+                            {loan.borrowerStudentId ? (
+                              <p className="text-xs text-slate-500 dark:text-stone-400">Student ID: {loan.borrowerStudentId}</p>
+                            ) : null}
+                            <p>
+                              <span className="font-medium">Borrowed:</span> {loan.borrowedAt ? loan.borrowedAt.toLocaleString() : "--"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Due:</span> {loan.dueAt ? loan.dueAt.toLocaleString() : "--"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Returned:</span> {loan.returnedAt ? loan.returnedAt.toLocaleString() : "--"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            {!historyLoading && (
+              <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-stone-700 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-slate-600 dark:text-stone-300">
+                  {totalHistoryCount === 0
+                    ? "No history entries found"
+                    : `Showing ${historyShowingStart}-${historyShowingEnd} of ${totalHistoryCount} ${
+                        totalHistoryCount === 1 ? "entry" : "entries"
+                      }`}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
+                    onClick={goToPreviousHistoryPage}
+                    disabled={historyLoading || totalHistoryCount === 0 || isHistoryFirstPage}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Previous
+                  </button>
+                  <div className="text-sm font-medium text-slate-600 dark:text-stone-200">
+                    Page {totalHistoryCount === 0 ? 0 : historyPage} of {totalHistoryCount === 0 ? 0 : historyPageCount}
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
+                    onClick={goToNextHistoryPage}
+                    disabled={historyLoading || totalHistoryCount === 0 || isHistoryLastPage}
+                  >
+                    Next
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       </main>
