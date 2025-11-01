@@ -1026,16 +1026,16 @@ function SectionPagination({ isEmpty, page, pageCount, showingStart, showingEnd,
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={handlePrev}
+          onClick={onPrev}
           disabled={isPrevDisabled}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
         >
           Prev
         </button>
-        <span className="text-sm text-slate-600 dark:text-stone-400">Page {normalizedPage} of {safePageCount}</span>
+        <span className="text-sm text-slate-600 dark:text-stone-400">Page {safePageIndex + 1} of {safePageCount}</span>
         <button
           type="button"
-          onClick={handleNext}
+          onClick={onNext}
           disabled={isNextDisabled}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
         >
