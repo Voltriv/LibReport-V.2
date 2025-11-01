@@ -1,6 +1,31 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import api from "../api";
+import { normalizeStudentLoan, parseDate } from "./utils/data";
+
+const LOAD_ERROR_MESSAGE = "Failed to load your borrowed books. Please try again later.";
+const RETURN_ERROR_MESSAGE = "Failed to return book. Please try again.";
+const RENEW_ERROR_MESSAGE = "Failed to renew book. Please try again.";
+
+function normalizeBorrowedItems(items = []) {
+  return (Array.isArray(items) ? items : []).map((item, index) => {
+    const normalized = normalizeStudentLoan(item, index);
+    const pending = item?.pendingRenewal;
+    const pendingRenewal = pending
+      ? {
+          ...pending,
+          requestedAt: parseDate(pending.requestedAt),
+          processedAt: parseDate(pending.processedAt),
+          dueAt: parseDate(pending.dueAt)
+        }
+      : null;
+
+    return {
+      ...normalized,
+      pendingRenewal
+    };
+  });
+}
 
 const StudentBorrowedBooks = () => {
   const [loading, setLoading] = React.useState(true);
@@ -11,31 +36,34 @@ const StudentBorrowedBooks = () => {
   const [renewingId, setRenewingId] = React.useState(null);
   const [renewFeedback, setRenewFeedback] = React.useState(null);
 
+  const applyBooks = React.useCallback((items) => {
+    setBooks(normalizeBorrowedItems(items));
+  }, []);
+
   React.useEffect(() => {
     const fetchBorrowedBooks = async () => {
       try {
         setLoading(true);
         const { data } = await api.get("/student/borrowed");
-        setBooks(data.books || []);
+        applyBooks(data.books);
       } catch (err) {
-        setError("Failed to load your borrowed books. Please try again later.");
-        console.error(err);
+        setError(err?.response?.data?.error || LOAD_ERROR_MESSAGE);
       } finally {
         setLoading(false);
       }
     };
 
     fetchBorrowedBooks();
-  }, []);
+  }, [applyBooks]);
 
   const refreshBorrowed = React.useCallback(async () => {
     try {
       const { data } = await api.get("/student/borrowed");
-      setBooks(data.books || []);
+      applyBooks(data.books);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load your borrowed books. Please try again later.');
+      setError(err?.response?.data?.error || LOAD_ERROR_MESSAGE);
     }
-  }, []);
+  }, [applyBooks]);
 
   const handleReturnBook = React.useCallback(async (bookId, bookTitle) => {
     if (returningId || renewingId) return;
@@ -45,17 +73,17 @@ const StudentBorrowedBooks = () => {
     setRenewFeedback(null);
     
     try {
-      await api.post('/student/return', { bookId });
-      
+      await api.post("/student/return", { bookId });
+
       setReturnSuccess({
         title: bookTitle
       });
-      
+
       // Refresh the borrowed books list
       await refreshBorrowed();
-      
+
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to return book. Please try again.');
+      setError(err?.response?.data?.error || RETURN_ERROR_MESSAGE);
     } finally {
       setReturningId(null);
     }
@@ -63,30 +91,30 @@ const StudentBorrowedBooks = () => {
 
   const handleRenewBook = React.useCallback(async (bookId, bookTitle) => {
     if (renewingId) return;
-    
+
     setRenewingId(bookId);
     setError("");
     setReturnSuccess(null);
     setRenewFeedback(null);
 
     try {
-      const { data } = await api.post('/student/renew', { bookId });
+      const { data } = await api.post("/student/renew", { bookId });
       const estimated = data?.request?.estimatedDueAt
         ? new Date(data.request.estimatedDueAt).toLocaleDateString()
         : null;
 
       setRenewFeedback({
-        type: 'success',
+        type: "success",
         title: bookTitle,
         dueDate: estimated,
         message:
           data?.message ||
-          'Your renewal request has been submitted and is awaiting librarian approval.'
+          "Your renewal request has been submitted and is awaiting librarian approval."
       });
 
       await refreshBorrowed();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to renew book. Please try again.');
+      setError(err?.response?.data?.error || RENEW_ERROR_MESSAGE);
       setRenewFeedback(null);
     } finally {
       setRenewingId(null);
@@ -224,28 +252,28 @@ const StudentBorrowedBooks = () => {
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="rounded-lg bg-white p-6 shadow-sm animate-pulse">
-                <div className="h-6 w-1/3 bg-slate-200 rounded mb-4"></div>
-                <div className="h-4 w-1/2 bg-slate-200 rounded mb-2"></div>
-                <div className="h-4 w-1/4 bg-slate-200 rounded"></div>
+                <div className="mb-4 h-6 w-1/3 rounded bg-slate-200" />
+                <div className="mb-2 h-4 w-1/2 rounded bg-slate-200" />
+                <div className="h-4 w-1/4 rounded bg-slate-200" />
               </div>
             ))}
           </div>
         ) : books.length > 0 ? (
           <div className="space-y-4">
-            {books.map((book) => {
-              const key = book.id || book._id || book.bookId || `borrowed-${book.title}`;
-              const title = book.title || "Untitled item";
-              const author = book.author || "Unknown author";
-              const dueLabel = book.dueAt ? new Date(book.dueAt).toLocaleDateString() : "--";
-              const borrowedLabel = book.borrowedAt ? new Date(book.borrowedAt).toLocaleDateString() : "--";
-              const renewalPending = Boolean(book.pendingRenewal);
-              const isRenewingThis = renewingId === book.bookId;
+            {books.map((loan, index) => {
+              const title = loan.title || "Untitled item";
+              const author = loan.author || "Unknown author";
+              const dueLabel = loan.dueAt ? loan.dueAt.toLocaleDateString() : "--";
+              const borrowedLabel = loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--";
+              const renewalPending = Boolean(loan.pendingRenewal);
+              const renewalDetails = loan.pendingRenewal || null;
+              const isRenewingThis = renewingId === loan.bookId;
               const isRenewingAny = Boolean(renewingId);
-              const isReturningThis = returningId === book.bookId;
+              const isReturningThis = returningId === loan.bookId;
               const isReturningAny = Boolean(returningId);
               return (
-                <div key={key} className="rounded-lg bg-white p-6 shadow-sm">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div key={loan.id || `borrowed-${index}`} className="rounded-lg bg-white p-6 shadow-sm">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
                       <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
                       <p className="text-sm text-slate-600">By {author}</p>
@@ -256,41 +284,38 @@ const StudentBorrowedBooks = () => {
                         <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                           Borrowed: {borrowedLabel}
                         </span>
-                        {renewalPending && (
+                        {renewalPending ? (
                           <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
                             Renewal pending approval
                           </span>
-                        )}
+                        ) : null}
                       </div>
-                      {renewalPending && book.pendingRenewal && (
+                      {renewalDetails ? (
                         <p className="mt-2 text-xs text-slate-500">
-                          Requested on{' '}
-                          {book.pendingRenewal.requestedAt
-                            ? new Date(book.pendingRenewal.requestedAt).toLocaleString()
-                            : 'pending'}
-                          {typeof book.pendingRenewal.daysRequested === 'number' && (
+                          Requested on {renewalDetails.requestedAt ? renewalDetails.requestedAt.toLocaleString() : "pending"}
+                          {typeof renewalDetails.daysRequested === "number" ? (
                             <>
-                              {' • '}Extends by {book.pendingRenewal.daysRequested} day
-                              {book.pendingRenewal.daysRequested === 1 ? '' : 's'}
+                              {" • "}Extends by {renewalDetails.daysRequested} day
+                              {renewalDetails.daysRequested === 1 ? "" : "s"}
                             </>
-                          )}
+                          ) : null}
                         </p>
-                      )}
+                      ) : null}
                     </div>
                     <div className="flex gap-2">
-                      <button 
-                        className="btn-student-outline btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        onClick={() => handleRenewBook(book.bookId, book.title)}
+                      <button
+                        className="btn-student-outline btn-pill-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => handleRenewBook(loan.bookId, loan.title)}
                         disabled={isRenewingAny || isReturningAny}
                       >
-                        {isRenewingThis ? 'Renewing...' : 'Renew'}
+                        {isRenewingThis ? "Renewing..." : "Renew"}
                       </button>
-                      <button 
-                        className="btn-student-primary btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        onClick={() => handleReturnBook(book.bookId, book.title)}
+                      <button
+                        className="btn-student-primary btn-pill-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => handleReturnBook(loan.bookId, loan.title)}
                         disabled={isRenewingAny || isReturningAny}
                       >
-                        {isReturningThis ? 'Returning...' : 'Return'}
+                        {isReturningThis ? "Returning..." : "Return"}
                       </button>
                     </div>
                   </div>

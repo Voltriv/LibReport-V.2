@@ -1,5 +1,13 @@
 import React from "react";
 import api from "../api";
+import { normalizeStudentLoan } from "./utils/data";
+
+const LOAD_ERROR_MESSAGE = "Failed to load your overdue books. Please try again later.";
+const RETURN_ERROR_MESSAGE = "Failed to return book. Please try again.";
+
+function normalizeOverdueItems(items = []) {
+  return (Array.isArray(items) ? items : []).map((item, index) => normalizeStudentLoan(item, index));
+}
 
 const StudentOverdueBooks = () => {
   const [loading, setLoading] = React.useState(true);
@@ -9,46 +17,57 @@ const StudentOverdueBooks = () => {
   const [returning, setReturning] = React.useState(false);
   const [returnSuccess, setReturnSuccess] = React.useState(null);
 
+  const applyBooks = React.useCallback((items) => {
+    setBooks(normalizeOverdueItems(items));
+  }, []);
+
   React.useEffect(() => {
     const fetchOverdueBooks = async () => {
       try {
         setLoading(true);
         const { data } = await api.get("/student/overdue-books");
-        setBooks(data.books || []);
+        applyBooks(data.books);
       } catch (err) {
-        setError("Failed to load your overdue books. Please try again later.");
-        console.error(err);
+        setError(err?.response?.data?.error || LOAD_ERROR_MESSAGE);
       } finally {
         setLoading(false);
       }
     };
 
     fetchOverdueBooks();
-  }, []);
+  }, [applyBooks]);
+
+  const refreshOverdue = React.useCallback(async () => {
+    try {
+      const { data } = await api.get("/student/overdue-books");
+      applyBooks(data.books);
+    } catch (err) {
+      setError(err?.response?.data?.error || LOAD_ERROR_MESSAGE);
+    }
+  }, [applyBooks]);
 
   const handleReturnBook = React.useCallback(async (bookId, bookTitle) => {
     if (returning) return;
-    
+
     setReturning(true);
     setError("");
-    
+
     try {
-      await api.post('/student/return', { bookId });
-      
+      await api.post("/student/return", { bookId });
+
       setReturnSuccess({
         title: bookTitle
       });
-      
+
       // Refresh the overdue books list
-      const { data } = await api.get("/student/overdue-books");
-      setBooks(data.books || []);
-      
+      await refreshOverdue();
+
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to return book. Please try again.');
+      setError(err?.response?.data?.error || RETURN_ERROR_MESSAGE);
     } finally {
       setReturning(false);
     }
-  }, [returning]);
+  }, [returning, refreshOverdue]);
 
   return (
     <div className="bg-slate-50">
@@ -90,24 +109,23 @@ const StudentOverdueBooks = () => {
           <div className="space-y-4">
             {[...Array(2)].map((_, i) => (
               <div key={i} className="rounded-lg bg-white p-6 shadow-sm animate-pulse">
-                <div className="h-6 w-1/3 bg-slate-200 rounded mb-4"></div>
-                <div className="h-4 w-1/2 bg-slate-200 rounded mb-2"></div>
-                <div className="h-4 w-1/4 bg-slate-200 rounded"></div>
+                <div className="mb-4 h-6 w-1/3 rounded bg-slate-200" />
+                <div className="mb-2 h-4 w-1/2 rounded bg-slate-200" />
+                <div className="h-4 w-1/4 rounded bg-slate-200" />
               </div>
             ))}
           </div>
         ) : books.length > 0 ? (
           <div className="space-y-4">
-            {books.map((book) => {
-              const key = book.id || book._id || book.bookId || `overdue-${book.title}`;
-              const title = book.title || "Untitled item";
-              const author = book.author || "Unknown author";
-              const dueLabel = book.dueAt ? new Date(book.dueAt).toLocaleDateString() : "--";
-              const borrowedLabel = book.borrowedAt ? new Date(book.borrowedAt).toLocaleDateString() : "--";
-              const canManage = Boolean(book.bookId);
+            {books.map((loan, index) => {
+              const title = loan.title || "Untitled item";
+              const author = loan.author || "Unknown author";
+              const dueLabel = loan.dueAt ? loan.dueAt.toLocaleDateString() : "--";
+              const borrowedLabel = loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--";
+              const canManage = Boolean(loan.bookId);
               return (
-                <div key={key} className="rounded-lg bg-white p-6 shadow-sm border-l-4 border-red-500">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div key={loan.id || `overdue-${index}`} className="rounded-lg border-l-4 border-red-500 bg-white p-6 shadow-sm">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
                       <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
                       <p className="text-sm text-slate-600">By {author}</p>
@@ -115,12 +133,16 @@ const StudentOverdueBooks = () => {
                         <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
                           Due: {dueLabel}
                         </span>
-                        <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
-                          Days Overdue: {book.daysOverdue}
-                        </span>
-                        <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                          Fine: ${book.fine.toFixed(2)}
-                        </span>
+                        {typeof loan.daysOverdue === "number" ? (
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
+                            Days Overdue: {loan.daysOverdue}
+                          </span>
+                        ) : null}
+                        {typeof loan.fine === "number" ? (
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                            Fine: ${loan.fine.toFixed(2)}
+                          </span>
+                        ) : null}
                         <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                           Borrowed: {borrowedLabel}
                         </span>
@@ -128,11 +150,11 @@ const StudentOverdueBooks = () => {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        className="btn-student-primary btn-pill-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        onClick={() => canManage && handleReturnBook(book.bookId, title)}
+                        className="btn-student-primary btn-pill-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => canManage && handleReturnBook(loan.bookId, title)}
                         disabled={returning || !canManage}
                       >
-                        {returning ? 'Returning...' : 'Return Now'}
+                        {returning ? "Returning..." : "Return Now"}
                       </button>
                     </div>
                   </div>

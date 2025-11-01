@@ -1,27 +1,33 @@
 import React from "react";
 import api from "../api";
+import { normalizeHistoryEntry } from "./utils/data";
+
+const LOAD_ERROR_MESSAGE = "Failed to load your borrowing history. Please try again later.";
 
 const StudentBorrowingHistory = () => {
   const [loading, setLoading] = React.useState(true);
   const [history, setHistory] = React.useState([]);
   const [error, setError] = React.useState("");
 
+  const applyHistory = React.useCallback((items) => {
+    setHistory((Array.isArray(items) ? items : []).map((item, index) => normalizeHistoryEntry(item, index)));
+  }, []);
+
   React.useEffect(() => {
     const fetchBorrowingHistory = async () => {
       try {
         setLoading(true);
         const { data } = await api.get("/student/borrowing-history");
-        setHistory(data.history || []);
+        applyHistory(data.history);
       } catch (err) {
-        setError("Failed to load your borrowing history. Please try again later.");
-        console.error(err);
+        setError(err?.response?.data?.error || LOAD_ERROR_MESSAGE);
       } finally {
         setLoading(false);
       }
     };
 
     fetchBorrowingHistory();
-  }, []);
+  }, [applyHistory]);
 
   return (
     <div className="bg-slate-50">
@@ -69,14 +75,14 @@ const StudentBorrowingHistory = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
-                {history.map((item) => {
-                  const key = item.id || item._id || `${item.bookId}-${item.borrowedAt}`;
-                  const title = item.title || "Untitled item";
-                  const author = item.author || "Unknown author";
-                  const borrowedLabel = item.borrowedAt ? new Date(item.borrowedAt).toLocaleDateString() : "--";
-                  const returnedLabel = item.returnedAt ? new Date(item.returnedAt).toLocaleDateString() : "N/A";
+                {history.map((entry, index) => {
+                  const title = entry.title || "Untitled item";
+                  const author = entry.author || "Unknown author";
+                  const borrowedLabel = entry.borrowedAt ? entry.borrowedAt.toLocaleDateString() : "--";
+                  const returnedLabel = entry.returnedAt ? entry.returnedAt.toLocaleDateString() : "N/A";
+                  const statusLabel = entry.status || "";
                   return (
-                    <tr key={key}>
+                    <tr key={entry.id || `history-${index}`}>
                       <td className="whitespace-nowrap px-6 py-4">
                         <div className="text-sm font-medium text-slate-900">{title}</div>
                         <div className="text-sm text-slate-500">{author}</div>
@@ -86,14 +92,14 @@ const StudentBorrowingHistory = () => {
                       <td className="whitespace-nowrap px-6 py-4">
                         <span
                           className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                            item.status === "Returned"
+                            statusLabel === "Returned"
                               ? "bg-green-100 text-green-800"
-                              : item.status === "Overdue"
+                              : statusLabel === "Overdue"
                               ? "bg-red-100 text-red-800"
                               : "bg-blue-100 text-blue-800"
                           }`}
                         >
-                          {item.status}
+                          {statusLabel}
                         </span>
                       </td>
                     </tr>

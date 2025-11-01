@@ -1,5 +1,8 @@
 import React from "react";
 import api from "../api";
+import { stringifyId } from "./utils/data";
+
+const LOAD_ERROR_MESSAGE = "Failed to load your borrow requests. Please try again later.";
 
 const STATUS_DETAILS = {
   pending: {
@@ -16,12 +19,29 @@ const STATUS_DETAILS = {
     label: "Rejected",
     badgeClass: "bg-rose-100 text-rose-700",
     description: "The request was declined. Any notes from the librarian are shown below."
-  },
-  cancelled: {
-    label: "Cancelled",
-    badgeClass: "bg-slate-200 text-slate-600",
-    description: "This request has been cancelled."
   }
+};
+
+const CANCELLED_DETAIL = {
+  label: "Cancelled",
+  badgeClass: "bg-slate-200 text-slate-600",
+  description: "This request has been cancelled."
+};
+
+STATUS_DETAILS.cancelled = CANCELLED_DETAIL;
+STATUS_DETAILS.cancelled_by_admin = {
+  ...CANCELLED_DETAIL,
+  description: "This request was cancelled by the librarian team."
+};
+STATUS_DETAILS.cancelled_by_student = {
+  ...CANCELLED_DETAIL,
+  description: "You cancelled this request."
+};
+STATUS_DETAILS.cancelled_by_system = CANCELLED_DETAIL;
+
+const REQUEST_TYPE_LABELS = {
+  borrow: "Borrow request",
+  renewal: "Renewal request"
 };
 
 function parseDate(value) {
@@ -50,6 +70,52 @@ function formatDateTime(date) {
   });
 }
 
+function normalizeRequestItem(item, index) {
+  const requestId = stringifyId(item?.id ?? item?._id ?? item?.requestId, `request-${index}`);
+  const book = item?.book || null;
+  const user = item?.user || null;
+  const processedBy = item?.processedBy || item?.processedByUser || null;
+
+  const normalizedBook = book
+    ? {
+        ...book,
+        id: stringifyId(book.id ?? book._id, null),
+        code: book.code || book.bookCode || ""
+      }
+    : null;
+
+  const normalizedUser = user
+    ? {
+        ...user,
+        id: stringifyId(user.id ?? user._id, null),
+        studentId: user.studentId || ""
+      }
+    : null;
+
+  const normalizedProcessedBy = processedBy
+    ? {
+        ...processedBy,
+        id: stringifyId(processedBy.id ?? processedBy._id, null)
+      }
+    : null;
+
+  return {
+    id: requestId,
+    status: item?.status || "pending",
+    requestType: item?.requestType || "borrow",
+    requestedAt: parseDate(item?.requestedAt || item?.createdAt),
+    processedAt: parseDate(item?.processedAt || item?.updatedAt),
+    dueAt: parseDate(item?.dueAt),
+    daysRequested: typeof item?.daysRequested === "number" ? item.daysRequested : null,
+    message: item?.message || "",
+    adminNote: item?.adminNote || "",
+    loanId: stringifyId(item?.loanId, null),
+    book: normalizedBook,
+    user: normalizedUser,
+    processedBy: normalizedProcessedBy
+  };
+}
+
 const StudentBorrowRequests = () => {
   const [requests, setRequests] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -66,25 +132,10 @@ const StudentBorrowRequests = () => {
 
     try {
       const { data } = await api.get("/student/borrow-requests");
-      const items = Array.isArray(data?.items) ? data.items : [];
-
-      setRequests(
-        items.map((item, index) => ({
-          id: item.id || item._id || `request-${index}`,
-          status: item.status || "pending",
-          requestedAt: parseDate(item.requestedAt || item.createdAt),
-          processedAt: parseDate(item.processedAt || item.updatedAt),
-          dueAt: parseDate(item.dueAt),
-          daysRequested: typeof item.daysRequested === "number" ? item.daysRequested : null,
-          message: item.message || "",
-          adminNote: item.adminNote || "",
-          book: item.book || null,
-          processedBy: item.processedBy || null
-        }))
-      );
+      const { items = [] } = data || {};
+      setRequests(items.map((item, index) => normalizeRequestItem(item, index)));
     } catch (err) {
-      const fallback = "Failed to load your borrow requests. Please try again later.";
-      setError(err?.response?.data?.error || fallback);
+      setError(err?.response?.data?.error || LOAD_ERROR_MESSAGE);
       if (!silent) {
         setRequests([]);
       }
@@ -186,19 +237,21 @@ const StudentBorrowRequests = () => {
           </div>
         ) : requests.length > 0 ? (
           <div className="space-y-4">
-            {requests.map((request) => {
+            {requests.map((request, index) => {
               const details = STATUS_DETAILS[request.status] || STATUS_DETAILS.pending;
+              const requestTypeLabel = REQUEST_TYPE_LABELS[request.requestType] || REQUEST_TYPE_LABELS.borrow;
               const bookTitle = request.book?.title || "Book unavailable";
               const bookAuthor = request.book?.author;
-              const bookCode = request.book?.code;
+              const bookCode = request.book?.code || "";
 
               return (
-                <div key={request.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div key={request.id || `request-${index}`} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-2">
                       <span className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${details.badgeClass}`}>
                         {details.label}
                       </span>
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{requestTypeLabel}</p>
                       <h3 className="text-lg font-semibold text-slate-900">{bookTitle}</h3>
                       {(bookAuthor || bookCode) && (
                         <p className="text-sm text-slate-600">{[bookAuthor, bookCode].filter(Boolean).join(" • ")}</p>
