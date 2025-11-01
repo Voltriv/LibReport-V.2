@@ -9,7 +9,6 @@ const REQUEST_STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
-  { value: "cancelled", label: "Cancelled" },
   { value: "all", label: "All" }
 ];
 
@@ -17,7 +16,8 @@ const HISTORY_STATUS_OPTIONS = [
   { value: "all", label: "All" },
   { value: "returned", label: "Returned" },
   { value: "overdue", label: "Overdue" },
-  { value: "active", label: "Active" }
+  { value: "active", label: "Active" },
+  { value: "rejected", label: "Rejected" } // ✅
 ];
 
 const STATUS_LABELS = {
@@ -33,6 +33,48 @@ const STATUS_LABELS = {
   due_soon: "Due Soon"
 };
 
+// ---- canonical request status (for robust client-side filtering)
+function canonicalRequestStatus(req) {
+  const s = String(
+    req?.status ??
+      req?.outcome ??
+      req?.statusLabel ??
+      req?.statusKey ??
+      ""
+  )
+    .toLowerCase()
+    .trim();
+
+  if (s === "cancelled_by_admin" || s === "cancelled_by_student") return "cancelled";
+  if (["pending", "approved", "rejected", "cancelled"].includes(s)) return s;
+
+  // Fallbacks if backend is noisy or missing explicit status
+  if (!s) {
+    if (!req?.processedAt) return "pending";
+    if (req?.dueAt) return "approved";
+    return "rejected";
+  }
+  return s;
+}
+
+// ---- canonical history status (strict tabs for Returned/Rejected/etc.)
+function canonicalHistoryStatus(loan) {
+  const raw = String(loan?.statusKey || loan?.status || loan?.statusLabel || "")
+    .toLowerCase()
+    .trim();
+
+  if (raw.includes("reject")) return "rejected";
+  if (raw.includes("return")) return "returned";
+  if (raw.includes("overdue")) return "overdue";
+  if (raw.includes("active")) return "active";
+
+  // derive if labels are noisy/missing
+  if (loan?.returnedAt) return "returned";
+  const dueTs = loan?.dueAt?.getTime?.();
+  if (Number.isFinite(dueTs) && dueTs < Date.now()) return "overdue";
+  return "active";
+}
+
 function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
   const book = raw.book || {};
   const user = raw.user || {};
@@ -41,7 +83,6 @@ function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
   const dueAt = raw.dueAt ? new Date(raw.dueAt) : null;
   const returnedAt = raw.returnedAt ? new Date(raw.returnedAt) : null;
 
-  // Determine a status string robustly
   const source = raw.statusLabel || raw.status || raw.statusKey || "";
   const rawStatusString = typeof source === "string" ? source.trim() : "";
   let status = rawStatusString || statusFallback;
@@ -66,7 +107,15 @@ function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
     borrowedAt,
     dueAt,
     returnedAt,
-    statusKey: raw.statusKey || (status === "Returned" ? "returned" : status === "Overdue" ? "overdue" : undefined),
+    statusKey:
+      raw.statusKey ||
+      (status === "Returned"
+        ? "returned"
+        : status === "Overdue"
+        ? "overdue"
+        : status === "Rejected"
+        ? "rejected"
+        : undefined),
     status,
     statusLabel: status
   };
@@ -80,13 +129,16 @@ function useToast(timeout = 4000) {
     return { setTimeout, clearTimeout };
   }, []);
 
-  const showToast = React.useCallback((message, type = "success") => {
-    setToast({ message, type });
-    if (timeoutRef.current) {
-      (timerSource.clearTimeout || clearTimeout)(timeoutRef.current);
-    }
-    timeoutRef.current = (timerSource.setTimeout || setTimeout)(() => setToast(null), timeout);
-  }, [timeout, timerSource]);
+  const showToast = React.useCallback(
+    (message, type = "success") => {
+      setToast({ message, type });
+      if (timeoutRef.current) {
+        (timerSource.clearTimeout || clearTimeout)(timeoutRef.current);
+      }
+      timeoutRef.current = (timerSource.setTimeout || setTimeout)(() => setToast(null), timeout);
+    },
+    [timeout, timerSource]
+  );
 
   const hideToast = React.useCallback(() => {
     if (timeoutRef.current) {
@@ -139,90 +191,52 @@ const Borrowing = () => {
 
   const { toast, showToast, hideToast } = useToast();
 
-  const {
-    page: requestPage,
-    pageCount: requestPageCount,
-    pageItems: paginatedRequests,
-    showingStart: requestShowingStart,
-    showingEnd: requestShowingEnd,
-    nextPage: goToNextRequestPage,
-    prevPage: goToPreviousRequestPage,
-    totalItems: totalRequestCount
-  } = usePagination(requests, PAGE_SIZE);
-
-  const {
-    page: loanPage,
-    pageCount: loanPageCount,
-    pageItems: paginatedLoans,
-    showingStart: loanShowingStart,
-    showingEnd: loanShowingEnd,
-    nextPage: goToNextLoanPage,
-    prevPage: goToPreviousLoanPage,
-    totalItems: totalLoanCount
-  } = usePagination(activeLoans, PAGE_SIZE);
-
-  const {
-    page: historyPage,
-    pageCount: historyPageCount,
-    pageItems: paginatedHistory,
-    showingStart: historyShowingStart,
-    showingEnd: historyShowingEnd,
-    nextPage: goToNextHistoryPage,
-    prevPage: goToPreviousHistoryPage,
-    totalItems: totalHistoryCount
-  } = usePagination(loanHistory, PAGE_SIZE);
-
+  // --- LOADERS -------------------------------------------------------------
   const loadRequests = React.useCallback(async () => {
     setRequestsLoading(true);
     setRequestsError(null);
     try {
       const params = {};
-      // Map UI filters to backend query model (processed/outcome)
-      if (statusFilter === "pending") {
-        params.processed = false;
-      } else if (statusFilter === "approved") {
-        params.processed = true;
-        params.outcome = "approved";
-      } else if (statusFilter === "rejected") {
-        params.processed = true;
-        params.outcome = "rejected";
+      if (statusFilter !== "all") {
+        params.status = statusFilter;
       }
       const { data } = await api.get("/loans/requests", { params });
       const items = Array.isArray(data?.items) ? data.items : [];
-      setRequests(
-        items.map((item) => {
-          const idSource = item.id ?? item._id ?? item.requestId;
-          const book = item.book
-            ? {
-                ...item.book,
-                id:
-                  item.book.id || item.book._id
-                    ? String(item.book.id || item.book._id)
-                    : item.book.id
-              }
-            : item.book;
-          const user = item.user
-            ? {
-                ...item.user,
-                id:
-                  item.user.id || item.user._id
-                    ? String(item.user.id || item.user._id)
-                    : item.user.id
-              }
-            : item.user;
-          const normalizedStatus = typeof item.status === "string" ? item.status.toLowerCase() : "";
-          return {
-            ...item,
-            id: idSource ? String(idSource) : undefined,
-            book,
-            user,
-            status: normalizedStatus || item.status || "",
-            requestedAt: item.requestedAt ? new Date(item.requestedAt) : null,
-            processedAt: item.processedAt ? new Date(item.processedAt) : null,
-            dueAt: item.dueAt ? new Date(item.dueAt) : null
-          };
-        })
-      );
+      const normalized = items.map((item) => {
+        const idSource = item.id ?? item._id ?? item.requestId;
+        const book = item.book
+          ? {
+              ...item.book,
+              id:
+                item.book.id || item.book._id
+                  ? String(item.book.id || item.book._id)
+                  : item.book.id
+            }
+          : item.book;
+        const user = item.user
+          ? {
+              ...item.user,
+              id:
+                item.user.id || item.user._id
+                  ? String(item.user.id || item.user._id)
+                  : item.user.id
+            }
+          : item.user;
+        return {
+          ...item,
+          id: idSource ? String(idSource) : undefined,
+          book,
+          user,
+          status: typeof item.status === "string" ? item.status.toLowerCase() : item.status || "",
+          outcome: item.outcome,
+          statusLabel: item.statusLabel,
+          statusKey: item.statusKey,
+          requestedAt: item.requestedAt ? new Date(item.requestedAt) : null,
+          processedAt: item.processedAt ? new Date(item.processedAt) : null,
+          dueAt: item.dueAt ? new Date(item.dueAt) : null
+        };
+      });
+      setRequests(normalized);
     } catch (err) {
       setRequests([]);
       setRequestsError(err?.response?.data?.error || "Failed to load borrow requests.");
@@ -274,14 +288,78 @@ const Borrowing = () => {
   React.useEffect(() => {
     loadLoanHistory();
   }, [loadLoanHistory]);
-    
+
+  // --- CLIENT FILTERING (strict) ------------------------------------------
+  const filteredRequests = React.useMemo(() => {
+    if (statusFilter === "all") return requests;
+    return requests.filter((r) => canonicalRequestStatus(r) === statusFilter);
+  }, [requests, statusFilter]);
+
+  // Requests + Active Loans use shared hook pagination
+  const {
+    page: requestPage,
+    pageCount: requestPageCount,
+    pageItems: paginatedRequests,
+    showingStart: requestShowingStart,
+    showingEnd: requestShowingEnd,
+    nextPage: goToNextRequestPage,
+    prevPage: goToPreviousRequestPage,
+    totalItems: totalRequestCount
+  } = usePagination(filteredRequests, PAGE_SIZE);
+
+  const {
+    page: loanPage,
+    pageCount: loanPageCount,
+    pageItems: paginatedLoans,
+    showingStart: loanShowingStart,
+    showingEnd: loanShowingEnd,
+    nextPage: goToNextLoanPage,
+    prevPage: goToPreviousLoanPage,
+    totalItems: totalLoanCount
+  } = usePagination(activeLoans, PAGE_SIZE);
+
+  // -------- History: strict filter + resilient pagination
+  const [historyPageIndex, setHistoryPageIndex] = React.useState(0);
+
+  // Strict client-side filtering so each tab shows only its own status.
+  const visibleHistory = React.useMemo(() => {
+    if (historyStatusFilter === "all") return loanHistory;
+    return loanHistory.filter((h) => canonicalHistoryStatus(h) === historyStatusFilter);
+  }, [loanHistory, historyStatusFilter]);
+
+  // reset to first page whenever the filter or the filtered list changes
+  React.useEffect(() => {
+    setHistoryPageIndex(0);
+  }, [historyStatusFilter, visibleHistory.length]);
+
+  const historyPageCount = Math.max(1, Math.ceil(visibleHistory.length / PAGE_SIZE));
+  const safeHistoryPage = Math.min(Math.max(0, historyPageIndex), historyPageCount - 1);
+  const historyStart = safeHistoryPage * PAGE_SIZE;
+  const historyEnd = historyStart + PAGE_SIZE;
+
+  const paginatedHistory = React.useMemo(
+    () => visibleHistory.slice(historyStart, historyEnd),
+    [visibleHistory, historyStart, historyEnd]
+  );
+
+  const historyShowingStart = visibleHistory.length === 0 ? 0 : historyStart + 1;
+  const historyShowingEnd = Math.min(historyEnd, visibleHistory.length);
+  const totalHistoryCount = visibleHistory.length;
+
+  const goToPreviousHistoryPage = React.useCallback(() => {
+    setHistoryPageIndex((p) => Math.max(0, p - 1));
+  }, []);
+  const goToNextHistoryPage = React.useCallback(() => {
+    setHistoryPageIndex((p) => Math.min(historyPageCount - 1, p + 1));
+  }, [historyPageCount]);
+
   const pendingCount = React.useMemo(
-    () =>
-      requests.filter((req) => typeof req.status === "string" && req.status.toLowerCase() === "pending").length,
+    () => requests.filter((req) => canonicalRequestStatus(req) === "pending").length,
     [requests]
   );
 
-const handleApprove = React.useCallback(
+  // --- ACTIONS -------------------------------------------------------------
+  const handleApprove = React.useCallback(
     async ({ days, note }) => {
       if (!approvalTarget) return;
       setApprovalBusy(true);
@@ -298,6 +376,7 @@ const handleApprove = React.useCallback(
         await api.post(`/loans/requests/${approvalTarget.id}/approve`, payload);
         setApprovalTarget(null);
         showToast("Request approved");
+        // refresh requests and move it to Active Loans
         await Promise.all([loadRequests(), loadActiveLoans()]);
       } catch (err) {
         setApprovalError(err?.response?.data?.error || "Failed to approve request.");
@@ -321,14 +400,15 @@ const handleApprove = React.useCallback(
         await api.post(`/loans/requests/${rejectTarget.id}/reject`, payload);
         setRejectTarget(null);
         showToast("Request rejected");
-        await loadRequests();
+        // refresh history so it shows under History Logs immediately
+        await Promise.all([loadRequests(), loadLoanHistory()]);
       } catch (err) {
         setRejectError(err?.response?.data?.error || "Failed to reject request.");
       } finally {
         setRejectBusy(false);
       }
     },
-    [rejectTarget, loadRequests, showToast]
+    [rejectTarget, loadRequests, loadLoanHistory, showToast]
   );
 
   const handleRenew = React.useCallback(
@@ -424,7 +504,7 @@ const handleApprove = React.useCallback(
 
             {requestsLoading ? (
               <SkeletonList count={3} />
-            ) : requests.length === 0 ? (
+            ) : filteredRequests.length === 0 ? (
               <EmptyState message="No requests to display for this filter." />
             ) : (
               <div className="space-y-4">
@@ -506,20 +586,16 @@ const handleApprove = React.useCallback(
 
           <SectionCard
             title="History logs"
-            subtitle="Review returned, overdue, or still-active loans."
+            subtitle="Review returned, overdue, rejected, or previously active loans."
             action={<RefreshButton onClick={loadLoanHistory} busy={historyLoading} label="Refresh" />}
             toolbar={
-              <StatusFilter
-                value={historyStatusFilter}
-                onChange={setHistoryStatusFilter}
-                options={HISTORY_STATUS_OPTIONS}
-              />
+              <StatusFilter value={historyStatusFilter} onChange={setHistoryStatusFilter} options={HISTORY_STATUS_OPTIONS} />
             }
             footer={
               !historyLoading ? (
                 <SectionPagination
                   isEmpty={totalHistoryCount === 0}
-                  page={historyPage}
+                  page={safeHistoryPage}
                   pageCount={historyPageCount}
                   showingStart={historyShowingStart}
                   showingEnd={historyShowingEnd}
@@ -534,7 +610,7 @@ const handleApprove = React.useCallback(
             {historyError ? <ErrorBanner message={historyError} /> : null}
             {historyLoading ? (
               <SkeletonList count={3} />
-            ) : loanHistory.length === 0 ? (
+            ) : visibleHistory.length === 0 ? (
               <EmptyState message="No history logs to display for this filter." />
             ) : (
               <div className="overflow-x-auto">
@@ -562,15 +638,23 @@ const handleApprove = React.useCallback(
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium text-slate-600 dark:text-stone-200">{loan.borrowerName || loan.student || "Unknown"}</span>
+                            <span className="text-sm font-medium text-slate-600 dark:text-stone-200">
+                              {loan.borrowerName || loan.student || "Unknown"}
+                            </span>
                             {loan.borrowerStudentId ? (
                               <span className="text-xs text-slate-500 dark:text-stone-400">{loan.borrowerStudentId}</span>
                             ) : null}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--"}</td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.dueAt ? loan.dueAt.toLocaleDateString() : "--"}</td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.returnedAt ? loan.returnedAt.toLocaleDateString() : "--"}</td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
+                          {loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--"}
+                        </td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
+                          {loan.dueAt ? loan.dueAt.toLocaleDateString() : "--"}
+                        </td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
+                          {loan.returnedAt ? loan.returnedAt.toLocaleDateString() : "--"}
+                        </td>
                         <td className="px-6 py-4">
                           <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-stone-800 dark:text-stone-200">
                             {STATUS_LABELS[loan.statusKey] || loan.status || "Completed"}
@@ -887,9 +971,7 @@ function RenewDialog({ loan, busy, error, onClose, onSubmit }) {
           }}
         >
           <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-stone-200">
-              Extend by (days)
-            </label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-stone-200">Extend by (days)</label>
             <input
               type="number"
               min={1}
@@ -898,14 +980,10 @@ function RenewDialog({ loan, busy, error, onClose, onSubmit }) {
               onChange={(e) => setDays(e.target.value)}
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
             />
-            <p className="mt-1 text-xs text-slate-500 dark:text-stone-400">
-              Provide a custom date below to override the duration.
-            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-stone-400">Provide a custom date below to override the duration.</p>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-stone-200">
-              Set exact due date (optional)
-            </label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-stone-200">Set exact due date (optional)</label>
             <input
               type="datetime-local"
               value={dueAt}
@@ -913,9 +991,7 @@ function RenewDialog({ loan, busy, error, onClose, onSubmit }) {
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
             />
           </div>
-          {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-          )}
+          {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
           <div className="flex justify-end gap-3">
             <button
               type="button"
@@ -962,9 +1038,7 @@ function ReturnDialog({ loan, busy, error, onClose, onSubmit }) {
             <dd>{dueLabel}</dd>
           </div>
         </dl>
-        {error && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-        )}
+        {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
         <div className="mt-6 flex justify-end gap-3">
           <button
             type="button"
@@ -1032,7 +1106,9 @@ function SectionPagination({ isEmpty, page, pageCount, showingStart, showingEnd,
         >
           Prev
         </button>
-        <span className="text-sm text-slate-600 dark:text-stone-400">Page {safePageIndex + 1} of {safePageCount}</span>
+        <span className="text-sm text-slate-600 dark:text-stone-400">
+          Page {safePageIndex + 1} of {safePageCount}
+        </span>
         <button
           type="button"
           onClick={onNext}
@@ -1048,9 +1124,7 @@ function SectionPagination({ isEmpty, page, pageCount, showingStart, showingEnd,
 
 function ErrorBanner({ message }) {
   if (!message) return null;
-  return (
-    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>
-  );
+  return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>;
 }
 
 function SkeletonList({ count = 3 }) {
@@ -1073,22 +1147,35 @@ function EmptyState({ message }) {
 
 function RequestCard({ request, onApprove, onReject }) {
   const requestedAt = request.requestedAt ? request.requestedAt.toLocaleString() : "--";
+  const isPending = canonicalRequestStatus(request) === "pending";
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4 dark:border-stone-800">
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-slate-900 dark:text-stone-100">{request.book?.title || "Untitled"}</p>
+        <p className="truncate text-sm font-semibold text-slate-900 dark:text-stone-100">
+          {request.book?.title || "Untitled"}
+        </p>
         <p className="truncate text-sm text-slate-600 dark:text-stone-300">
           {request.user?.name || "Student"} • {requestedAt}
         </p>
       </div>
-      <div className="flex flex-shrink-0 items-center gap-2">
-        <button onClick={onReject} type="button" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800">
-          Reject
-        </button>
-        <button onClick={onApprove} type="button" className="rounded-lg bg-brand-green px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-greenDark">
-          Approve
-        </button>
-      </div>
+      {isPending && (
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <button
+            onClick={onReject}
+            type="button"
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+          >
+            Reject
+          </button>
+          <button
+            onClick={onApprove}
+            type="button"
+            className="rounded-lg bg-brand-green px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-greenDark"
+          >
+            Approve
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1104,7 +1191,9 @@ function TableHead({ children, align = "left" }) {
 function TableMessage({ colSpan = 1, children }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-6 py-6 text-center text-slate-500 dark:text-stone-400">{children}</td>
+      <td colSpan={colSpan} className="px-6 py-6 text-center text-slate-500 dark:text-stone-400">
+        {children}
+      </td>
     </tr>
   );
 }
@@ -1115,20 +1204,22 @@ function ActiveLoanRow({ loan, onRenew, onReturn }) {
       <td className="px-6 py-4">
         <div className="flex flex-col">
           <span className="font-medium text-slate-900 dark:text-stone-100">{loan.title || "Untitled"}</span>
-          {loan.bookCode ? (
-            <span className="text-xs text-slate-500 dark:text-stone-400">{loan.bookCode}</span>
-          ) : null}
+          {loan.bookCode ? <span className="text-xs text-slate-500 dark:text-stone-400">{loan.bookCode}</span> : null}
         </div>
       </td>
       <td className="px-6 py-4">
         <div className="flex flex-col">
-          <span className="text-sm font-medium text-slate-600 dark:text-stone-200">{loan.borrowerName || loan.student || "Unknown"}</span>
+          <span className="text-sm font-medium text-slate-600 dark:text-stone-200">
+            {loan.borrowerName || loan.student || "Unknown"}
+          </span>
           {loan.borrowerStudentId ? (
             <span className="text-xs text-slate-500 dark:text-stone-400">{loan.borrowerStudentId}</span>
           ) : null}
         </div>
       </td>
-      <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--"}</td>
+      <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
+        {loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--"}
+      </td>
       <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.dueAt ? loan.dueAt.toLocaleDateString() : "--"}</td>
       <td className="px-6 py-4">
         <span
@@ -1142,10 +1233,18 @@ function ActiveLoanRow({ loan, onRenew, onReturn }) {
         </span>
       </td>
       <td className="px-6 py-4 text-right">
-        <button onClick={onRenew} type="button" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800">
+        <button
+          onClick={onRenew}
+          type="button"
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
           Renew
         </button>
-        <button onClick={onReturn} type="button" className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800">
+        <button
+          onClick={onReturn}
+          type="button"
+          className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
           Mark returned
         </button>
       </td>
