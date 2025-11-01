@@ -5,11 +5,19 @@ import usePagination from "../hooks/usePagination";
 
 const PAGE_SIZE = 10;
 
-const STATUS_OPTIONS = [
+const REQUEST_STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
+  { value: "cancelled", label: "Cancelled" },
   { value: "all", label: "All" }
+];
+
+const HISTORY_STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "returned", label: "Returned" },
+  { value: "overdue", label: "Overdue" },
+  { value: "active", label: "Active" }
 ];
 
 const STATUS_LABELS = {
@@ -18,7 +26,11 @@ const STATUS_LABELS = {
   rejected: "Rejected",
   cancelled: "Cancelled",
   cancelled_by_admin: "Cancelled",
-  cancelled_by_student: "Cancelled"
+  cancelled_by_student: "Cancelled",
+  returned: "Returned",
+  overdue: "Overdue",
+  active: "Active",
+  due_soon: "Due Soon"
 };
 
 function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
@@ -47,7 +59,7 @@ function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
     id: raw.id || raw._id || raw.loanId || raw.requestId || undefined,
     bookId: raw.bookId || book.id || book._id || null,
     title: raw.title || book.title || "",
-    bookCode: raw.bookCode || book.bookCode || "",
+    bookCode: raw.bookCode || book.bookCode || book.code || "",
     borrowerId: raw.borrowerId || user.id || user._id || raw.userId || null,
     borrowerName: raw.borrowerName || user.fullName || user.name || raw.student || "",
     borrowerStudentId: raw.borrowerStudentId || user.studentId || "",
@@ -133,8 +145,6 @@ const Borrowing = () => {
     pageItems: paginatedRequests,
     showingStart: requestShowingStart,
     showingEnd: requestShowingEnd,
-    isFirstPage: isRequestFirstPage,
-    isLastPage: isRequestLastPage,
     nextPage: goToNextRequestPage,
     prevPage: goToPreviousRequestPage,
     totalItems: totalRequestCount
@@ -146,8 +156,6 @@ const Borrowing = () => {
     pageItems: paginatedLoans,
     showingStart: loanShowingStart,
     showingEnd: loanShowingEnd,
-    isFirstPage: isLoanFirstPage,
-    isLastPage: isLoanLastPage,
     nextPage: goToNextLoanPage,
     prevPage: goToPreviousLoanPage,
     totalItems: totalLoanCount
@@ -159,8 +167,6 @@ const Borrowing = () => {
     pageItems: paginatedHistory,
     showingStart: historyShowingStart,
     showingEnd: historyShowingEnd,
-    isFirstPage: isHistoryFirstPage,
-    isLastPage: isHistoryLastPage,
     nextPage: goToNextHistoryPage,
     prevPage: goToPreviousHistoryPage,
     totalItems: totalHistoryCount
@@ -204,11 +210,13 @@ const Borrowing = () => {
                     : item.user.id
               }
             : item.user;
+          const normalizedStatus = typeof item.status === "string" ? item.status.toLowerCase() : "";
           return {
             ...item,
             id: idSource ? String(idSource) : undefined,
             book,
             user,
+            status: normalizedStatus || item.status || "",
             requestedAt: item.requestedAt ? new Date(item.requestedAt) : null,
             processedAt: item.processedAt ? new Date(item.processedAt) : null,
             dueAt: item.dueAt ? new Date(item.dueAt) : null
@@ -246,7 +254,7 @@ const Borrowing = () => {
       if (historyStatusFilter !== "all") params.status = historyStatusFilter;
       const { data } = await api.get("/loans/history", { params });
       const items = Array.isArray(data?.items) ? data.items : [];
-      setLoanHistory(items.map((item) => normalizeLoanEntry(item, { statusFallback: "Completed" })));
+      setLoanHistory(items.map((item) => normalizeLoanEntry(item, { statusFallback: "Returned" })));
     } catch (err) {
       setLoanHistory([]);
       setHistoryError(err?.response?.data?.error || "Failed to load loan history.");
@@ -268,7 +276,8 @@ const Borrowing = () => {
   }, [loadLoanHistory]);
     
   const pendingCount = React.useMemo(
-    () => requests.filter((req) => req.status === "pending").length,
+    () =>
+      requests.filter((req) => typeof req.status === "string" && req.status.toLowerCase() === "pending").length,
     [requests]
   );
 
@@ -394,7 +403,7 @@ const handleApprove = React.useCallback(
             title="Borrow requests"
             subtitle="Monitor and approve pending requests from students."
             action={<RefreshButton onClick={loadRequests} busy={requestsLoading} label="Refresh" />}
-            toolbar={<StatusFilter value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />}
+            toolbar={<StatusFilter value={statusFilter} onChange={setStatusFilter} options={REQUEST_STATUS_OPTIONS} />}
             footer={
               !requestsLoading ? (
                 <SectionPagination
@@ -497,9 +506,15 @@ const handleApprove = React.useCallback(
 
           <SectionCard
             title="History logs"
-            subtitle="Review completed, returned, or cancelled loans."
+            subtitle="Review returned, overdue, or still-active loans."
             action={<RefreshButton onClick={loadLoanHistory} busy={historyLoading} label="Refresh" />}
-            toolbar={<StatusFilter value={historyStatusFilter} onChange={setHistoryStatusFilter} options={[{ value: "all", label: "All" }, { value: "returned", label: "Returned" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} />}
+            toolbar={
+              <StatusFilter
+                value={historyStatusFilter}
+                onChange={setHistoryStatusFilter}
+                options={HISTORY_STATUS_OPTIONS}
+              />
+            }
             footer={
               !historyLoading ? (
                 <SectionPagination
@@ -1011,16 +1026,16 @@ function SectionPagination({ isEmpty, page, pageCount, showingStart, showingEnd,
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={onPrev}
+          onClick={handlePrev}
           disabled={isPrevDisabled}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
         >
           Prev
         </button>
-        <span className="text-sm text-slate-600 dark:text-stone-400">Page {safePageIndex + 1} of {safePageCount}</span>
+        <span className="text-sm text-slate-600 dark:text-stone-400">Page {normalizedPage} of {safePageCount}</span>
         <button
           type="button"
-          onClick={onNext}
+          onClick={handleNext}
           disabled={isNextDisabled}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
         >
