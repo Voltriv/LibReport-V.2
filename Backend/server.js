@@ -113,7 +113,7 @@ function parseBase64Payload(raw) {
 }
 
 function sanitizeFilename(name) {
-  if (!name || typeof name !== 'string') return '';
+  if (!name || typeof name !== 'string') return 'file';
   return name.replace(/[^A-Za-z0-9._-]+/g, '_');
 }
 
@@ -173,6 +173,7 @@ function resolveLoanStatusMeta(loan, options = {}) {
 function normalizeUserStatus(rawStatus) {
   const value = typeof rawStatus === 'string' ? rawStatus.trim().toLowerCase() : '';
   if (value === 'disabled' || value === 'inactive') return 'disabled';
+  if (value === 'pending') return 'pending';
   return 'active';
 }
 
@@ -2770,8 +2771,7 @@ app.get('/api/loans/active', adminRequired, async (_req, res) => {
     { $unwind: '$user' },
     { $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } },
     { $unwind: '$book' },
-    {
-      $project: {
+    { $project: {
         _id: 1,
         userId: 1,
         bookId: 1,
@@ -2812,6 +2812,118 @@ app.get('/api/loans/active', adminRequired, async (_req, res) => {
   });
 
   res.json({ items });
+});
+
+app.get('/api/loans/history', adminRequired, async (req, res) => {
+  const now = new Date();
+  let limit = 50;
+  let page = 1;
+
+  try {
+    limit = readNumericQueryParam(req.query.limit, {
+      name: 'limit',
+      defaultValue: 50,
+      min: 1,
+      max: 200,
+      integer: true
+    });
+  } catch {}
+
+  try {
+    page = readNumericQueryParam(req.query.page, {
+      name: 'page',
+      defaultValue: 1,
+      min: 1,
+      integer: true
+    });
+  } catch {}
+
+  const rawStatus = String(req.query.status || '').trim().toLowerCase();
+  let statusFilter = rawStatus;
+  if (statusFilter === 'on_time' || statusFilter === 'on-time' || statusFilter === 'current') {
+    statusFilter = 'active';
+  }
+
+  const matchStage = {};
+  if (statusFilter === 'returned') {
+    matchStage.returnedAt = { $ne: null };
+  } else if (statusFilter === 'overdue') {
+    matchStage.returnedAt = null;
+    matchStage.dueAt = { $lt: now };
+  } else if (statusFilter === 'active') {
+    matchStage.returnedAt = null;
+    matchStage.dueAt = { $gte: now };
+  }
+
+  const hasMatch = Object.keys(matchStage).length > 0;
+  const total = await Loan.countDocuments(hasMatch ? matchStage : {});
+  const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+  const skip = (safePage - 1) * limit;
+
+  const pipeline = [];
+  if (hasMatch) {
+    pipeline.push({ $match: matchStage });
+  }
+  pipeline.push({ $sort: { borrowedAt: -1, _id: -1 } });
+  pipeline.push({ $skip: skip });
+  pipeline.push({ $limit: limit });
+  pipeline.push({ $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } });
+  pipeline.push({ $unwind: { path: '$user', preserveNullAndEmptyArrays: true } });
+  pipeline.push({ $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } });
+  pipeline.push({ $unwind: { path: '$book', preserveNullAndEmptyArrays: true } });
+  pipeline.push({
+    $project: {
+      _id: 1,
+      userId: 1,
+      bookId: 1,
+      borrowedAt: 1,
+      dueAt: 1,
+      returnedAt: 1,
+      user: {
+        _id: '$user._id',
+        fullName: '$user.fullName',
+        name: '$user.name',
+        studentId: '$user.studentId'
+      },
+      book: {
+        _id: '$book._id',
+        title: '$book.title',
+        bookCode: '$book.bookCode'
+      }
+    }
+  });
+
+  const docs = await Loan.aggregate(pipeline).exec();
+  const items = docs.map((doc) => {
+    const status = resolveLoanStatusMeta(doc, { now, activeLabel: 'Active' });
+    const label =
+      typeof status.label === 'string' && status.label.length
+        ? status.label.charAt(0).toUpperCase() + status.label.slice(1)
+        : 'Returned';
+    return {
+      id: String(doc._id || doc.id || ''),
+      bookId: doc.book?._id ? String(doc.book._id) : doc.bookId ? String(doc.bookId) : null,
+      title: doc.book?.title || '',
+      bookCode: doc.book?.bookCode || '',
+      borrowerId: doc.user?._id ? String(doc.user._id) : doc.userId ? String(doc.userId) : null,
+      borrowerName: doc.user?.fullName || doc.user?.name || '',
+      borrowerStudentId: doc.user?.studentId || '',
+      borrowedAt: coerceDate(doc.borrowedAt),
+      dueAt: coerceDate(doc.dueAt),
+      returnedAt: coerceDate(doc.returnedAt),
+      statusKey: status.key,
+      statusLabel: label
+    };
+  });
+
+  res.json({
+    items,
+    page: safePage,
+    limit,
+    total,
+    status: statusFilter || 'all'
+  });
 });
 
 app.get('/api/student/:id/borrowed', authRequired, async (req, res) => {
@@ -3277,7 +3389,6 @@ app.get('/api/books/lookup', authRequired, async (req, res) => {
 // Static asset routes for legacy book files have been removed
 
 const PORT = process.env.BACKEND_PORT || 4000;
-
 if (require.main === module) {
   app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));
 }

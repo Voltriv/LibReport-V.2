@@ -5,11 +5,19 @@ import usePagination from "../hooks/usePagination";
 
 const PAGE_SIZE = 10;
 
-const STATUS_OPTIONS = [
+const REQUEST_STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
+  { value: "cancelled", label: "Cancelled" },
   { value: "all", label: "All" }
+];
+
+const HISTORY_STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "returned", label: "Returned" },
+  { value: "overdue", label: "Overdue" },
+  { value: "active", label: "Active" }
 ];
 
 const STATUS_LABELS = {
@@ -18,7 +26,11 @@ const STATUS_LABELS = {
   rejected: "Rejected",
   cancelled: "Cancelled",
   cancelled_by_admin: "Cancelled",
-  cancelled_by_student: "Cancelled"
+  cancelled_by_student: "Cancelled",
+  returned: "Returned",
+  overdue: "Overdue",
+  active: "Active",
+  due_soon: "Due Soon"
 };
 
 function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
@@ -29,25 +41,34 @@ function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
   const dueAt = raw.dueAt ? new Date(raw.dueAt) : null;
   const returnedAt = raw.returnedAt ? new Date(raw.returnedAt) : null;
 
-  const status =
-    raw.statusLabel ||
-    raw.status ||
-    raw.statusKey ||
-    (returnedAt ? "Returned" : statusFallback);
+  // Determine a status string robustly
+  const source = raw.statusLabel || raw.status || raw.statusKey || "";
+  const rawStatusString = typeof source === "string" ? source.trim() : "";
+  let status = rawStatusString || statusFallback;
+  if (status && status.toLowerCase() === "on time") {
+    status = "On Time";
+  } else if (status) {
+    status = status
+      .split(/\s+/)
+      .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : ""))
+      .join(" ");
+  }
 
   return {
     ...raw,
     id: raw.id || raw._id || raw.loanId || raw.requestId || undefined,
     bookId: raw.bookId || book.id || book._id || null,
     title: raw.title || book.title || "",
-    bookCode: raw.bookCode || book.bookCode || "",
+    bookCode: raw.bookCode || book.bookCode || book.code || "",
     borrowerId: raw.borrowerId || user.id || user._id || raw.userId || null,
     borrowerName: raw.borrowerName || user.fullName || user.name || raw.student || "",
     borrowerStudentId: raw.borrowerStudentId || user.studentId || "",
     borrowedAt,
     dueAt,
     returnedAt,
-    status
+    statusKey: raw.statusKey || (status === "Returned" ? "returned" : status === "Overdue" ? "overdue" : undefined),
+    status,
+    statusLabel: status
   };
 }
 
@@ -96,6 +117,11 @@ const Borrowing = () => {
   const [loansLoading, setLoansLoading] = React.useState(false);
   const [loansError, setLoansError] = React.useState(null);
 
+  const [loanHistory, setLoanHistory] = React.useState([]);
+  const [historyLoading, setHistoryLoading] = React.useState(false);
+  const [historyError, setHistoryError] = React.useState(null);
+  const [historyStatusFilter, setHistoryStatusFilter] = React.useState("all");
+
   const [approvalTarget, setApprovalTarget] = React.useState(null);
   const [approvalBusy, setApprovalBusy] = React.useState(false);
   const [approvalError, setApprovalError] = React.useState(null);
@@ -119,8 +145,6 @@ const Borrowing = () => {
     pageItems: paginatedRequests,
     showingStart: requestShowingStart,
     showingEnd: requestShowingEnd,
-    isFirstPage: isRequestFirstPage,
-    isLastPage: isRequestLastPage,
     nextPage: goToNextRequestPage,
     prevPage: goToPreviousRequestPage,
     totalItems: totalRequestCount
@@ -132,19 +156,37 @@ const Borrowing = () => {
     pageItems: paginatedLoans,
     showingStart: loanShowingStart,
     showingEnd: loanShowingEnd,
-    isFirstPage: isLoanFirstPage,
-    isLastPage: isLoanLastPage,
     nextPage: goToNextLoanPage,
     prevPage: goToPreviousLoanPage,
     totalItems: totalLoanCount
   } = usePagination(activeLoans, PAGE_SIZE);
 
-const loadRequests = React.useCallback(async () => {
+  const {
+    page: historyPage,
+    pageCount: historyPageCount,
+    pageItems: paginatedHistory,
+    showingStart: historyShowingStart,
+    showingEnd: historyShowingEnd,
+    nextPage: goToNextHistoryPage,
+    prevPage: goToPreviousHistoryPage,
+    totalItems: totalHistoryCount
+  } = usePagination(loanHistory, PAGE_SIZE);
+
+  const loadRequests = React.useCallback(async () => {
     setRequestsLoading(true);
     setRequestsError(null);
     try {
       const params = {};
-      if (statusFilter !== "all") params.status = statusFilter;
+      // Map UI filters to backend query model (processed/outcome)
+      if (statusFilter === "pending") {
+        params.processed = false;
+      } else if (statusFilter === "approved") {
+        params.processed = true;
+        params.outcome = "approved";
+      } else if (statusFilter === "rejected") {
+        params.processed = true;
+        params.outcome = "rejected";
+      }
       const { data } = await api.get("/loans/requests", { params });
       const items = Array.isArray(data?.items) ? data.items : [];
       setRequests(
@@ -168,11 +210,13 @@ const loadRequests = React.useCallback(async () => {
                     : item.user.id
               }
             : item.user;
+          const normalizedStatus = typeof item.status === "string" ? item.status.toLowerCase() : "";
           return {
             ...item,
             id: idSource ? String(idSource) : undefined,
             book,
             user,
+            status: normalizedStatus || item.status || "",
             requestedAt: item.requestedAt ? new Date(item.requestedAt) : null,
             processedAt: item.processedAt ? new Date(item.processedAt) : null,
             dueAt: item.dueAt ? new Date(item.dueAt) : null
@@ -202,6 +246,23 @@ const loadRequests = React.useCallback(async () => {
     }
   }, []);
 
+  const loadLoanHistory = React.useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const params = {};
+      if (historyStatusFilter !== "all") params.status = historyStatusFilter;
+      const { data } = await api.get("/loans/history", { params });
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setLoanHistory(items.map((item) => normalizeLoanEntry(item, { statusFallback: "Returned" })));
+    } catch (err) {
+      setLoanHistory([]);
+      setHistoryError(err?.response?.data?.error || "Failed to load loan history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [historyStatusFilter]);
+
   React.useEffect(() => {
     loadRequests();
   }, [loadRequests]);
@@ -209,8 +270,14 @@ const loadRequests = React.useCallback(async () => {
   React.useEffect(() => {
     loadActiveLoans();
   }, [loadActiveLoans]);
+
+  React.useEffect(() => {
+    loadLoanHistory();
+  }, [loadLoanHistory]);
+    
   const pendingCount = React.useMemo(
-    () => requests.filter((req) => req.status === "pending").length,
+    () =>
+      requests.filter((req) => typeof req.status === "string" && req.status.toLowerCase() === "pending").length,
     [requests]
   );
 
@@ -303,40 +370,22 @@ const handleApprove = React.useCallback(
       await api.post(`/loans/${returnTarget.id}/return`);
       setReturnTarget(null);
       showToast("Loan marked as returned");
-      await loadActiveLoans();
+      await Promise.all([loadActiveLoans(), loadLoanHistory()]);
     } catch (err) {
       const message = err?.response?.data?.error || "Failed to mark loan as returned.";
       setReturnError(message);
     } finally {
       setReturnBusy(false);
     }
-  }, [returnTarget, loadActiveLoans, showToast]);
+  }, [returnTarget, loadActiveLoans, loadLoanHistory, showToast]);
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <Sidebar />
       <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
-        {toast && (
-          <div className={`mb-6 rounded-2xl border px-4 py-3 shadow ${
-            toast.type === "error"
-              ? "border-red-200 bg-red-50 text-red-700"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700"
-          }`}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <span className="text-sm font-medium">{toast.message}</span>
-              <button
-                onClick={hideToast}
-                className="text-sm font-semibold text-slate-500 hover:text-slate-700"
-                type="button"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
+        {toast ? <InlineToast toast={toast} onClose={hideToast} /> : null}
 
-        <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <header className="mb-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-brand-green-dark/80 dark:text-brand-gold-soft">
               Circulation
@@ -346,346 +395,166 @@ const handleApprove = React.useCallback(
               Review student borrowing requests, approve or decline loans, and adjust renewal schedules for active checkouts.
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 shadow ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-green/10 text-brand-green-dark">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                  className="h-5 w-5"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v-3.375a2.625 2.625 0 00-2.625-2.625h-6.75" />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 6.75a3 3 0 11-6 0 3 3 0 016 0zM19.5 21l-4.5-4.5"
-                  />
-                </svg>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending requests</p>
-                <p className="text-xl font-bold text-slate-900 dark:text-stone-100">{pendingCount}</p>
-              </div>
-            </div>
-          </div>
+          <StatsCard pendingCount={pendingCount} />
         </header>
 
-        <section className="mb-12">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            {STATUS_OPTIONS.map((option) => {
-              const isActive = statusFilter === option.value;
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => setStatusFilter(option.value)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-brand-green text-white shadow"
-                      : "bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100"
-                  }`}
-                  type="button"
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
+        <div className="space-y-10">
+          <SectionCard
+            title="Borrow requests"
+            subtitle="Monitor and approve pending requests from students."
+            action={<RefreshButton onClick={loadRequests} busy={requestsLoading} label="Refresh" />}
+            toolbar={<StatusFilter value={statusFilter} onChange={setStatusFilter} options={REQUEST_STATUS_OPTIONS} />}
+            footer={
+              !requestsLoading ? (
+                <SectionPagination
+                  isEmpty={totalRequestCount === 0}
+                  page={requestPage}
+                  pageCount={requestPageCount}
+                  showingStart={requestShowingStart}
+                  showingEnd={requestShowingEnd}
+                  total={totalRequestCount}
+                  noun="request"
+                  onPrev={goToPreviousRequestPage}
+                  onNext={goToNextRequestPage}
+                />
+              ) : null
+            }
+          >
+            {requestsError ? <ErrorBanner message={requestsError} /> : null}
 
-          <div className="rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Borrow requests</h2>
-              <button
-                onClick={loadRequests}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
-                type="button"
-              >
-                <svg
-                  className={`h-4 w-4 ${requestsLoading ? "animate-spin" : ""}`}
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4.5 4.5v5h.008v.008H9"
+            {requestsLoading ? (
+              <SkeletonList count={3} />
+            ) : requests.length === 0 ? (
+              <EmptyState message="No requests to display for this filter." />
+            ) : (
+              <div className="space-y-4">
+                {paginatedRequests.map((request) => (
+                  <RequestCard
+                    key={request.id}
+                    request={request}
+                    onApprove={() => {
+                      setApprovalTarget(request);
+                      setApprovalError(null);
+                    }}
+                    onReject={() => {
+                      setRejectTarget(request);
+                      setRejectError(null);
+                    }}
                   />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19.5 19.5v-5h-.008v-.008H15"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M8.25 19.5a7.5 7.5 0 01-3.504-6.305M15.75 4.5A7.5 7.5 0 0119.254 10.8"
-                  />
-                </svg>
-                Refresh
-              </button>
-            </div>
-
-            {requestsError && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {requestsError}
+                ))}
               </div>
             )}
+          </SectionCard>
 
-            <div className="space-y-4">
-              {requestsLoading ? (
-                [0, 1, 2].map((index) => (
-                  <div
-                    key={index}
-                    className="h-24 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-stone-800"
-                  />
-                ))
-              ) : requests.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500 dark:border-stone-700 dark:bg-stone-950/40 dark:text-stone-400">
-                  No requests to display for this filter.
-                </div>
-              ) : (
-                paginatedRequests.map((request) => {
-                  const { book, user } = request;
-                  return (
-                    <div
-                      key={request.id}
-                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-stone-700 dark:bg-stone-900/80"
-                    >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-brand-green/10 px-3 py-1 text-xs font-semibold tracking-wide text-brand-green-dark">
-                              {STATUS_LABELS[request.status] || request.status}
-                            </span>
-                            {request.dueAt && (
-                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-stone-800 dark:text-stone-300">
-                                Due {request.dueAt.toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="mt-3 text-lg font-semibold text-slate-900 dark:text-stone-100">
-                            {book?.title || "Untitled"}
-                          </h3>
-                          {book?.author && (
-                            <p className="text-sm text-slate-500 dark:text-stone-400">by {book.author}</p>
-                          )}
-                          <div className="mt-4 grid gap-2 text-sm text-slate-600 dark:text-stone-300">
-                            <p>
-                              <span className="font-medium">Requested by:</span> {user?.name || "Unknown student"}
-                              {user?.studentId ? ` - ${user.studentId}` : ""}
-                            </p>
-                            {request.daysRequested && (
-                              <p>
-                                <span className="font-medium">Loan duration:</span> {request.daysRequested} day{request.daysRequested === 1 ? "" : "s"}
-                              </p>
-                            )}
-                            {request.requestedAt && (
-                              <p>
-                                <span className="font-medium">Requested:</span> {request.requestedAt.toLocaleString()}
-                              </p>
-                            )}
-                            {request.message && (
-                              <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs italic text-slate-500 dark:bg-stone-800 dark:text-stone-300">
-                                "{request.message}"
-                              </p>
-                            )}
-                            {request.adminNote && request.status !== "pending" && (
-                              <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
-                                Admin note: {request.adminNote}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        {request.status === "pending" ? (
-                          <div className="flex flex-col gap-2">
-                            <button
-                              onClick={() => {
-                                setApprovalTarget(request);
-                                setApprovalError(null);
-                              }}
-                              className="inline-flex items-center justify-center rounded-xl bg-brand-green px-4 py-2 text-sm font-semibold text-white shadow hover:bg-brand-greenDark focus:outline-none focus:ring-2 focus:ring-brand-green/40"
-                              type="button"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => {
-                                setRejectTarget(request);
-                                setRejectError(null);
-                              }}
-                              className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-                              type="button"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {!requestsLoading && (
-              <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-stone-700 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-sm text-slate-600 dark:text-stone-300">
-                  {totalRequestCount === 0
-                    ? "No requests found"
-                    : `Showing ${requestShowingStart}-${requestShowingEnd} of ${totalRequestCount} ${
-                        totalRequestCount === 1 ? "request" : "requests"
-                      }`}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
-                    onClick={goToPreviousRequestPage}
-                    disabled={requestsLoading || totalRequestCount === 0 || isRequestFirstPage}
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    Previous
-                  </button>
-                  <div className="text-sm font-medium text-slate-600 dark:text-stone-200">
-                    Page {totalRequestCount === 0 ? 0 : requestPage} of {totalRequestCount === 0 ? 0 : requestPageCount}
-                  </div>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
-                    onClick={goToNextRequestPage}
-                    disabled={requestsLoading || totalRequestCount === 0 || isRequestLastPage}
-                  >
-                    Next
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-white/40 p-4 text-sm text-slate-600 ring-1 ring-slate-200 dark:bg-stone-900/40 dark:text-stone-300 dark:ring-stone-700 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              {loansLoading
-                ? "Loading loans..."
-                : totalLoanCount === 0
-                ? "No active loans found"
-                : `Showing ${loanShowingStart}-${loanShowingEnd} of ${totalLoanCount} ${
-                    totalLoanCount === 1 ? "loan" : "loans"
-                  }`}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
-                onClick={goToPreviousLoanPage}
-                disabled={loansLoading || totalLoanCount === 0 || isLoanFirstPage}
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Previous
-              </button>
-              <div className="text-sm font-medium text-slate-600 dark:text-stone-200">
-                Page {totalLoanCount === 0 ? 0 : loanPage} of {totalLoanCount === 0 ? 0 : loanPageCount}
-              </div>
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-700"
-                onClick={goToNextLoanPage}
-                disabled={loansLoading || totalLoanCount === 0 || isLoanLastPage}
-              >
-                Next
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Active loans</h2>
-            <button
-              onClick={loadActiveLoans}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
-              type="button"
-            >
-              <svg
-                className={`h-4 w-4 ${loansLoading ? "animate-spin" : ""}`}
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 4.5v5H9M19.5 19.5v-5H15" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 19.5a7.5 7.5 0 01-3.504-6.305M15.75 4.5A7.5 7.5 0 0119.254 10.8" />
-              </svg>
-              Refresh
-            </button>
-          </div>
-
-          {loansError && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {loansError}
-            </div>
-          )}
-
-          <div className="overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
-            <div className="max-h-[32rem] overflow-x-auto overflow-y-auto">
-              <table className="min-w-full divide-y divide-slate-200 dark:divide-stone-800">
-                <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm dark:bg-stone-900/90">
+          <SectionCard
+            title="Active loans"
+            subtitle="Track ongoing loans and manage renewals or returns."
+            action={<RefreshButton onClick={loadActiveLoans} busy={loansLoading} label="Refresh" />}
+            footer={
+              <SectionPagination
+                isEmpty={totalLoanCount === 0}
+                page={loanPage}
+                pageCount={loanPageCount}
+                showingStart={loanShowingStart}
+                showingEnd={loanShowingEnd}
+                total={totalLoanCount}
+                noun="loan"
+                onPrev={goToPreviousLoanPage}
+                onNext={goToNextLoanPage}
+                loading={loansLoading}
+              />
+            }
+          >
+            {loansError ? <ErrorBanner message={loansError} /> : null}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-left text-sm dark:divide-stone-800">
+                <thead className="bg-slate-50/80 dark:bg-stone-900/60">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Book
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Borrower
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Borrowed
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Due
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400">
-                      Actions
-                    </th>
+                    <TableHead>Book</TableHead>
+                    <TableHead>Borrower</TableHead>
+                    <TableHead>Borrowed</TableHead>
+                    <TableHead>Due</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead align="right">Actions</TableHead>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 bg-white text-sm dark:divide-stone-800 dark:bg-stone-900/60">
+                <tbody className="divide-y divide-slate-200 bg-white dark:divide-stone-800 dark:bg-stone-900/60">
                   {loansLoading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-6 text-center text-slate-500 dark:text-stone-400">
-                        Loading loans...
-                      </td>
-                    </tr>
+                    <TableMessage colSpan={6}>Loading loans...</TableMessage>
                   ) : activeLoans.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-6 text-center text-slate-500 dark:text-stone-400">
-                        No active loans to display.
-                      </td>
-                    </tr>
+                    <TableMessage colSpan={6}>No active loans to display.</TableMessage>
                   ) : (
                     paginatedLoans.map((loan) => (
+                      <ActiveLoanRow
+                        key={loan.id || loan.bookId || loan.title}
+                        loan={loan}
+                        onRenew={() => {
+                          setRenewTarget(loan);
+                          setRenewError(null);
+                        }}
+                        onReturn={() => {
+                          setReturnTarget(loan);
+                          setReturnError(null);
+                        }}
+                      />
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="History logs"
+            subtitle="Review returned, overdue, or still-active loans."
+            action={<RefreshButton onClick={loadLoanHistory} busy={historyLoading} label="Refresh" />}
+            toolbar={
+              <StatusFilter
+                value={historyStatusFilter}
+                onChange={setHistoryStatusFilter}
+                options={HISTORY_STATUS_OPTIONS}
+              />
+            }
+            footer={
+              !historyLoading ? (
+                <SectionPagination
+                  isEmpty={totalHistoryCount === 0}
+                  page={historyPage}
+                  pageCount={historyPageCount}
+                  showingStart={historyShowingStart}
+                  showingEnd={historyShowingEnd}
+                  total={totalHistoryCount}
+                  noun="record"
+                  onPrev={goToPreviousHistoryPage}
+                  onNext={goToNextHistoryPage}
+                />
+              ) : null
+            }
+          >
+            {historyError ? <ErrorBanner message={historyError} /> : null}
+            {historyLoading ? (
+              <SkeletonList count={3} />
+            ) : loanHistory.length === 0 ? (
+              <EmptyState message="No history logs to display for this filter." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-left text-sm dark:divide-stone-800">
+                  <thead className="bg-slate-50/80 dark:bg-stone-900/60">
+                    <tr>
+                      <TableHead>Book</TableHead>
+                      <TableHead>Borrower</TableHead>
+                      <TableHead>Borrowed</TableHead>
+                      <TableHead>Due</TableHead>
+                      <TableHead>Returned</TableHead>
+                      <TableHead>Status</TableHead>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white dark:divide-stone-800 dark:bg-stone-900/60">
+                    {paginatedHistory.map((loan) => (
                       <tr key={loan.id || loan.bookId || loan.title}>
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
-                            <span className="font-medium text-slate-900 dark:text-stone-100">
-                              {loan.title || "Untitled"}
-                            </span>
+                            <span className="font-medium text-slate-900 dark:text-stone-100">{loan.title || "Untitled"}</span>
                             {loan.bookCode ? (
                               <span className="text-xs text-slate-500 dark:text-stone-400">{loan.bookCode}</span>
                             ) : null}
@@ -693,61 +562,28 @@ const handleApprove = React.useCallback(
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium text-slate-600 dark:text-stone-200">
-                              {loan.borrowerName || loan.student || "Unknown"}
-                            </span>
+                            <span className="text-sm font-medium text-slate-600 dark:text-stone-200">{loan.borrowerName || loan.student || "Unknown"}</span>
                             {loan.borrowerStudentId ? (
                               <span className="text-xs text-slate-500 dark:text-stone-400">{loan.borrowerStudentId}</span>
                             ) : null}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
-                          {loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--"}
-                        </td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
-                          {loan.dueAt ? loan.dueAt.toLocaleDateString() : "--"}
-                        </td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--"}</td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.dueAt ? loan.dueAt.toLocaleDateString() : "--"}</td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.returnedAt ? loan.returnedAt.toLocaleDateString() : "--"}</td>
                         <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                              loan.status === "Overdue"
-                                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200"
-                                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
-                            }`}
-                          >
-                            {loan.status}
+                          <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-stone-800 dark:text-stone-200">
+                            {STATUS_LABELS[loan.statusKey] || loan.status || "Completed"}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => {
-                              setRenewTarget(loan);
-                              setRenewError(null);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-                            type="button"
-                          >
-                            Renew
-                          </button>
-                          <button
-                            onClick={() => {
-                              setReturnTarget(loan);
-                              setReturnError(null);
-                            }}
-                            className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-                            type="button"
-                          >
-                            Mark returned
-                          </button>
-                        </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
+        </div>
       </main>
 
       <ApprovalDialog
@@ -781,6 +617,101 @@ const handleApprove = React.useCallback(
     </div>
   );
 };
+
+function InlineToast({ toast, onClose }) {
+  return (
+    <div
+      className={`mb-6 rounded-2xl border px-4 py-3 shadow ${
+        toast.type === "error"
+          ? "border-red-200 bg-red-50 text-red-700"
+          : "border-emerald-200 bg-emerald-50 text-emerald-700"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <span className="text-sm font-medium">{toast.message}</span>
+        <button
+          onClick={onClose}
+          className="text-sm font-semibold text-slate-500 transition hover:text-slate-700"
+          type="button"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StatsCard({ pendingCount }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-green/10 text-brand-green-dark">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="currentColor"
+          className="h-5 w-5"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v-3.375a2.625 2.625 0 00-2.625-2.625h-6.75" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 6.75a3 3 0 11-6 0 3 3 0 016 0zM19.5 21l-4.5-4.5"
+          />
+        </svg>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending requests</p>
+        <p className="text-2xl font-semibold text-slate-900 dark:text-stone-100">{pendingCount}</p>
+      </div>
+    </div>
+  );
+}
+
+function SectionCard({ title, subtitle, action, toolbar, footer, children }) {
+  return (
+    <section className="rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">{title}</h2>
+          {subtitle ? <p className="text-sm text-slate-600 dark:text-stone-300">{subtitle}</p> : null}
+        </div>
+        {action ? <div className="flex-shrink-0">{action}</div> : null}
+      </div>
+
+      {toolbar ? <div className="mt-6">{toolbar}</div> : null}
+
+      <div className="mt-6 space-y-4">{children}</div>
+
+      {footer ? <div className="mt-6 border-t border-slate-200 pt-4 dark:border-stone-800">{footer}</div> : null}
+    </section>
+  );
+}
+
+function StatusFilter({ value, onChange, options }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {options.map((option) => {
+        const isActive = value === option.value;
+        return (
+          <button
+            key={option.value}
+            onClick={() => onChange(option.value)}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              isActive
+                ? "bg-brand-green text-white shadow"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+            }`}
+            type="button"
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function ApprovalDialog({ request, busy, error, onClose, onSubmit }) {
   const [days, setDays] = React.useState(0);
@@ -1056,7 +987,170 @@ function ReturnDialog({ loan, busy, error, onClose, onSubmit }) {
   );
 }
 
+// --- Local lightweight UI components to satisfy references ---
+function RefreshButton({ onClick, busy, label = "Refresh" }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      type="button"
+      className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 disabled:opacity-60 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+    >
+      <svg
+        className={`h-4 w-4 ${busy ? "animate-spin" : ""}`}
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={1.5}
+        stroke="currentColor"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 4.5v5H9M19.5 19.5v-5H15" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 19.5a7.5 7.5 0 01-3.504-6.305M15.75 4.5A7.5 7.5 0 0119.254 10.8" />
+      </svg>
+      {label}
+    </button>
+  );
+}
+
+function SectionPagination({ isEmpty, page, pageCount, showingStart, showingEnd, total, noun, onPrev, onNext, loading }) {
+  if (isEmpty) return null;
+  const safePageCount = Math.max(1, Number.isFinite(pageCount) ? pageCount : 1);
+  const safePageIndex = Math.min(Math.max(0, page || 0), safePageCount - 1);
+  const isPrevDisabled = safePageIndex <= 0;
+  const isNextDisabled = safePageIndex >= safePageCount - 1;
+  return (
+    <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+      <p className="text-sm text-slate-600 dark:text-stone-400">
+        {loading ? "Loading..." : `Showing ${showingStart}-${showingEnd} of ${total} ${noun}${total === 1 ? "" : "s"}`}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onPrev}
+          disabled={isPrevDisabled}
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Prev
+        </button>
+        <span className="text-sm text-slate-600 dark:text-stone-400">Page {safePageIndex + 1} of {safePageCount}</span>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={isNextDisabled}
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ErrorBanner({ message }) {
+  if (!message) return null;
+  return (
+    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>
+  );
+}
+
+function SkeletonList({ count = 3 }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="h-20 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-stone-800" />
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ message }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-400">
+      {message}
+    </div>
+  );
+}
+
+function RequestCard({ request, onApprove, onReject }) {
+  const requestedAt = request.requestedAt ? request.requestedAt.toLocaleString() : "--";
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4 dark:border-stone-800">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-900 dark:text-stone-100">{request.book?.title || "Untitled"}</p>
+        <p className="truncate text-sm text-slate-600 dark:text-stone-300">
+          {request.user?.name || "Student"} • {requestedAt}
+        </p>
+      </div>
+      <div className="flex flex-shrink-0 items-center gap-2">
+        <button onClick={onReject} type="button" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800">
+          Reject
+        </button>
+        <button onClick={onApprove} type="button" className="rounded-lg bg-brand-green px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-greenDark">
+          Approve
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TableHead({ children, align = "left" }) {
+  return (
+    <th className={`px-6 py-3 text-${align} text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400`}>
+      {children}
+    </th>
+  );
+}
+
+function TableMessage({ colSpan = 1, children }) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="px-6 py-6 text-center text-slate-500 dark:text-stone-400">{children}</td>
+    </tr>
+  );
+}
+
+function ActiveLoanRow({ loan, onRenew, onReturn }) {
+  return (
+    <tr>
+      <td className="px-6 py-4">
+        <div className="flex flex-col">
+          <span className="font-medium text-slate-900 dark:text-stone-100">{loan.title || "Untitled"}</span>
+          {loan.bookCode ? (
+            <span className="text-xs text-slate-500 dark:text-stone-400">{loan.bookCode}</span>
+          ) : null}
+        </div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-slate-600 dark:text-stone-200">{loan.borrowerName || loan.student || "Unknown"}</span>
+          {loan.borrowerStudentId ? (
+            <span className="text-xs text-slate-500 dark:text-stone-400">{loan.borrowerStudentId}</span>
+          ) : null}
+        </div>
+      </td>
+      <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--"}</td>
+      <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.dueAt ? loan.dueAt.toLocaleDateString() : "--"}</td>
+      <td className="px-6 py-4">
+        <span
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+            loan.status === "Overdue"
+              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200"
+              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
+          }`}
+        >
+          {loan.status}
+        </span>
+      </td>
+      <td className="px-6 py-4 text-right">
+        <button onClick={onRenew} type="button" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800">
+          Renew
+        </button>
+        <button onClick={onReturn} type="button" className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800">
+          Mark returned
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 export default Borrowing;
-
-
-
