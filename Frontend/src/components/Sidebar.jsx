@@ -87,12 +87,13 @@ const Sidebar = () => {
     { to: "/tracker", label: "Tracker", icon: "" },
     { to: "/usage-heatmaps", label: "Usage Heatmaps", icon: "" },
     { to: "/reports", label: "Reports", icon: "" },
-    { to: "/borrowing", label: "Borrowing", icon: "" },
     { to: "/library", label: "Library", icon: "" },
   ];
   const managementNav = [
     { to: "/usermanagement", label: "User Management", icon: "" },
     { to: "/booksmanagement", label: "Books Management", icon: "" },
+    { to: "/borrowing", label: "Borrow Management", icon: "" },
+
     { to: "/admins", label: "Admins", icon: "" },
   ];
 

@@ -31,7 +31,6 @@ const STATUS_BADGE_CLASSES = {
 const StudentCatalog = () => {
   const [query, setQuery] = React.useState("");
   const [tag, setTag] = React.useState("");
-  const [withPdf, setWithPdf] = React.useState(false);
   const [items, setItems] = React.useState([]);
   const [skip, setSkip] = React.useState(0);
   const [hasMore, setHasMore] = React.useState(true);
@@ -48,12 +47,11 @@ const StudentCatalog = () => {
   const [borrowFeedback, setBorrowFeedback] = React.useState(null);
 
   const load = React.useCallback(
-    async ({ reset = false, overrideQuery, overrideTag, overrideWithPdf } = {}) => {
+    async ({ reset = false, overrideQuery, overrideTag } = {}) => {
       if (loadingRef.current) return;
 
       const nextQuery = typeof overrideQuery === "string" ? overrideQuery : query;
       const nextTag = typeof overrideTag === "string" ? overrideTag : tag;
-      const nextWithPdf = typeof overrideWithPdf === "boolean" ? overrideWithPdf : withPdf;
       const nextSkip = reset ? 0 : skip;
 
       loadingRef.current = true;
@@ -69,11 +67,10 @@ const StudentCatalog = () => {
         };
         if (nextQuery.trim()) params.q = nextQuery.trim();
         if (nextTag) params.tag = nextTag;
-        if (nextWithPdf) params.withPdf = true;
         const { data } = await api.get("/books/library", { params });
         const newItems = (data?.items || []).map((item) => {
           const coverRaw = item.imageUrl || item.coverImagePath || "";
-          const pdfRaw = item.pdfUrl || item.pdfPath || "";
+          const pdfRaw = item.pdfUrl || "";
 
           let imageUrl = "";
           if (typeof coverRaw === "string") {
@@ -133,7 +130,7 @@ const StudentCatalog = () => {
         }
       }
     },
-    [query, tag, withPdf, skip]
+    [query, tag, skip]
   );
 
   const handleBorrowBook = React.useCallback(async (bookId, bookTitle) => {
@@ -223,31 +220,23 @@ const StudentCatalog = () => {
   const clearQuery = React.useCallback(() => {
     if (!trimmedQuery) return;
     setQuery("");
-    load({ reset: true, overrideQuery: "", overrideTag: tag, overrideWithPdf: withPdf });
-  }, [trimmedQuery, load, tag, withPdf]);
+    load({ reset: true, overrideQuery: "", overrideTag: tag });
+  }, [trimmedQuery, load, tag]);
 
   const clearTag = React.useCallback(() => {
     if (!tag) return;
     setTag("");
-    load({ reset: true, overrideQuery: trimmedQuery, overrideTag: "", overrideWithPdf: withPdf });
-  }, [tag, trimmedQuery, load, withPdf]);
-
-  const clearWithPdf = React.useCallback(() => {
-    if (!withPdf) return;
-    setWithPdf(false);
-    load({ reset: true, overrideQuery: trimmedQuery, overrideTag: tag, overrideWithPdf: false });
-  }, [withPdf, trimmedQuery, load, tag]);
+    load({ reset: true, overrideQuery: trimmedQuery, overrideTag: "" });
+  }, [tag, trimmedQuery, load]);
 
   const filterChips = [];
   if (trimmedQuery) filterChips.push({ label: `Keyword: ${trimmedQuery}`, onRemove: clearQuery });
   if (tag) filterChips.push({ label: `Department: ${tag}`, onRemove: clearTag });
-  if (withPdf) filterChips.push({ label: "Downloadable PDFs", onRemove: clearWithPdf });
 
   const filterSummaryParts = [];
-  if (trimmedQuery) filterSummaryParts.push(`“${trimmedQuery}”`);
+  if (trimmedQuery) filterSummaryParts.push(`"${trimmedQuery}"`);
   if (tag) filterSummaryParts.push(tag);
-  if (withPdf) filterSummaryParts.push("with PDFs");
-  const filterSummary = filterSummaryParts.join(" • ");
+  const filterSummary = filterSummaryParts.join(" - ");
 
   const showSkeleton = initialLoading && loading;
   const totalToShow = resultCount || items.length;
@@ -269,8 +258,8 @@ const StudentCatalog = () => {
           </div>
           <h1 className="text-4xl font-bold text-slate-900">Library Catalog</h1>
           <p className="text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
-            Search the LibReport collection by title, author, or book code. Filter by department tags or limit results to titles
-            with available digital copies.
+            Search the LibReport collection by title, author, or book code and filter by department tags to find the resources you need.
+            Request a loan directly from this page to access physical copies.
           </p>
         </div>
       </div>
@@ -309,8 +298,7 @@ const StudentCatalog = () => {
                   load({
                     reset: true,
                     overrideQuery: query.trim(),
-                    overrideTag: nextTag,
-                    overrideWithPdf: withPdf
+                    overrideTag: nextTag
                   });
                 }}
                 className="w-full rounded-xl border border-slate-300/60 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-brand-gold transition-all duration-200"
@@ -324,20 +312,10 @@ const StudentCatalog = () => {
               </select>
             </div>
             <div className="flex flex-col gap-3">
-              <label className="text-sm font-semibold text-slate-700">Filter Options</label>
-              <label className="inline-flex items-center gap-3 text-sm text-slate-700 p-3 rounded-xl border border-slate-200/60 hover:bg-slate-50 transition-colors cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={withPdf}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setWithPdf(checked);
-                    load({ reset: true, overrideWithPdf: checked });
-                  }}
-                  className="h-4 w-4 rounded border-slate-300 text-brand-gold focus:ring-brand-gold"
-                />
-                <span>Only show titles with downloadable PDFs</span>
-              </label>
+              <label className="text-sm font-semibold text-slate-700">Digital Access</label>
+              <p className="rounded-xl border border-slate-200/60 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Downloadable PDFs are limited to library staff. Request a physical copy or visit the circulation desk for on-site access.
+              </p>
             </div>
           </div>
           <div className="md:col-span-2 flex flex-wrap items-center gap-4 pt-2">
@@ -365,8 +343,7 @@ const StudentCatalog = () => {
               onClick={() => {
                 setQuery("");
                 setTag("");
-                setWithPdf(false);
-                load({ reset: true, overrideQuery: "", overrideTag: "", overrideWithPdf: false });
+                load({ reset: true, overrideQuery: "", overrideTag: "" });
               }}
               className="btn-student-outline px-6 py-3 font-semibold hover:shadow-md transition-all duration-200"
             >
@@ -550,12 +527,6 @@ const StudentCatalog = () => {
                     </div>
                   )}
 
-                  {item.pdfUrl && (
-                    <span className="absolute left-4 top-4 rounded-full bg-gradient-to-r from-brand-green to-brand-greenDark px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-lg">
-                      PDF Available
-                    </span>
-                  )}
-
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </div>
                 <div className="flex flex-1 flex-col gap-4 p-6">
@@ -597,26 +568,6 @@ const StudentCatalog = () => {
                     </div>
                     
                     <div className="space-y-2">
-                      {item.pdfUrl && (
-                        <a
-                          href={item.pdfUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-full btn-student-outline text-center py-3 font-semibold shadow-md hover:shadow-lg transition-all duration-200"
-                        >
-                          <span className="flex items-center justify-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                              <polyline points="14,2 14,8 20,8"/>
-                              <line x1="16" y1="13" x2="8" y2="13"/>
-                              <line x1="16" y1="17" x2="8" y2="17"/>
-                              <polyline points="10,9 9,9 8,9"/>
-                            </svg>
-                            Open PDF
-                          </span>
-                        </a>
-                      )}
-                      
                       {available !== null && available > 0 ? (
                         <button
                           onClick={() => handleBorrowBook(item._id, item.title)}

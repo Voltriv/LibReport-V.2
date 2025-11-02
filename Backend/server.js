@@ -1946,11 +1946,28 @@ app.get('/api/books/library', authRequired, async (req, res) => {
     .limit(limit)
     .lean();
 
-  const items = docs.map((doc) => ({
-    ...doc,
-    imageUrl: doc.coverImagePath || null,
-    pdfUrl: doc.pdfPath || null
-  }));
+  const role = String(req.user?.role || '').toLowerCase();
+  const allowPdf = role === 'admin' || role === 'librarian' || role === 'librarian_staff';
+
+  const items = docs.map((doc) => {
+    const {
+      pdfPath,
+      pdfFileId,
+      pdfOriginalName,
+      pdfMime,
+      coverImageFileId,
+      coverImageOriginalName,
+      __v,
+      ...rest
+    } = doc;
+
+    return {
+      ...rest,
+      coverImagePath: doc.coverImagePath || null,
+      imageUrl: doc.coverImagePath || null,
+      pdfUrl: allowPdf && pdfPath ? pdfPath : null
+    };
+  });
 
   res.json({ items });
 });
@@ -3354,6 +3371,29 @@ app.patch('/api/admin/users/:id/status', adminRequired, async (req, res) => {
   ).lean();
   if (!user) return res.status(404).json({ error: 'Not found' });
   res.json({ id: String(user._id), status: user.status });
+});
+
+app.patch('/api/admin/users/:id/department', adminRequired, async (req, res) => {
+  const rawDepartment = req.body?.department;
+  const department = typeof rawDepartment === 'string' ? rawDepartment.trim() : '';
+  if (!department) return res.status(400).json({ error: 'department required' });
+
+  const user = await User.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'Not found' });
+
+  user.department = department;
+  await user.save();
+
+  const userRole = resolveUserRole(user.role, 'student');
+  if (userRole === 'faculty') {
+    await Faculty.findOneAndUpdate(
+      { facultyId: user.studentId },
+      { $set: { department } },
+      { upsert: false }
+    );
+  }
+
+  res.json({ id: String(user._id), department: user.department || '' });
 });
 
 // --- Lookups

@@ -16,8 +16,7 @@ const HISTORY_STATUS_OPTIONS = [
   { value: "all", label: "All" },
   { value: "returned", label: "Returned" },
   { value: "overdue", label: "Overdue" },
-  { value: "active", label: "Active" },
-  { value: "rejected", label: "Rejected" } // ✅
+  { value: "rejected", label: "Rejected" } // includes cancelled or rejected requests
 ];
 
 const STATUS_LABELS = {
@@ -63,7 +62,7 @@ function canonicalHistoryStatus(loan) {
     .toLowerCase()
     .trim();
 
-  if (raw.includes("reject")) return "rejected";
+  if (raw.includes("reject") || raw.includes("cancel")) return "rejected";
   if (raw.includes("return")) return "returned";
   if (raw.includes("overdue")) return "overdue";
   if (raw.includes("active")) return "active";
@@ -115,12 +114,63 @@ function normalizeLoanEntry(raw = {}, { statusFallback = "Active" } = {}) {
         ? "overdue"
         : status === "Rejected"
         ? "rejected"
+        : status === "Cancelled"
+        ? "cancelled"
         : undefined),
     status,
     statusLabel: status
   };
 }
 
+const HISTORY_REQUEST_STATUSES = new Set(["rejected", "cancelled", "cancelled_by_admin", "cancelled_by_student"]);
+
+function normalizeRequestHistoryEntry(request) {
+  if (!request) return null;
+  const requestedAt = request.requestedAt ? new Date(request.requestedAt) : null;
+  const dueAt = request.dueAt ? new Date(request.dueAt) : null;
+  const processedAt = request.processedAt ? new Date(request.processedAt) : null;
+
+  const normalized = normalizeLoanEntry(
+    {
+      id: request.id ? "request:" + request.id : request._id ? "request:" + request._id : undefined,
+      book: request.book || null,
+      bookCode: request.bookCode || (request.book ? request.book.bookCode || request.book.code || null : null),
+      user: request.user || null,
+      borrowerName: request.borrowerName,
+      borrowerStudentId: request.borrowerStudentId,
+      borrowedAt: requestedAt,
+      dueAt,
+      returnedAt: processedAt,
+      status: request.status,
+      statusKey: request.status,
+      statusLabel: request.statusLabel || request.status
+    },
+    { statusFallback: "Rejected" }
+  );
+
+  if (!normalized) return null;
+
+  return {
+    ...normalized,
+    source: "request",
+    processedAt
+  };
+}
+
+function getHistorySortValue(entry) {
+  if (!entry) return 0;
+  const timestamps = [
+    entry.returnedAt,
+    entry.dueAt,
+    entry.borrowedAt,
+    entry.processedAt
+  ]
+    .map((date) => (date instanceof Date ? date.getTime() : date && typeof date.getTime === "function" ? date.getTime() : undefined))
+    .filter((value) => Number.isFinite(value));
+
+  if (timestamps.length === 0) return 0;
+  return Math.max(...timestamps);
+}
 function useToast(timeout = 4000) {
   const [toast, setToast] = React.useState(null);
   const timeoutRef = React.useRef(null);
@@ -265,10 +315,55 @@ const Borrowing = () => {
     setHistoryError(null);
     try {
       const params = {};
-      if (historyStatusFilter !== "all") params.status = historyStatusFilter;
-      const { data } = await api.get("/loans/history", { params });
-      const items = Array.isArray(data?.items) ? data.items : [];
-      setLoanHistory(items.map((item) => normalizeLoanEntry(item, { statusFallback: "Returned" })));
+      if (historyStatusFilter !== "all" && historyStatusFilter !== "rejected") {
+        params.status = historyStatusFilter;
+      }
+
+      const includeRequestHistory = historyStatusFilter === "all" || historyStatusFilter === "rejected";
+      const requestStatuses = includeRequestHistory ? ["rejected", "cancelled"] : [];
+
+      const historyPromise = api.get("/loans/history", { params });
+      const requestPromises = requestStatuses.map((status) =>
+        api
+          .get("/loans/requests", { params: { status } })
+          .catch((err) => {
+            if (err?.response?.status === 404) {
+              return { data: { items: [] } };
+            }
+            throw err;
+          })
+      );
+
+      const [historyResponse, ...requestResponses] = await Promise.all([historyPromise, ...requestPromises]);
+      const historyItems = Array.isArray(historyResponse?.data?.items) ? historyResponse.data.items : [];
+      const normalizedHistory = historyItems.map((item) => normalizeLoanEntry(item, { statusFallback: "Returned" }));
+
+      const requestItems = requestResponses
+        .flatMap((res) => (Array.isArray(res?.data?.items) ? res.data.items : []))
+        .filter((item) => HISTORY_REQUEST_STATUSES.has(String(item?.status || "").toLowerCase()))
+        .map((item) => normalizeRequestHistoryEntry(item))
+        .filter(Boolean);
+
+      const combinedMap = new Map();
+      [...normalizedHistory, ...requestItems].forEach((entry) => {
+        if (!entry) return;
+        const fallbackTs =
+          (entry.borrowedAt && entry.borrowedAt.getTime ? entry.borrowedAt.getTime() : undefined) ||
+          (entry.returnedAt && entry.returnedAt.getTime ? entry.returnedAt.getTime() : undefined) ||
+          (entry.dueAt && entry.dueAt.getTime ? entry.dueAt.getTime() : undefined) ||
+          (entry.processedAt && entry.processedAt.getTime ? entry.processedAt.getTime() : undefined) ||
+          Date.now();
+        const key = entry.id ||
+          (entry.source === "request" && entry.bookId ? "request:" + entry.bookId + ":" + fallbackTs : null) ||
+          (entry.bookId ? "loan:" + entry.bookId + ":" + fallbackTs : "history:" + fallbackTs);
+        if (!combinedMap.has(key)) {
+          combinedMap.set(key, entry);
+        }
+      });
+
+      const combinedHistory = Array.from(combinedMap.values()).sort((a, b) => getHistorySortValue(b) - getHistorySortValue(a));
+
+      setLoanHistory(combinedHistory);
     } catch (err) {
       setLoanHistory([]);
       setHistoryError(err?.response?.data?.error || "Failed to load loan history.");
