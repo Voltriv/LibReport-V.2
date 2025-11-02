@@ -117,6 +117,51 @@ function sanitizeFilename(name) {
   return name.replace(/[^A-Za-z0-9._-]+/g, '_');
 }
 
+function extractFileIdFromPath(path) {
+  if (!path || typeof path !== 'string') return null;
+  const match = path.match(/\/api\/files\/([a-f0-9]{24})/i);
+  return match ? match[1] : null;
+}
+
+async function freeSpaceForUploads() {
+  try {
+    const bucket =
+      uploadBucket ||
+      (await waitForUploadBucket(5000).catch(() => null));
+    if (!bucket || !mongoose.connection?.db) return false;
+
+    const filesCollection = mongoose.connection.db.collection('uploads.files');
+    const oldest = await filesCollection.find({}).sort({ uploadDate: 1 }).limit(1).toArray();
+    if (!oldest.length) return false;
+
+    const file = oldest[0];
+    await bucket.delete(file._id);
+
+    const fileIdString = file._id.toString();
+    await Book.updateMany(
+      {
+        $or: [
+          { pdfFileId: file._id },
+          { pdfPath: { $regex: fileIdString, $options: 'i' } }
+        ]
+      },
+      {
+        $unset: {
+          pdfFileId: '',
+          pdfPath: '',
+          pdfMime: '',
+          pdfOriginalName: ''
+        }
+      }
+    );
+
+    return true;
+  } catch (err) {
+    console.error('Failed to free upload space', err);
+    return false;
+  }
+}
+
 function coerceDate(raw) {
   if (!raw) return null;
   if (raw instanceof Date) {
@@ -951,7 +996,7 @@ app.use((req, res, next) => {
     '/api/books/lookup',
     '/api/hours'
   ];
-  if (sharedAuthPaths.some((p) => req.path.startsWith(p))) {
+  if (sharedAuthPaths.some((p) => req.path.startsWith(p)) || (req.path.startsWith('/api/books/') && req.path.endsWith('/pdf'))) {
     return authRequired(req, res, next);
   }
 
@@ -1961,15 +2006,65 @@ app.get('/api/books/library', authRequired, async (req, res) => {
       ...rest
     } = doc;
 
+    const hasPdf = Boolean(pdfPath || pdfFileId);
+
     return {
       ...rest,
       coverImagePath: doc.coverImagePath || null,
       imageUrl: doc.coverImagePath || null,
-      pdfUrl: allowPdf && pdfPath ? pdfPath : null
+      pdfUrl: allowPdf && pdfPath ? pdfPath : null,
+      hasPdf
     };
   });
 
   res.json({ items });
+});
+
+app.get('/api/books/:id/pdf', authRequired, async (req, res) => {
+  if (NO_DB) return res.status(503).json({ error: 'Database disabled (NO_DB=true)' });
+
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(String(id))) {
+    return res.status(400).json({ error: 'invalid book id' });
+  }
+
+  const book = await Book.findById(id).select('title pdfFileId pdfPath pdfMime').lean();
+  if (!book || (!book.pdfFileId && !book.pdfPath)) {
+    return res.status(404).json({ error: 'PDF not found' });
+  }
+
+  const bucket = uploadBucket || (await waitForUploadBucket(5000).catch(() => null));
+  if (!bucket) return res.status(503).json({ error: 'File storage is not ready yet' });
+
+  let fileId = null;
+  if (book.pdfFileId) {
+    try {
+      fileId = new mongoose.Types.ObjectId(String(book.pdfFileId));
+    } catch {
+      fileId = null;
+    }
+  }
+  if (!fileId && book.pdfPath) {
+    const extracted = extractFileIdFromPath(book.pdfPath);
+    if (extracted && mongoose.Types.ObjectId.isValid(extracted)) {
+      fileId = new mongoose.Types.ObjectId(extracted);
+    }
+  }
+  if (!fileId) return res.status(404).json({ error: 'PDF file not found' });
+
+  res.set('Content-Type', book.pdfMime || 'application/pdf');
+  const safeName = sanitizeFilename(book.title || 'DigitalCopy');
+  res.set('Content-Disposition', `inline; filename="${safeName}.pdf"`);
+
+  const stream = bucket.openDownloadStream(fileId);
+  stream.on('error', (err) => {
+    if (!res.headersSent) {
+      res.status(500).json({ error: err?.message || 'Failed to read file' });
+    } else {
+      res.destroy(err);
+    }
+  });
+  stream.pipe(res);
 });
 
 // --- Books CRUD (Admin)
@@ -2398,13 +2493,36 @@ app.post('/api/student/borrow-requests', studentRequired, async (req, res) => {
 
   const trimmedNote = note ? String(note).trim().slice(0, 500) : '';
 
-  const request = await BorrowRequest.create({
-    userId: userObjectId,
-    bookId: bookObjectId,
-    daysRequested: chosenDays,
-    message: trimmedNote,
-    requestType: 'borrow'
-  });
+  let request;
+  try {
+    request = await BorrowRequest.create({
+      userId: userObjectId,
+      bookId: bookObjectId,
+      daysRequested: chosenDays,
+      message: trimmedNote,
+      requestType: 'borrow'
+    });
+  } catch (err) {
+    const message = String(err?.message || '').toLowerCase();
+    if (message.includes('space quota')) {
+      const freed = await freeSpaceForUploads();
+      if (freed) {
+        request = await BorrowRequest.create({
+          userId: userObjectId,
+          bookId: bookObjectId,
+          daysRequested: chosenDays,
+          message: trimmedNote,
+          requestType: 'borrow'
+        });
+      } else {
+        return res.status(507).json({
+          error: 'Library storage is full. Please contact an administrator.'
+        });
+      }
+    } else {
+      throw err;
+    }
+  }
 
   const estimatedDueAt = new Date(Date.now() + chosenDays * 24 * 60 * 60 * 1000);
 
@@ -3394,6 +3512,82 @@ app.patch('/api/admin/users/:id/department', adminRequired, async (req, res) => 
   }
 
   res.json({ id: String(user._id), department: user.department || '' });
+});
+
+app.delete('/api/admin/uploads/pdfs', adminRequired, async (req, res) => {
+  if (NO_DB) return res.status(503).json({ error: 'Database disabled (NO_DB=true)' });
+
+  const rawLimit = req.query.limit;
+  const dryRun = String(req.query.dryRun || '').toLowerCase() === 'true';
+
+  let limit = Number(rawLimit);
+  if (!Number.isFinite(limit) || limit <= 0) limit = 0;
+
+  const bucket = uploadBucket || (await waitForUploadBucket(5000).catch(() => null));
+  if (!bucket || !mongoose.connection?.db) {
+    return res.status(503).json({ error: 'File storage is not ready yet' });
+  }
+
+  const filesCollection = mongoose.connection.db.collection('uploads.files');
+  const filter = {
+    $or: [
+      { contentType: 'application/pdf' },
+      { 'metadata.mime': 'application/pdf' },
+      { 'metadata.contentType': 'application/pdf' }
+    ]
+  };
+
+  let cursor = filesCollection.find(filter).sort({ uploadDate: 1 });
+  if (limit > 0) cursor = cursor.limit(limit);
+  const files = await cursor.toArray();
+  if (!files.length) {
+    return res.json({ removed: 0, message: 'No PDF uploads found.' });
+  }
+
+  if (dryRun) {
+    return res.json({
+      removable: files.length,
+      ids: files.map((file) => String(file._id)),
+      totalSize: files.reduce((sum, file) => sum + (file.length || 0), 0)
+    });
+  }
+
+  let removed = 0;
+  let bookResets = 0;
+
+  for (const file of files) {
+    try {
+      await bucket.delete(file._id);
+      removed += 1;
+    } catch (err) {
+      console.error('Failed to delete upload', file._id, err);
+      continue;
+    }
+
+    try {
+      const updateResult = await Book.updateMany(
+        {
+          $or: [
+            { pdfFileId: file._id },
+            { pdfPath: { $regex: file._id.toString(), $options: 'i' } }
+          ]
+        },
+        {
+          $unset: {
+            pdfFileId: '',
+            pdfPath: '',
+            pdfMime: '',
+            pdfOriginalName: ''
+          }
+        }
+      );
+      bookResets += updateResult?.modifiedCount || 0;
+    } catch (err) {
+      console.error('Failed to clear book PDF references', file._id, err);
+    }
+  }
+
+  res.json({ removed, bookResets });
 });
 
 // --- Lookups

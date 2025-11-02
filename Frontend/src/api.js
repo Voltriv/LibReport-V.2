@@ -44,6 +44,7 @@ export function resolveMediaUrl(path) {
   // and outside the dev proxy as well.
   const base = directBackendBase();
   if (value.startsWith('/api/files/')) return `${base}${value}`;
+  if (value.startsWith('/api/books/') && value.includes('/pdf')) return `${base}${value}`;
   if (value.startsWith('/uploads/')) return `${base}${value}`;
   // Other API endpoints can use dev proxy
   if (value.startsWith('/api/')) return value;

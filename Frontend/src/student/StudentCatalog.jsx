@@ -31,6 +31,7 @@ const STATUS_BADGE_CLASSES = {
 const StudentCatalog = () => {
   const [query, setQuery] = React.useState("");
   const [tag, setTag] = React.useState("");
+  const [withPdf, setWithPdf] = React.useState(false);
   const [items, setItems] = React.useState([]);
   const [skip, setSkip] = React.useState(0);
   const [hasMore, setHasMore] = React.useState(true);
@@ -45,13 +46,15 @@ const StudentCatalog = () => {
   // Borrowing state
   const [borrowingId, setBorrowingId] = React.useState(null);
   const [borrowFeedback, setBorrowFeedback] = React.useState(null);
+  const [viewingPdfId, setViewingPdfId] = React.useState(null);
 
   const load = React.useCallback(
-    async ({ reset = false, overrideQuery, overrideTag } = {}) => {
+    async ({ reset = false, overrideQuery, overrideTag, overrideWithPdf } = {}) => {
       if (loadingRef.current) return;
 
       const nextQuery = typeof overrideQuery === "string" ? overrideQuery : query;
       const nextTag = typeof overrideTag === "string" ? overrideTag : tag;
+      const nextWithPdf = typeof overrideWithPdf === "boolean" ? overrideWithPdf : withPdf;
       const nextSkip = reset ? 0 : skip;
 
       loadingRef.current = true;
@@ -67,10 +70,15 @@ const StudentCatalog = () => {
         };
         if (nextQuery.trim()) params.q = nextQuery.trim();
         if (nextTag) params.tag = nextTag;
+        if (nextWithPdf) params.withPdf = true;
         const { data } = await api.get("/books/library", { params });
         const newItems = (data?.items || []).map((item) => {
           const coverRaw = item.imageUrl || item.coverImagePath || "";
           const pdfRaw = item.pdfUrl || "";
+
+          const uniqueTags = Array.isArray(item.tags)
+            ? [...new Set(item.tags.filter(Boolean))]
+            : [];
 
           let imageUrl = "";
           if (typeof coverRaw === "string") {
@@ -94,8 +102,9 @@ const StudentCatalog = () => {
           return {
             ...item,
             imageUrl: imageUrl || null,
-
             pdfUrl: pdfUrl || null,
+            hasPdf: Boolean(item.hasPdf),
+            tags: uniqueTags
           };
         });
         setItems((prev) => (reset ? newItems : [...prev, ...newItems]));
@@ -130,7 +139,7 @@ const StudentCatalog = () => {
         }
       }
     },
-    [query, tag, skip]
+    [query, tag, withPdf, skip]
   );
 
   const handleBorrowBook = React.useCallback(async (bookId, bookTitle) => {
@@ -199,6 +208,52 @@ const StudentCatalog = () => {
     }
   }, [borrowingId]);
 
+  const handleViewPdf = React.useCallback(
+    async (book) => {
+      if (!book?.hasPdf || !book?._id) return;
+
+      setViewingPdfId(book._id);
+      try {
+        const response = await api.get(`/books/${book._id}/pdf`, {
+          responseType: "blob"
+        });
+        const blob = new Blob([response.data], {
+          type: response.headers["content-type"] || "application/pdf"
+        });
+        const objectUrl = URL.createObjectURL(blob);
+
+        const popup = window.open(objectUrl, "_blank", "noopener,noreferrer");
+        if (!popup) {
+          const anchor = document.createElement("a");
+          anchor.href = objectUrl;
+          anchor.target = "_blank";
+          anchor.rel = "noopener noreferrer";
+          anchor.click();
+        }
+
+        setTimeout(() => {
+          URL.revokeObjectURL(objectUrl);
+        }, 60_000);
+      } catch (err) {
+        console.error("Failed to open PDF", err);
+        const status = err?.response?.status;
+        if (status === 404) {
+          setItems((prev) =>
+            prev.map((item) => (item._id === book._id ? { ...item, hasPdf: false, pdfUrl: null } : item))
+          );
+          window.alert("The digital copy for this title is no longer available.");
+        } else if (status === 403) {
+          window.alert("You do not have permission to view this digital copy.");
+        } else {
+          window.alert("Unable to open the digital copy. Please try again later.");
+        }
+      } finally {
+        setViewingPdfId(null);
+      }
+    },
+    [setItems]
+  );
+
   React.useEffect(() => {
     load({ reset: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,22 +275,30 @@ const StudentCatalog = () => {
   const clearQuery = React.useCallback(() => {
     if (!trimmedQuery) return;
     setQuery("");
-    load({ reset: true, overrideQuery: "", overrideTag: tag });
-  }, [trimmedQuery, load, tag]);
+    load({ reset: true, overrideQuery: "", overrideTag: tag, overrideWithPdf: withPdf });
+  }, [trimmedQuery, load, tag, withPdf]);
 
   const clearTag = React.useCallback(() => {
     if (!tag) return;
     setTag("");
-    load({ reset: true, overrideQuery: trimmedQuery, overrideTag: "" });
-  }, [tag, trimmedQuery, load]);
+    load({ reset: true, overrideQuery: trimmedQuery, overrideTag: "", overrideWithPdf: withPdf });
+  }, [tag, trimmedQuery, load, withPdf]);
+
+  const clearWithPdf = React.useCallback(() => {
+    if (!withPdf) return;
+    setWithPdf(false);
+    load({ reset: true, overrideQuery: trimmedQuery, overrideTag: tag, overrideWithPdf: false });
+  }, [withPdf, trimmedQuery, load, tag]);
 
   const filterChips = [];
   if (trimmedQuery) filterChips.push({ label: `Keyword: ${trimmedQuery}`, onRemove: clearQuery });
   if (tag) filterChips.push({ label: `Department: ${tag}`, onRemove: clearTag });
+  if (withPdf) filterChips.push({ label: "Digital copy available", onRemove: clearWithPdf });
 
   const filterSummaryParts = [];
   if (trimmedQuery) filterSummaryParts.push(`"${trimmedQuery}"`);
   if (tag) filterSummaryParts.push(tag);
+  if (withPdf) filterSummaryParts.push("with digital copy");
   const filterSummary = filterSummaryParts.join(" - ");
 
   const showSkeleton = initialLoading && loading;
@@ -267,9 +330,9 @@ const StudentCatalog = () => {
       <div className="mx-auto max-w-6xl px-4 py-10">
         <form
           onSubmit={onSubmit}
-          className="grid gap-6 rounded-3xl bg-white/95 backdrop-blur-sm p-8 shadow-xl ring-1 ring-slate-200/60 md:grid-cols-[2fr_1fr] md:items-end"
+          className="grid gap-6 rounded-3xl bg-white/95 backdrop-blur-sm p-8 shadow-xl ring-1 ring-slate-200/60 md:grid-cols-3 md:items-end"
         >
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 md:col-span-2">
             <label className="text-sm font-semibold text-slate-700">Search Keywords</label>
             <div className="relative">
               <input
@@ -287,38 +350,51 @@ const StudentCatalog = () => {
               </div>
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-3">
-              <label className="text-sm font-semibold text-slate-700">Department</label>
-              <select
-                value={tag}
-                onChange={(e) => {
-                  const nextTag = e.target.value;
-                  setTag(nextTag);
-                  load({
-                    reset: true,
-                    overrideQuery: query.trim(),
-                    overrideTag: nextTag
-                  });
-                }}
-                className="w-full rounded-xl border border-slate-300/60 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-brand-gold transition-all duration-200"
-              >
-                <option value="">All Departments</option>
-                {departments.map((dep) => (
-                  <option key={dep} value={dep}>
-                    {dep}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-3">
-              <label className="text-sm font-semibold text-slate-700">Digital Access</label>
-              <p className="rounded-xl border border-slate-200/60 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Downloadable PDFs are limited to library staff. Request a physical copy or visit the circulation desk for on-site access.
-              </p>
-            </div>
+          <div className="flex flex-col gap-3">
+            <label className="text-sm font-semibold text-slate-700">Department</label>
+            <select
+              value={tag}
+              onChange={(e) => {
+                const nextTag = e.target.value;
+                setTag(nextTag);
+                load({
+                  reset: true,
+                  overrideQuery: query.trim(),
+                  overrideTag: nextTag,
+                  overrideWithPdf: withPdf
+                });
+              }}
+              className="w-full rounded-xl border border-slate-300/60 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-brand-gold transition-all duration-200"
+            >
+              <option value="">All Departments</option>
+              {departments.map((dep) => (
+                <option key={dep} value={dep}>
+                  {dep}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="md:col-span-2 flex flex-wrap items-center gap-4 pt-2">
+
+          <div className="flex flex-col gap-2 md:col-span-1">
+            <span className="text-sm font-semibold text-slate-700">Digital Access</span>
+            <label className="flex items-start gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm transition hover:border-brand-gold/60 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={withPdf}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setWithPdf(checked);
+                  load({ reset: true, overrideWithPdf: checked });
+                }}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-brand-gold focus:ring-brand-gold"
+              />
+              <span>
+                Only show catalog entries with a digital PDF. <span className="block text-xs text-slate-500">Digital copies are viewable on-site; student accounts cannot download files.</span>
+              </span>
+            </label>
+          </div>
+
+          <div className="md:col-span-3 flex flex-wrap items-center gap-4 pt-2">
             <button type="submit" disabled={loading} className="btn-student-primary px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105">
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -343,7 +419,8 @@ const StudentCatalog = () => {
               onClick={() => {
                 setQuery("");
                 setTag("");
-                load({ reset: true, overrideQuery: "", overrideTag: "" });
+                setWithPdf(false);
+                load({ reset: true, overrideQuery: "", overrideTag: "", overrideWithPdf: false });
               }}
               className="btn-student-outline px-6 py-3 font-semibold hover:shadow-md transition-all duration-200"
             >
@@ -369,7 +446,7 @@ const StudentCatalog = () => {
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 font-medium transition hover:border-brand-green hover:text-brand-green"
               >
                 {chip.label}
-                <span aria-hidden="true">×</span>
+                <span aria-hidden="true">Ã—</span>
               </button>
             ))}
           </div>
@@ -378,7 +455,7 @@ const StudentCatalog = () => {
         <div className="mt-6 flex flex-col gap-2 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
           <div>
             {showSkeleton
-              ? "Fetching results…"
+              ? "Fetching resultsâ€¦"
               : `Showing ${totalToShow} ${baseLabel}${filterLabel}`}
           </div>
           {!showSkeleton && lastUpdated && (
@@ -449,6 +526,8 @@ const StudentCatalog = () => {
             const feedbackConfig = isFeedbackTarget ? FEEDBACK_VARIANTS[borrowFeedback?.type] || FEEDBACK_VARIANTS.error : null;
             const isBorrowingThis = borrowingId === item._id;
             const isBorrowingAny = Boolean(borrowingId);
+            const isViewingPdf = viewingPdfId === item._id;
+            const pdfButtonDisabled = !item.hasPdf || isViewingPdf;
 
             return (
               <article
@@ -551,6 +630,16 @@ const StudentCatalog = () => {
                     <h3 className="text-lg font-bold text-slate-900 leading-tight line-clamp-2">{item.title}</h3>
                     <p className="text-slate-600 font-medium">{item.author}</p>
                     {copiesLabel && <p className="text-sm text-slate-500">{copiesLabel}</p>}
+                    {item.hasPdf ? (
+                      <p className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14,2 14,8 20,8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                        </svg>
+                        Digital copy available on-site
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="mt-auto space-y-4">
@@ -568,6 +657,24 @@ const StudentCatalog = () => {
                     </div>
                     
                     <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => handleViewPdf(item)}
+                        className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold shadow-sm transition ${
+                          item.hasPdf
+                            ? "border border-slate-300 text-slate-700 hover:border-brand-green hover:text-brand-green"
+                            : "border border-slate-200 text-slate-400 cursor-not-allowed"
+                        }${isViewingPdf ? " cursor-wait opacity-70" : ""}`}
+                        disabled={pdfButtonDisabled}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14,2 14,8 20,8" />
+                          <line x1="12" y1="18" x2="12.01" y2="18" />
+                        </svg>
+                        {isViewingPdf ? "Opening..." : item.hasPdf ? "View PDF" : "No PDF"}
+                      </button>
+
                       {available !== null && available > 0 ? (
                         <button
                           onClick={() => handleBorrowBook(item._id, item.title)}

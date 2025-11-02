@@ -24,6 +24,8 @@ const STATUS_DETAILS = {
   }
 };
 
+const PAGE_SIZE = 5;
+
 function parseDate(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -55,6 +57,7 @@ const StudentBorrowRequests = () => {
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [page, setPage] = React.useState(1);
 
   const fetchRequests = React.useCallback(async ({ silent = false } = {}) => {
     if (silent) {
@@ -68,20 +71,20 @@ const StudentBorrowRequests = () => {
       const { data } = await api.get("/student/borrow-requests");
       const items = Array.isArray(data?.items) ? data.items : [];
 
-      setRequests(
-        items.map((item, index) => ({
-          id: item.id || item._id || `request-${index}`,
-          status: item.status || "pending",
-          requestedAt: parseDate(item.requestedAt || item.createdAt),
-          processedAt: parseDate(item.processedAt || item.updatedAt),
-          dueAt: parseDate(item.dueAt),
-          daysRequested: typeof item.daysRequested === "number" ? item.daysRequested : null,
-          message: item.message || "",
-          adminNote: item.adminNote || "",
-          book: item.book || null,
-          processedBy: item.processedBy || null
-        }))
-      );
+      const mapped = items.map((item, index) => ({
+        id: item.id || item._id || `request-${index}`,
+        status: item.status || "pending",
+        requestedAt: parseDate(item.requestedAt || item.createdAt),
+        processedAt: parseDate(item.processedAt || item.updatedAt),
+        dueAt: parseDate(item.dueAt),
+        daysRequested: typeof item.daysRequested === "number" ? item.daysRequested : null,
+        message: item.message || "",
+        adminNote: item.adminNote || "",
+        book: item.book || null,
+        processedBy: item.processedBy || null
+      }));
+      setRequests(mapped);
+      setPage(1);
     } catch (err) {
       const fallback = "Failed to load your borrow requests. Please try again later.";
       setError(err?.response?.data?.error || fallback);
@@ -116,6 +119,14 @@ const StudentBorrowRequests = () => {
     () => requests.filter((request) => request.status === "approved").length,
     [requests]
   );
+
+  const pageCount = Math.max(1, Math.ceil(requests.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(page, 1), pageCount);
+  const startIndex = (safePage - 1) * PAGE_SIZE;
+  const endIndex = startIndex + PAGE_SIZE;
+  const paginatedRequests = requests.slice(startIndex, endIndex);
+  const showingStart = requests.length === 0 ? 0 : startIndex + 1;
+  const showingEnd = Math.min(endIndex, requests.length);
 
   return (
     <div className="bg-slate-50 min-h-screen">
@@ -185,15 +196,16 @@ const StudentBorrowRequests = () => {
             ))}
           </div>
         ) : requests.length > 0 ? (
-          <div className="space-y-4">
-            {requests.map((request) => {
-              const details = STATUS_DETAILS[request.status] || STATUS_DETAILS.pending;
-              const bookTitle = request.book?.title || "Book unavailable";
-              const bookAuthor = request.book?.author;
-              const bookCode = request.book?.code;
+          <div className="space-y-6">
+            <div className="space-y-4">
+              {paginatedRequests.map((request) => {
+                const details = STATUS_DETAILS[request.status] || STATUS_DETAILS.pending;
+                const bookTitle = request.book?.title || "Book unavailable";
+                const bookAuthor = request.book?.author;
+                const bookCode = request.book?.code;
 
-              return (
-                <div key={request.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                return (
+                  <div key={request.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-2">
                       <span className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${details.badgeClass}`}>
@@ -247,7 +259,43 @@ const StudentBorrowRequests = () => {
                   ) : null}
                 </div>
               );
-            })}
+              })}
+            </div>
+
+            <div className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm md:flex-row">
+              <div>
+                Showing <span className="font-semibold text-slate-900">{showingStart}</span>-
+                <span className="font-semibold text-slate-900">{showingEnd}</span> of{" "}
+                <span className="font-semibold text-slate-900">{requests.length}</span> requests
+              </div>
+              <div className="inline-flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={safePage <= 1}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 transition disabled:cursor-not-allowed disabled:opacity-40 hover:border-slate-300 hover:bg-slate-100"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                  Previous
+                </button>
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Page <span className="text-slate-900">{safePage}</span> of <span className="text-slate-900">{pageCount}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.min(prev + 1, pageCount))}
+                  disabled={safePage >= pageCount}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 transition disabled:cursor-not-allowed disabled:opacity-40 hover:border-slate-300 hover:bg-slate-100"
+                >
+                  Next
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">

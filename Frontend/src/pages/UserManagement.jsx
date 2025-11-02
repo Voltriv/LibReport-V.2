@@ -42,12 +42,13 @@ const getStatusDisplay = (status) => {
 const mapApiUsers = (rows = []) =>
   (rows || []).map((u) => {
     const role = typeof u.role === "string" ? u.role.trim().toLowerCase() : "student";
+    const department = typeof u.department === "string" ? u.department.trim() : "";
     return {
       id: u._id || u.id,
       fullName: u.fullName || u.name || "-",
       studentId: u.studentId || "-",
       role,
-      department: u.department || "-",
+      department,
       registrationDate: u.createdAt ? new Date(u.createdAt).toLocaleString() : "-",
       status: normalizeStatus(u.status)
     };
@@ -99,21 +100,29 @@ const UserManagement = () => {
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedUserOriginal, setSelectedUserOriginal] = useState(null);
+  const [editError, setEditError] = useState("");
 
   const closeEditModal = () => {
     setIsModalOpen(false);
     setSelectedUser(null);
     setSelectedUserOriginal(null);
+    setEditError("");
   };
 
   const handleEdit = (user) => {
     const normalized = {
       ...user,
       role: typeof user.role === "string" ? user.role.toLowerCase() : "student",
-      status: normalizeStatus(user.status)
+      status: normalizeStatus(user.status),
+      department: typeof user.department === "string" ? user.department : ""
     };
     setSelectedUser(normalized);
-    setSelectedUserOriginal({ role: normalized.role, status: normalized.status });
+    setSelectedUserOriginal({
+      role: normalized.role,
+      status: normalized.status,
+      department: normalized.department || ""
+    });
+    setEditError("");
     setIsModalOpen(true);
   };
 
@@ -123,8 +132,15 @@ const UserManagement = () => {
       return;
     }
     try {
+      setEditError("");
       const role = (selectedUser.role || "student").toLowerCase();
       const status = normalizeStatus(selectedUser.status);
+
+      const department = String(selectedUser.department || "").trim();
+      if (!department) {
+        setEditError("Department is required.");
+        return;
+      }
 
       const updates = [];
       if (!selectedUserOriginal || role !== selectedUserOriginal.role) {
@@ -132,6 +148,9 @@ const UserManagement = () => {
       }
       if (!selectedUserOriginal || status !== selectedUserOriginal.status) {
         updates.push(api.patch(`/admin/users/${selectedUser.id}/status`, { status }));
+      }
+      if (!selectedUserOriginal || department !== selectedUserOriginal.department) {
+        updates.push(api.patch(`/admin/users/${selectedUser.id}/department`, { department }));
       }
 
       if (updates.length === 0) {
@@ -152,9 +171,15 @@ const UserManagement = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    let nextValue = value;
+    if (name === "role") {
+      nextValue = value.toLowerCase();
+    } else if (name === "studentId") {
+      nextValue = formatStudentId(value);
+    }
     setSelectedUser((prev) => ({
       ...prev,
-      [name]: name === "role" ? value.toLowerCase() : value
+      [name]: nextValue
     }));
   };
 
@@ -401,7 +426,7 @@ const UserManagement = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400 font-mono">{user.studentId}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.department}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-stone-400">{user.department || "-"}</td>
                         <td className="px-6 py-4">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-stone-700 text-slate-800 dark:text-stone-200">
                             {user.role}
@@ -616,7 +641,12 @@ const UserManagement = () => {
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Edit User</h3>
               </div>
-              
+              {editError && (
+                <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+                  {editError}
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Full Name</label>
@@ -637,6 +667,22 @@ const UserManagement = () => {
                     onChange={handleInputChange}
                     className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 font-mono"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Department</label>
+                  <select
+                    name="department"
+                    value={selectedUser.department || ""}
+                    onChange={handleInputChange}
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                  >
+                    <option value="">Select a department</option>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Role</label>

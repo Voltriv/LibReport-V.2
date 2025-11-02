@@ -1,17 +1,22 @@
 import React from "react";
 import api from "../api";
 
+const PAGE_SIZE = 6;
+
 const StudentBorrowingHistory = () => {
   const [loading, setLoading] = React.useState(true);
   const [history, setHistory] = React.useState([]);
   const [error, setError] = React.useState("");
+  const [page, setPage] = React.useState(1);
 
   React.useEffect(() => {
     const fetchBorrowingHistory = async () => {
       try {
         setLoading(true);
         const { data } = await api.get("/student/borrowing-history");
-        setHistory(data.history || []);
+        const entries = Array.isArray(data?.history) ? data.history : [];
+        setHistory(entries);
+        setPage(1);
       } catch (err) {
         setError("Failed to load your borrowing history. Please try again later.");
         console.error(err);
@@ -22,6 +27,14 @@ const StudentBorrowingHistory = () => {
 
     fetchBorrowingHistory();
   }, []);
+
+  const pageCount = Math.max(1, Math.ceil(history.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(page, 1), pageCount);
+  const startIndex = (safePage - 1) * PAGE_SIZE;
+  const endIndex = startIndex + PAGE_SIZE;
+  const paginatedHistory = history.slice(startIndex, endIndex);
+  const showingStart = history.length === 0 ? 0 : startIndex + 1;
+  const showingEnd = Math.min(endIndex, history.length);
 
   return (
     <div className="bg-slate-50">
@@ -69,7 +82,7 @@ const StudentBorrowingHistory = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
-                {history.map((item) => {
+                {paginatedHistory.map((item) => {
                   const key = item.id || item._id || `${item.bookId}-${item.borrowedAt}`;
                   const title = item.title || "Untitled item";
                   const author = item.author || "Unknown author";
@@ -101,6 +114,39 @@ const StudentBorrowingHistory = () => {
                 })}
               </tbody>
             </table>
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 md:flex-row">
+              <div>
+                Showing <span className="font-semibold text-slate-900">{showingStart}</span>-<span className="font-semibold text-slate-900">{showingEnd}</span> of{" "}
+                <span className="font-semibold text-slate-900">{history.length}</span> records
+              </div>
+              <div className="inline-flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={safePage <= 1}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                  Previous
+                </button>
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Page <span className="text-slate-900">{safePage}</span> of <span className="text-slate-900">{pageCount}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.min(prev + 1, pageCount))}
+                  disabled={safePage >= pageCount}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
