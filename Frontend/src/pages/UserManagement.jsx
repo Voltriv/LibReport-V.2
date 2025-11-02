@@ -114,7 +114,9 @@ const UserManagement = () => {
       ...user,
       role: typeof user.role === "string" ? user.role.toLowerCase() : "student",
       status: normalizeStatus(user.status),
-      department: typeof user.department === "string" ? user.department : ""
+      department: typeof user.department === "string" ? user.department : "",
+      newPassword: "",
+      confirmPassword: ""
     };
     setSelectedUser(normalized);
     setSelectedUserOriginal({
@@ -142,6 +144,20 @@ const UserManagement = () => {
         return;
       }
 
+      const newPassword = typeof selectedUser.newPassword === "string" ? selectedUser.newPassword.trim() : "";
+      const confirmPassword =
+        typeof selectedUser.confirmPassword === "string" ? selectedUser.confirmPassword.trim() : "";
+      if (newPassword || confirmPassword) {
+        if (newPassword.length < 8) {
+          setEditError("New password must be at least 8 characters long.");
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          setEditError("New password and confirmation do not match.");
+          return;
+        }
+      }
+
       const updates = [];
       if (!selectedUserOriginal || role !== selectedUserOriginal.role) {
         updates.push(api.patch(`/admin/users/${selectedUser.id}/role`, { role }));
@@ -151,6 +167,9 @@ const UserManagement = () => {
       }
       if (!selectedUserOriginal || department !== selectedUserOriginal.department) {
         updates.push(api.patch(`/admin/users/${selectedUser.id}/department`, { department }));
+      }
+      if (newPassword) {
+        updates.push(api.patch(`/admin/users/${selectedUser.id}/password`, { password: newPassword }));
       }
 
       if (updates.length === 0) {
@@ -714,6 +733,42 @@ const UserManagement = () => {
                     <option value="active">Active</option>
                     <option value="disabled">Disabled</option>
                   </select>
+                </div>
+                <div className="rounded-2xl border border-slate-200/60 bg-slate-50/80 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+                    Reset Password
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-stone-300 mb-1">
+                        New Password
+                      </label>
+                      <input
+                        type="password"
+                        name="newPassword"
+                        value={selectedUser.newPassword || ""}
+                        onChange={handleInputChange}
+                        className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-sm text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                        placeholder="Leave blank to keep current password"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-stone-300 mb-1">
+                        Confirm New Password
+                      </label>
+                      <input
+                        type="password"
+                        name="confirmPassword"
+                        value={selectedUser.confirmPassword || ""}
+                        onChange={handleInputChange}
+                        className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-sm text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                        placeholder="Re-enter new password"
+                      />
+                    </div>
+                    <p className="text-[0.7rem] text-slate-500 dark:text-stone-400">
+                      Password must be at least 8 characters. Leave fields blank if you do not wish to change the password.
+                    </p>
+                  </div>
                 </div>
               </div>
               

@@ -7,5 +7,6 @@ module.exports = {
   Visit: require('./Visit'),
   Hours: require('./Hours'),
   PasswordReset: require('./PasswordReset'),
-  BorrowRequest: require('./BorrowRequest')
+  BorrowRequest: require('./BorrowRequest'),
+  NotificationSubscription: require('./NotificationSubscription')
 };

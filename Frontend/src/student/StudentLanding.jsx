@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import heroImage from "../assets/student-hero.png";
 
 const sections = [
   {
@@ -131,7 +132,7 @@ const StudentLanding = () => {
       <section id="home" className="relative overflow-hidden">
         <div className="absolute inset-0">
           <img
-            src="https://images.unsplash.com/photo-1535905748047-14b2415c97bd?auto=format&fit=crop&w=1600&q=80"
+            src={heroImage}
             alt="Library interior"
             className="h-full w-full object-cover"
           />

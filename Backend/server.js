@@ -14,6 +14,13 @@ const bcrypt = require('bcryptjs');
 const validator = require('validator');
 const crypto = require('node:crypto');
 const { EventEmitter } = require('node:events');
+const {
+  isConfigured: isPushConfigured,
+  getPublicKey: getPushPublicKey,
+  upsertSubscription,
+  removeSubscription,
+  sendNotificationToUser
+} = require('./utils/pushNotifications');
 
 // Student/Admin ID format shared with models
 const {
@@ -2413,6 +2420,56 @@ app.get(['/api/files/:id', '/api/files/:id/:name'], async (req, res) => {
 });
 
 // --- Loans
+const STUDENT_NOTIFICATION_ICON = '/logo192.png';
+const STUDENT_NOTIFICATION_BADGE = '/logo192.png';
+
+function getStudentNotificationUrl(type) {
+  switch (type) {
+    case 'pending':
+    case 'approved':
+      return '/student/borrow-requests';
+    case 'overdue':
+      return '/student/overdue-books';
+    case 'returned':
+      return '/student/borrowing-history';
+    default:
+      return '/student/account';
+  }
+}
+
+function formatNotificationDate(raw) {
+  const date = coerceDate(raw);
+  if (!date) return '';
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+function dispatchStudentNotification(userId, payload) {
+  if (!isPushConfigured()) return;
+  if (!userId) return;
+  const type = payload?.type || 'status';
+  const title = payload?.title || 'LibReport Library';
+  const body = payload?.body || '';
+  const notificationPayload = {
+    title,
+    body,
+    icon: payload?.icon || STUDENT_NOTIFICATION_ICON,
+    badge: payload?.badge || STUDENT_NOTIFICATION_BADGE,
+    tag: payload?.tag || `lr-${type}-${Date.now()}`,
+    data: {
+      url: payload?.url || getStudentNotificationUrl(type),
+      type,
+      ...payload?.data
+    }
+  };
+  sendNotificationToUser(userId, notificationPayload).catch((err) => {
+    console.error('[push] Dispatch error:', err?.message || err);
+  });
+}
+
 async function markLoanAsReturned(loan) {
   if (!loan) {
     return { ok: false, status: 404, message: 'Active loan not found' };
@@ -2422,6 +2479,7 @@ async function markLoanAsReturned(loan) {
   }
 
   loan.returnedAt = new Date();
+  loan.overdueNotifiedAt = null;
   await loan.save();
   if (loan.bookId) {
     await Book.findByIdAndUpdate(loan.bookId, { $inc: { availableCopies: 1 } });
@@ -2447,6 +2505,33 @@ app.post('/api/loans/borrow', adminRequired, async (req, res) => {
 });
 
 // Student borrow requests
+app.get('/api/student/notifications/public-key', studentRequired, (req, res) => {
+  if (!isPushConfigured()) {
+    return res.json({ enabled: false, publicKey: '' });
+  }
+  res.json({ enabled: true, publicKey: getPushPublicKey() });
+});
+
+app.post('/api/student/notifications/subscribe', studentRequired, async (req, res) => {
+  if (!isPushConfigured()) {
+    return res.status(503).json({ error: 'Push notifications are not configured on the server.' });
+  }
+  const result = await upsertSubscription({ userId: req.user.sub, body: req.body });
+  if (!result.ok) {
+    const status = result.reason === 'invalid-subscription' ? 400 : 500;
+    return res.status(status).json({ error: 'Unable to store notification subscription.' });
+  }
+  res.status(201).json({ ok: true });
+});
+
+app.delete('/api/student/notifications/subscribe', studentRequired, async (req, res) => {
+  const endpoint = req.body?.endpoint || req.query?.endpoint;
+  if (endpoint) {
+    await removeSubscription({ userId: req.user.sub, endpoint });
+  }
+  res.status(204).send();
+});
+
 app.post('/api/student/borrow-requests', studentRequired, async (req, res) => {
   const { bookId, days: daysRaw, note } = req.body || {};
   if (!bookId) return res.status(400).json({ error: 'bookId required' });
@@ -2533,6 +2618,16 @@ app.post('/api/student/borrow-requests', studentRequired, async (req, res) => {
     requestedAt: request.createdAt ? request.createdAt.toISOString() : null,
     daysRequested: request.daysRequested,
     estimatedDueAt: estimatedDueAt.toISOString()
+  });
+
+  dispatchStudentNotification(req.user.sub, {
+    type: 'pending',
+    title: 'Borrow request submitted',
+    body: `Your request for "${book.title || 'a library item'}" is now pending librarian review.`,
+    data: {
+      bookId: String(book._id),
+      requestId: String(request._id)
+    }
   });
 });
 
@@ -2747,6 +2842,21 @@ app.post('/api/loans/requests/:id/approve', adminRequired, async (req, res) => {
       dueAt: loan.dueAt instanceof Date ? loan.dueAt.toISOString() : loan.dueAt
     }
   });
+
+  const bookTitle = details?.book?.title || 'a library item';
+  dispatchStudentNotification(request.userId, {
+    type: 'approved',
+    title: isRenewal ? 'Renewal approved' : 'Borrow request approved',
+    body: isRenewal
+      ? `Your renewal for "${bookTitle}" was approved. New due date: ${formatNotificationDate(loan.dueAt)}.`
+      : `"${bookTitle}" is ready for pickup. Due date: ${formatNotificationDate(loan.dueAt)}.`,
+    data: {
+      bookId: String(request.bookId),
+      requestId: String(request._id),
+      loanId: String(loan._id),
+      dueAt: loan.dueAt instanceof Date ? loan.dueAt.toISOString() : loan.dueAt
+    }
+  });
 });
 
 app.post('/api/loans/requests/:id/reject', adminRequired, async (req, res) => {
@@ -2849,7 +2959,31 @@ app.post('/api/loans/:id/return', adminRequired, async (req, res) => {
 
   const result = await markLoanAsReturned(loan);
   if (!result.ok) return res.status(result.status).json({ error: result.message });
+  let returnedTitle = 'a library item';
+  try {
+    if (result.loan?.bookId) {
+      const returnedBook = await Book.findById(result.loan.bookId).lean();
+      if (returnedBook?.title) {
+        returnedTitle = returnedBook.title;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load returned book title:', err?.message || err);
+  }
+
   res.json(result.loan);
+
+  if (result.loan?.userId) {
+    dispatchStudentNotification(result.loan.userId, {
+      type: 'returned',
+      title: 'Book returned',
+      body: `Your loan for "${returnedTitle}" has been marked as returned.`,
+      data: {
+        bookId: result.loan.bookId ? String(result.loan.bookId) : null,
+        returnedAt: result.loan.returnedAt
+      }
+    });
+  }
 });
 
 // Student self-service return
@@ -2866,11 +3000,33 @@ app.post('/api/student/return', studentRequired, async (req, res) => {
   
   const result = await markLoanAsReturned(loan);
   if (!result.ok) return res.status(result.status).json({ error: result.message });
+
+  let returnedTitle = 'a library item';
+  try {
+    if (result.loan?.bookId) {
+      const returnedBook = await Book.findById(result.loan.bookId).lean();
+      if (returnedBook?.title) {
+        returnedTitle = returnedBook.title;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load returned book title:', err?.message || err);
+  }
   
   res.status(200).json({
     message: 'Book returned successfully',
     bookId: bookId,
     returnedAt: result.loan.returnedAt
+  });
+
+  dispatchStudentNotification(userId, {
+    type: 'returned',
+    title: 'Book returned',
+    body: `Thanks for returning "${returnedTitle}".`,
+    data: {
+      bookId: bookId,
+      returnedAt: result.loan.returnedAt
+    }
   });
 });
 
@@ -3131,9 +3287,52 @@ app.get('/api/student/overdue-books', studentRequired, async (req, res) => {
         borrowedAt: 1, 
         dueAt: 1,
         daysOverdue: { $floor: { $divide: [{ $subtract: [now, '$dueAt'] }, 86400000] } }
-      } 
+      }
     }
   ]);
+
+  const overdueLookup = new Map();
+  const overdueIds = [];
+  items.forEach((doc) => {
+    if (!doc || !doc._id) return;
+    const key = String(doc._id);
+    overdueLookup.set(key, doc);
+    overdueIds.push(doc._id);
+  });
+
+  if (isPushConfigured() && overdueIds.length) {
+    const notifiedAt = new Date();
+    const freshOverdue = await Loan.find({
+      _id: { $in: overdueIds },
+      overdueNotifiedAt: null
+    })
+      .select('_id bookId dueAt overdueNotifiedAt')
+      .lean();
+
+    for (const loanDoc of freshOverdue) {
+      try {
+        await Loan.updateOne({ _id: loanDoc._id }, { $set: { overdueNotifiedAt: notifiedAt } });
+        const item = overdueLookup.get(String(loanDoc._id));
+        const title = item?.title || item?.book?.title || 'a library item';
+        const daysOverdue = item?.daysOverdue ?? 0;
+        dispatchStudentNotification(userId, {
+          type: 'overdue',
+          title: 'Overdue reminder',
+          body:
+            daysOverdue > 1
+              ? `"${title}" is overdue by ${daysOverdue} days. Please return or renew it as soon as possible.`
+              : `"${title}" is overdue. Please return or renew it as soon as possible.`,
+          data: {
+            bookId: loanDoc.bookId ? String(loanDoc.bookId) : null,
+            loanId: String(loanDoc._id),
+            dueAt: loanDoc.dueAt
+          }
+        });
+      } catch (err) {
+        console.error('Failed to dispatch overdue notification:', err?.message || err);
+      }
+    }
+  }
   
   // Add fine calculation (example: $1 per day overdue)
   const booksWithFines = items.map((book) => ({
@@ -3200,6 +3399,63 @@ app.get('/api/student/borrowing-history', studentRequired, async (req, res) => {
   }));
 
   res.json({ history });
+});
+
+app.get('/api/student/visit-history', studentRequired, async (req, res) => {
+  const rawId = String(req.user.sub || '');
+  if (!mongoose.Types.ObjectId.isValid(rawId)) {
+    return res.status(400).json({ error: 'invalid user id' });
+  }
+
+  let page = Number.parseInt(req.query.page, 10);
+  let pageSize = Number.parseInt(req.query.pageSize, 10);
+  if (!Number.isFinite(page) || page < 1) page = 1;
+  if (!Number.isFinite(pageSize) || pageSize < 1) pageSize = 5;
+  if (pageSize > 20) pageSize = 20;
+
+  const userObjectId = new mongoose.Types.ObjectId(rawId);
+  const filter = { userId: userObjectId };
+
+  const total = await Visit.countDocuments(filter);
+  const totalPages = Math.max(1, Math.ceil((total || 1) / pageSize));
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+  const skip = (safePage - 1) * pageSize;
+
+  const visits = await Visit.find(filter)
+    .sort({ enteredAt: -1, _id: -1 })
+    .skip(skip)
+    .limit(pageSize)
+    .lean();
+
+  const mapped = visits.map((doc) => {
+    const enteredAt =
+      doc.enteredAt instanceof Date ? doc.enteredAt.toISOString() : doc.enteredAt || null;
+    const exitedAt =
+      doc.exitedAt instanceof Date ? doc.exitedAt.toISOString() : doc.exitedAt || null;
+    let durationMinutes = null;
+    if (doc.enteredAt instanceof Date && doc.exitedAt instanceof Date) {
+      const diff = doc.exitedAt.getTime() - doc.enteredAt.getTime();
+      if (Number.isFinite(diff) && diff > 0) {
+        durationMinutes = Math.max(1, Math.round(diff / 60000));
+      }
+    }
+    return {
+      id: String(doc._id),
+      branch: doc.branch || 'Main',
+      enteredAt,
+      exitedAt,
+      durationMinutes,
+      isActive: !doc.exitedAt
+    };
+  });
+
+  res.json({
+    page: safePage,
+    pageSize,
+    total,
+    totalPages,
+    visits: mapped
+  });
 });
 
 // --- Reports
@@ -3512,6 +3768,23 @@ app.patch('/api/admin/users/:id/department', adminRequired, async (req, res) => 
   }
 
   res.json({ id: String(user._id), department: user.department || '' });
+});
+
+app.patch('/api/admin/users/:id/password', adminRequired, async (req, res) => {
+  const rawPassword = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
+  if (rawPassword.length < 8) {
+    return res
+      .status(400)
+      .json({ error: 'Password must be at least 8 characters long.' });
+  }
+
+  const user = await User.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'Not found' });
+
+  user.password = await bcrypt.hash(rawPassword, 10);
+  await user.save();
+
+  res.json({ message: 'Password updated successfully.' });
 });
 
 app.delete('/api/admin/uploads/pdfs', adminRequired, async (req, res) => {
