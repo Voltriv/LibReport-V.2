@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import heroImage from "../assets/student-hero.png";
+import heroImage from "../assets/LibReport.png";
 
 const sections = [
   {

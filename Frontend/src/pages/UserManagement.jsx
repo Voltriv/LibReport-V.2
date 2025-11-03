@@ -651,7 +651,7 @@ const UserManagement = () => {
 
         {isModalOpen && selectedUser && (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
+            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl max-h-[90vh] flex flex-col">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-brand-green/10 flex items-center justify-center">
                   <svg className="h-5 w-5 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -666,7 +666,7 @@ const UserManagement = () => {
                 </div>
               )}
 
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-y-auto pr-2 flex-1">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Full Name</label>
                   <input
@@ -772,7 +772,7 @@ const UserManagement = () => {
                 </div>
               </div>
               
-              <div className="mt-8 flex items-center justify-end gap-3">
+              <div className="mt-8 flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-stone-700">
                 <button
                   className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
                   onClick={closeEditModal}
