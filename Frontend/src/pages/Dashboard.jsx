@@ -14,6 +14,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+const numberFormatter = new Intl.NumberFormat();
+
 const Dashboard = () => {
   const [showReport, setShowReport] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -40,6 +42,7 @@ const Dashboard = () => {
   });
   const [topBooks, setTopBooks] = useState([]);
   const [heat, setHeat] = useState([]);
+  const [topBorrowers, setTopBorrowers] = useState([]);
 
   useEffect(() => {
     // Load dashboard summary
@@ -47,6 +50,9 @@ const Dashboard = () => {
     api.get('/reports/top-books').then(r => setTopBooks(r.data.items || [])).catch(() => {});
     api.get('/heatmap/visits', { params: { days: 7 } }).then(r => setHeat(r.data.items || [])).catch(() => {});
     api.get('/reports/overdue').then(r => setCounts(c => ({ ...c, overdue: (r.data.items || []).length })) ).catch(() => {});
+    api.get('/reports/top-borrowers', { params: { limit: 6, days: 90 } })
+      .then((r) => setTopBorrowers(Array.isArray(r.data?.items) ? r.data.items : []))
+      .catch(() => {});
   }, []);
 
   const chartData = useMemo(() => {
@@ -216,7 +222,7 @@ const Dashboard = () => {
         </section>
 
         {/* Bottom Section */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Quick Reports Card */}
           <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 ring-1 ring-amber-200 dark:ring-amber-800 p-6 hover:shadow-xl transition-all duration-300">
             <div className="flex items-start justify-between mb-4">
@@ -274,6 +280,61 @@ const Dashboard = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Frequent Borrowers Card */}
+          <div className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center">
+                <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-1a4 4 0 00-4-4h-1m-4 5v-1a4 4 0 014-4h0m-4 5H7v-1a4 4 0 014-4h0m0 5v-1a4 4 0 014-4h0m-4-7a4 4 0 110-8 4 4 0 010 8z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Frequent Borrowers</h3>
+                <p className="text-sm text-slate-600 dark:text-stone-400">Top patrons by loan volume</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {topBorrowers.length ? (
+                topBorrowers.slice(0, 5).map((b, index) => {
+                  const shareValue = Number(b.share || 0);
+                  return (
+                    <div
+                      key={b.userId || `borrower-${index}`}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-stone-800 hover:bg-slate-100 dark:hover:bg-stone-700 transition-colors duration-200"
+                    >
+                      <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
+                        <span className="text-sm font-bold text-indigo-600 dark:text-indigo-200">#{index + 1}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 dark:text-stone-100 truncate">
+                          {b.fullName}
+                        </p>
+                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-stone-400">
+                          <span>{numberFormatter.format(b.borrows || 0)} loans</span>
+                          <span>Active {numberFormatter.format(b.activeLoans || 0)}</span>
+                          {b.overdueLoans ? (
+                            <span className="text-red-500 dark:text-red-400">
+                              {numberFormatter.format(b.overdueLoans)} overdue
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200">
+                          {shareValue.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-xl bg-slate-50 dark:bg-stone-800 p-4 text-sm text-slate-500 dark:text-stone-400">
+                  No borrower data yet. Approve more loans to see top patrons here.
+                </div>
+              )}
             </div>
           </div>
         </section>

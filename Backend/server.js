@@ -51,6 +51,16 @@ const MIME_EXTENSIONS = {
   'application/pdf': '.pdf'
 };
 
+const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
+const STAFFING_LOOKBACK_DAYS = 7;
+const DEFAULT_VISITS_PER_STAFF = 20;
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const FINE_RATE_PER_DAY = (() => {
+  const raw = Number.parseFloat(process.env.FINE_RATE_PER_DAY ?? '');
+  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+})();
+
 let uploadBucket = null;
 const uploadBucketEvents = new EventEmitter();
 uploadBucketEvents.setMaxListeners(0);
@@ -482,6 +492,76 @@ function readNumericQueryParam(value, options = {}) {
   }
 
   return result;
+}
+
+function buildStaffingRecommendations(hourlyBuckets = [], dayBuckets = [], options = {}) {
+  const lookbackDays = Math.max(1, options.lookbackDays ?? STAFFING_LOOKBACK_DAYS);
+  const visitsPerStaff = Math.max(1, options.visitsPerStaff ?? DEFAULT_VISITS_PER_STAFF);
+
+  const totalVisits = hourlyBuckets.reduce((acc, item) => acc + Number(item?.count || 0), 0);
+  const avgDailyVisits = totalVisits / lookbackDays;
+
+  const peakHours = hourlyBuckets
+    .filter((item) => Number.isFinite(item?.hour) && item.count > 0)
+    .map((item) => {
+      const hour = Number(item.hour);
+      const avg = Number(item.count || 0) / lookbackDays;
+      const padded = String(hour).padStart(2, '0');
+      const endHour = (hour + 1) % 24;
+      return {
+        hour,
+        label: `${padded}:00 - ${String(endHour).padStart(2, '0')}:00`,
+        avgVisits: Number(avg.toFixed(1)),
+        recommendedStaff: Math.max(1, Math.ceil(avg / visitsPerStaff))
+      };
+    })
+    .sort((a, b) => b.avgVisits - a.avgVisits)
+    .slice(0, 3);
+
+  const approxWeeks = Math.max(1, Math.round(lookbackDays / 7) || 1);
+  const busyDays = dayBuckets
+    .filter((item) => Number.isFinite(item?.dow))
+    .map((item) => {
+      const dow = Number(item.dow);
+      const idx = ((dow || 1) - 1 + 7) % 7;
+      const avg = Number(item.count || 0) / approxWeeks;
+      return {
+        dow: idx,
+        label: DAY_LABELS[idx],
+        avgVisits: Number(avg.toFixed(1))
+      };
+    })
+    .sort((a, b) => b.avgVisits - a.avgVisits)
+    .slice(0, 3);
+
+  const recommendations = [];
+  if (peakHours.length > 0) {
+    const top = peakHours[0];
+    recommendations.push(
+      `Plan for at least ${top.recommendedStaff} staff between ${top.label} to handle roughly ${top.avgVisits} visits.`
+    );
+  }
+  if (busyDays.length > 0) {
+    const labels = busyDays.map((item) => item.label);
+    const formatted =
+      labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(', ')} and ${labels.slice(-1)}`;
+    recommendations.push(`Expect higher footfall on ${formatted}. Consider staggered breaks those days.`);
+  }
+  if (avgDailyVisits > visitsPerStaff * 3) {
+    recommendations.push(
+      `Average daily visits (~${Number(avgDailyVisits.toFixed(1))}) exceed the safe capacity of a ${visitsPerStaff}-visit staffing band. Evaluate adding coverage during peaks.`
+    );
+  }
+
+  return {
+    lookbackDays,
+    visitsPerStaff,
+    averageDailyVisits: Number(avgDailyVisits.toFixed(1)),
+    totalVisits,
+    peakHours,
+    busyDays,
+    recommendations
+  };
 }
 
 // --- DB connect
@@ -1847,6 +1927,8 @@ app.get('/api/tracker/stats', adminRequired, async (req, res) => {
   startOfDay.setHours(0, 0, 0, 0);
   const since = new Date(now.getTime() - hours * 60 * 60 * 1000);
 
+  const staffingWindowStart = new Date(now.getTime() - STAFFING_LOOKBACK_DAYS * MILLIS_PER_DAY);
+
   const [
     inboundRange,
     outboundRange,
@@ -1856,7 +1938,9 @@ app.get('/api/tracker/stats', adminRequired, async (req, res) => {
     outboundTotal,
     overdue,
     activeVisits,
-    activeLoans
+    activeLoans,
+    hourlyBuckets,
+    dayBuckets
   ] = await Promise.all([
     Visit.countDocuments({ enteredAt: { $gte: since } }),
     Visit.countDocuments({ exitedAt: { $ne: null, $gte: since } }),
@@ -1866,8 +1950,28 @@ app.get('/api/tracker/stats', adminRequired, async (req, res) => {
     Visit.countDocuments({ exitedAt: { $ne: null } }),
     Loan.countDocuments({ returnedAt: null, dueAt: { $lt: now } }),
     Visit.countDocuments({ exitedAt: null }),
-    Loan.countDocuments({ returnedAt: null })
+    Loan.countDocuments({ returnedAt: null }),
+    Visit.aggregate([
+      { $match: { enteredAt: { $gte: staffingWindowStart } } },
+      { $group: { _id: { hour: { $hour: '$enteredAt' } }, count: { $sum: 1 } } },
+      { $project: { _id: 0, hour: '$_id.hour', count: 1 } },
+      { $sort: { hour: 1 } }
+    ]),
+    Visit.aggregate([
+      { $match: { enteredAt: { $gte: staffingWindowStart } } },
+      { $group: { _id: { dow: { $dayOfWeek: '$enteredAt' } }, count: { $sum: 1 } } },
+      { $project: { _id: 0, dow: '$_id.dow', count: 1 } },
+      { $sort: { dow: 1 } }
+    ])
   ]);
+
+  const staffing = {
+    ...buildStaffingRecommendations(hourlyBuckets, dayBuckets, {
+      lookbackDays: STAFFING_LOOKBACK_DAYS,
+      visitsPerStaff: DEFAULT_VISITS_PER_STAFF
+    }),
+    window: { since: staffingWindowStart.toISOString(), days: STAFFING_LOOKBACK_DAYS }
+  };
 
   res.json({
     inbound: inboundRange,
@@ -1877,7 +1981,8 @@ app.get('/api/tracker/stats', adminRequired, async (req, res) => {
     activeLoans,
     range: { hours, since: since.toISOString() },
     today: { inbound: inboundToday, outbound: outboundToday, startOfDay: startOfDay.toISOString() },
-    totals: { inbound: inboundTotal, outbound: outboundTotal }
+    totals: { inbound: inboundTotal, outbound: outboundTotal },
+    staffing
   });
 });
 
@@ -3541,6 +3646,456 @@ app.get('/api/reports/overdue', authRequired, async (req, res) => {
   res.json({ items });
 });
 
+app.get('/api/reports/top-borrowers', authRequired, async (req, res) => {
+  let limit;
+  try {
+    limit = readNumericQueryParam(req.query.limit, {
+      name: 'limit',
+      defaultValue: 10,
+      min: 1,
+      max: 50,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const hasDaysFilter = !(req.query.days === undefined || req.query.days === null || req.query.days === '');
+  let since = null;
+  const match = { userId: { $ne: null } };
+  if (hasDaysFilter) {
+    try {
+      const days = readNumericQueryParam(req.query.days, {
+        name: 'days',
+        min: 1,
+        max: 365,
+        integer: true
+      });
+      since = new Date(Date.now() - days * MILLIS_PER_DAY);
+      match.borrowedAt = { $gte: since };
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  const countMatch = { ...match };
+  delete countMatch.lastBorrowedAt;
+
+  const [rawItems, totalLoans] = await Promise.all([
+    Loan.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: '$userId',
+          borrows: { $sum: 1 },
+          activeLoans: { $sum: { $cond: [{ $eq: ['$returnedAt', null] }, 1, 0] } },
+          overdueLoans: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ['$returnedAt', null] }, { $lt: ['$dueAt', '$$NOW'] }] },
+                1,
+                0
+              ]
+            }
+          },
+          lastBorrowedAt: { $max: '$borrowedAt' }
+        }
+      },
+      { $sort: { borrows: -1, _id: 1 } },
+      { $limit: limit },
+      { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } }
+    ]),
+    Loan.countDocuments(countMatch)
+  ]);
+
+  const items = rawItems
+    .filter((row) => row?._id)
+    .map((row) => {
+      const borrows = Number(row.borrows || 0);
+      const activeLoans = Number(row.activeLoans || 0);
+      const overdueLoans = Number(row.overdueLoans || 0);
+      const share = totalLoans > 0 ? (borrows / totalLoans) * 100 : 0;
+      return {
+        userId: row._id ? String(row._id) : null,
+        fullName: row.user?.fullName || row.user?.name || 'Unknown Borrower',
+        studentId: row.user?.studentId || null,
+        email: row.user?.email || null,
+        department: row.user?.department || null,
+        borrows,
+        activeLoans,
+        overdueLoans,
+        lastBorrowedAt: row.lastBorrowedAt || null,
+        share: Number(share.toFixed(1))
+      };
+    });
+
+  const totalBorrows = items.reduce((acc, item) => acc + (item.borrows || 0), 0);
+
+  res.json({
+    since,
+    totalLoans,
+    totalBorrows,
+    items
+  });
+});
+
+app.get('/api/reports/genre-trends', authRequired, async (req, res) => {
+  let days;
+  let limit;
+  try {
+    days = readNumericQueryParam(req.query.days, {
+      name: 'days',
+      defaultValue: 90,
+      min: 7,
+      max: 365,
+      integer: true
+    });
+    limit = readNumericQueryParam(req.query.limit, {
+      name: 'limit',
+      defaultValue: 12,
+      min: 3,
+      max: 50,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const since = new Date(Date.now() - days * MILLIS_PER_DAY);
+  const previousStart = new Date(since.getTime() - days * MILLIS_PER_DAY);
+
+  const buildPipeline = (matchStage) => [
+    { $match: matchStage },
+    { $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } },
+    { $unwind: { path: '$book', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        topic: {
+          $let: {
+            vars: {
+              genre: { $ifNull: ['$book.genre', ''] },
+              department: { $ifNull: ['$book.department', ''] }
+            },
+            in: {
+              $cond: [
+                { $gt: [{ $strLenCP: '$$genre' }, 0] },
+                '$$genre',
+                {
+                  $cond: [
+                    { $gt: [{ $strLenCP: '$$department' }, 0] },
+                    '$$department',
+                    'Uncategorized'
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      $group: {
+        _id: '$topic',
+        borrows: { $sum: 1 },
+        activeLoans: { $sum: { $cond: [{ $eq: ['$returnedAt', null] }, 1, 0] } },
+        lastBorrowedAt: { $max: '$borrowedAt' }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        topic: '$_id',
+        borrows: 1,
+        activeLoans: 1,
+        lastBorrowedAt: 1
+      }
+    },
+    { $sort: { borrows: -1, topic: 1 } }
+  ];
+
+  const [current, previous, totalLoans] = await Promise.all([
+    Loan.aggregate([...buildPipeline({ borrowedAt: { $gte: since } }), { $limit: limit }]),
+    Loan.aggregate([
+      ...buildPipeline({ borrowedAt: { $gte: previousStart, $lt: since } }),
+      { $limit: limit }
+    ]),
+    Loan.countDocuments({ borrowedAt: { $gte: since } })
+  ]);
+
+  const previousMap = new Map(previous.map((row) => [row.topic, Number(row.borrows || 0)]));
+  const totalBorrows = current.reduce((acc, row) => acc + Number(row.borrows || 0), 0);
+
+  const items = current.map((row) => {
+    const borrows = Number(row.borrows || 0);
+    const prev = previousMap.get(row.topic) || 0;
+    const share = totalLoans > 0 ? (borrows / totalLoans) * 100 : 0;
+    const growth =
+      prev === 0 ? (borrows > 0 ? 100 : 0) : ((borrows - prev) / prev) * 100;
+    return {
+      topic: row.topic || 'Uncategorized',
+      borrows,
+      activeLoans: Number(row.activeLoans || 0),
+      lastBorrowedAt: row.lastBorrowedAt || null,
+      share: Number(share.toFixed(1)),
+      growth: Number(growth.toFixed(1))
+    };
+  });
+
+  res.json({
+    since,
+    previousWindow: { start: previousStart, end: since },
+    totalLoans,
+    totalBorrows,
+    items
+  });
+});
+
+app.get('/api/reports/underutilized', authRequired, async (req, res) => {
+  let days;
+  let limit;
+  try {
+    days = readNumericQueryParam(req.query.days, {
+      name: 'days',
+      defaultValue: 60,
+      min: 7,
+      max: 365,
+      integer: true
+    });
+    limit = readNumericQueryParam(req.query.limit, {
+      name: 'limit',
+      defaultValue: 20,
+      min: 5,
+      max: 100,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const since = new Date(Date.now() - days * MILLIS_PER_DAY);
+
+  const basePipeline = [
+    {
+      $lookup: {
+        from: 'loans',
+        let: { bookId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ['$bookId', '$$bookId'] }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              lastBorrowedAt: { $max: '$borrowedAt' },
+              borrowCount: { $sum: 1 },
+              activeLoans: { $sum: { $cond: [{ $eq: ['$returnedAt', null] }, 1, 0] } }
+            }
+          }
+        ],
+        as: 'loanStats'
+      }
+    },
+    {
+      $addFields: {
+        lastBorrowedAt: { $ifNull: [{ $arrayElemAt: ['$loanStats.lastBorrowedAt', 0] }, null] },
+        borrowCount: { $ifNull: [{ $arrayElemAt: ['$loanStats.borrowCount', 0] }, 0] },
+        activeLoans: { $ifNull: [{ $arrayElemAt: ['$loanStats.activeLoans', 0] }, 0] }
+      }
+    },
+    {
+      $addFields: {
+        daysSinceBorrowed: {
+          $cond: [
+            { $or: [{ $eq: ['$lastBorrowedAt', null] }, { $not: ['$lastBorrowedAt'] }] },
+            null,
+            { $divide: [{ $subtract: ['$$NOW', '$lastBorrowedAt'] }, MILLIS_PER_DAY] }
+          ]
+        }
+      }
+    },
+    {
+      $match: {
+        $or: [{ lastBorrowedAt: null }, { lastBorrowedAt: { $lt: since } }]
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        title: 1,
+        author: 1,
+        genre: 1,
+        department: 1,
+        bookCode: 1,
+        totalCopies: 1,
+        availableCopies: 1,
+        borrowCount: 1,
+        activeLoans: 1,
+        lastBorrowedAt: 1,
+        daysSinceBorrowed: 1
+      }
+    }
+  ];
+
+  const [itemsRaw, totalCountDocs] = await Promise.all([
+    Book.aggregate([
+      ...basePipeline,
+      { $sort: { lastBorrowedAt: 1, title: 1 } },
+      { $limit: limit }
+    ]),
+    Book.aggregate([...basePipeline, { $count: 'total' }])
+  ]);
+
+  const totalUnderutilized = totalCountDocs?.[0]?.total || 0;
+
+  const items = itemsRaw.map((book) => {
+    const daysSince =
+      book.lastBorrowedAt && book.daysSinceBorrowed !== null && book.daysSinceBorrowed !== undefined
+        ? Math.round(book.daysSinceBorrowed)
+        : null;
+    return {
+      bookId: String(book._id),
+      title: book.title || 'Untitled',
+      author: book.author || '',
+      genre: book.genre || null,
+      department: book.department || null,
+      bookCode: book.bookCode || null,
+      totalCopies: book.totalCopies ?? null,
+      availableCopies: book.availableCopies ?? null,
+      borrowCount: Number(book.borrowCount || 0),
+      activeLoans: Number(book.activeLoans || 0),
+      lastBorrowedAt: book.lastBorrowedAt || null,
+      daysSinceLastBorrowed: daysSince,
+      status: book.lastBorrowedAt ? 'Stale' : 'Never borrowed'
+    };
+  });
+
+  const neverBorrowed = items.filter((item) => !item.lastBorrowedAt).length;
+  const maxDays = items.reduce(
+    (acc, item) => (item.daysSinceLastBorrowed ? Math.max(acc, item.daysSinceLastBorrowed) : acc),
+    0
+  );
+
+  res.json({
+    since,
+    thresholdDays: days,
+    totalUnderutilized,
+    neverBorrowed,
+    longestDormantDays: maxDays,
+    items
+  });
+});
+
+app.get('/api/reports/fines', authRequired, async (req, res) => {
+  let limit;
+  try {
+    limit = readNumericQueryParam(req.query.limit, {
+      name: 'limit',
+      defaultValue: 25,
+      min: 5,
+      max: 200,
+      integer: true
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const now = new Date();
+  const result = await Loan.aggregate([
+    { $match: { returnedAt: null, dueAt: { $lt: now } } },
+    {
+      $addFields: {
+        overdueDays: {
+          $max: [
+            0,
+            {
+              $ceil: {
+                $divide: [{ $subtract: ['$$NOW', '$dueAt'] }, MILLIS_PER_DAY]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      $addFields: {
+        fine: { $multiply: ['$overdueDays', FINE_RATE_PER_DAY] }
+      }
+    },
+    {
+      $facet: {
+        summary: [
+          {
+            $group: {
+              _id: null,
+              totalOutstanding: { $sum: '$fine' },
+              totalDays: { $sum: '$overdueDays' },
+              loans: { $sum: 1 }
+            }
+          }
+        ],
+        items: [
+          { $sort: { fine: -1 } },
+          { $limit: limit },
+          { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+          { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+          { $lookup: { from: 'books', localField: 'bookId', foreignField: '_id', as: 'book' } },
+          { $unwind: { path: '$book', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              _id: 1,
+              userId: '$userId',
+              bookId: '$bookId',
+              borrower: '$user.fullName',
+              studentId: '$user.studentId',
+              title: '$book.title',
+              dueAt: 1,
+              borrowedAt: 1,
+              overdueDays: 1,
+              fine: 1
+            }
+          }
+        ]
+      }
+    }
+  ]);
+
+  const payload = result?.[0] || {};
+  const summaryDoc = payload.summary?.[0] || { totalOutstanding: 0, totalDays: 0, loans: 0 };
+
+  const items = (payload.items || []).map((row) => ({
+    loanId: row._id ? String(row._id) : null,
+    borrower: row.borrower || 'Unknown Borrower',
+    studentId: row.studentId || null,
+    title: row.title || 'Untitled',
+    dueAt: row.dueAt || null,
+    borrowedAt: row.borrowedAt || null,
+    daysOverdue: Number(row.overdueDays || 0),
+    fine: Number(row.fine || 0)
+  }));
+
+  const totals = {
+    outstanding: Number(summaryDoc.totalOutstanding || 0),
+    overdueLoans: Number(summaryDoc.loans || 0),
+    averageFine:
+      summaryDoc.loans > 0
+        ? Number(((summaryDoc.totalOutstanding || 0) / summaryDoc.loans).toFixed(2))
+        : 0,
+    averageDaysOverdue:
+      summaryDoc.loans > 0
+        ? Number(((summaryDoc.totalDays || 0) / summaryDoc.loans).toFixed(1))
+        : 0
+  };
+
+  res.json({
+    ratePerDay: FINE_RATE_PER_DAY,
+    totals,
+    items
+  });
+});
+
 // --- Hours
 app.get('/api/hours', authRequired, async (req, res) => {
   const branch = String(req.query.branch || 'Main');
@@ -3903,6 +4458,7 @@ if (require.main === module) {
 module.exports = {
   app,
   coerceDate,
-  resolveLoanStatusMeta
+  resolveLoanStatusMeta,
+  buildStaffingRecommendations
 };
 

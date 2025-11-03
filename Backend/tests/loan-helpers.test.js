@@ -2,12 +2,21 @@
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
-process.env.NO_DB = process.env.NO_DB || 'true';
+const prevNoDb = process.env.NO_DB;
+process.env.NO_DB = 'true';
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { coerceDate, resolveLoanStatusMeta } = require('../server.js');
+
+test.after(() => {
+  if (typeof prevNoDb === 'undefined') {
+    delete process.env.NO_DB;
+  } else {
+    process.env.NO_DB = prevNoDb;
+  }
+});
 
 test('coerceDate handles various inputs', () => {
   const now = new Date('2024-01-01T00:00:00Z');

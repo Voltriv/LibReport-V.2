@@ -15,10 +15,17 @@ const REPORT_OPTIONS = [
   { label: "Usage Report", value: "usage" },
   { label: "Overdue Report", value: "overdue" },
   { label: "Borrowed Books Summary", value: "borrowed" },
+  { label: "Genre & Topic Trends", value: "genre" },
+  { label: "Underutilized Titles", value: "underutilized" },
+  { label: "Fine Leakage Overview", value: "fines" },
 ];
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const numberFormatter = new Intl.NumberFormat();
+const moneyFormatter = new Intl.NumberFormat(undefined, {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 const Reports = () => {
   const [timeRange, setTimeRange] = useState(TIME_RANGES[0]);
@@ -115,7 +122,9 @@ const Reports = () => {
         let nextColumns = [];
         let nextRows = [];
 
-        if (reportType.value === "usage") {
+        const reportKey = reportType.value;
+
+        if (reportKey === "usage") {
           const { data } = await api.get("/heatmap/visits", { params: { days: timeRange.days } });
           const items = data.items || [];
           const hours = new Array(24).fill(0);
@@ -163,7 +172,7 @@ const Reports = () => {
             { key: "visits", label: "Visits" },
           ];
           nextRows = DAY_LABELS.map((label, idx) => ({ day: label, visits: numberFormatter.format(days[idx]) }));
-        } else if (reportType.value === "overdue") {
+        } else if (reportKey === "overdue") {
           const { data } = await api.get("/reports/overdue", { params: { days: timeRange.days, limit: 120 } });
           const items = data.items || [];
           const now = new Date();
@@ -214,6 +223,131 @@ const Reports = () => {
             { key: "due", label: "Due Date" },
             { key: "borrowed", label: "Borrowed" },
           ];
+        } else if (reportKey === "genre") {
+          const lookbackDays = Math.max(timeRange.days, 30);
+          const { data } = await api.get("/reports/genre-trends", { params: { days: lookbackDays, limit: 12 } });
+          const items = data.items || [];
+          const top = items[0];
+          const totalLoans = Number(data.totalLoans || data.totalBorrows || 0);
+
+          nextSummary = [
+            { label: "Total Loans", value: numberFormatter.format(totalLoans) },
+            {
+              label: "Top Topic",
+              value: top ? `${top.topic} (${numberFormatter.format(top.borrows || 0)} borrows)` : "-",
+            },
+            {
+              label: "Top Topic Share",
+              value: top ? `${Number(top.share || 0).toFixed(1)}%` : "-",
+            },
+          ];
+          nextChart = items.map((item) => ({
+            label: item.topic || "Uncategorized",
+            value: Number(item.share || 0),
+          }));
+          nextChartLabel = `Borrow share by topic (last ${lookbackDays} day${lookbackDays === 1 ? "" : "s"})`;
+          nextChartColor = "#4f46e5";
+          nextColumns = [
+            { key: "topic", label: "Topic" },
+            { key: "borrows", label: "Borrows" },
+            { key: "share", label: "Share %" },
+            { key: "growth", label: "Growth %" },
+            { key: "activeLoans", label: "Active Loans" },
+            { key: "lastBorrowed", label: "Last Borrowed" },
+          ];
+          nextRows = items.map((item) => {
+            const growth = Number(item.growth || 0);
+            const growthLabel = `${growth > 0 ? "+" : ""}${growth.toFixed(1)}%`;
+            return {
+              id: item.topic,
+              topic: item.topic || "Uncategorized",
+              borrows: numberFormatter.format(item.borrows || 0),
+              share: `${Number(item.share || 0).toFixed(1)}%`,
+              growth: growthLabel,
+              activeLoans: numberFormatter.format(item.activeLoans || 0),
+              lastBorrowed: item.lastBorrowedAt ? new Date(item.lastBorrowedAt).toLocaleDateString() : "-",
+            };
+          });
+        } else if (reportKey === "underutilized") {
+          const inactivityThreshold = Math.max(timeRange.days, 60);
+          const { data } = await api.get("/reports/underutilized", {
+            params: { days: inactivityThreshold, limit: 25 },
+          });
+          const items = data.items || [];
+
+          nextSummary = [
+            { label: "Underutilized Titles", value: numberFormatter.format(data.totalUnderutilized || 0) },
+            { label: "Never Borrowed", value: numberFormatter.format(data.neverBorrowed || 0) },
+            {
+              label: "Longest Dormant",
+              value: data.longestDormantDays ? `${numberFormatter.format(data.longestDormantDays)} days` : "-",
+            },
+          ];
+          nextChart = items.slice(0, 10).map((item) => ({
+            label: item.title,
+            value:
+              item.daysSinceLastBorrowed !== null && item.daysSinceLastBorrowed !== undefined
+                ? Number(item.daysSinceLastBorrowed)
+                : Number(data.thresholdDays || inactivityThreshold),
+          }));
+          nextChartLabel = `Days since last borrow (top ${Math.min(items.length, 10)} titles)`;
+          nextChartColor = "#f97316";
+          nextColumns = [
+            { key: "title", label: "Title" },
+            { key: "status", label: "Status" },
+            { key: "daysIdle", label: "Days Idle" },
+            { key: "totalCopies", label: "Total Copies" },
+            { key: "availableCopies", label: "Available" },
+            { key: "borrowCount", label: "Lifetime Borrows" },
+          ];
+          nextRows = items.map((item) => ({
+            id: item.bookId,
+            title: item.title || "Untitled",
+            status: item.status || "-",
+            daysIdle:
+              item.daysSinceLastBorrowed !== null && item.daysSinceLastBorrowed !== undefined
+                ? numberFormatter.format(item.daysSinceLastBorrowed)
+                : "Never",
+            totalCopies:
+              item.totalCopies !== null && item.totalCopies !== undefined
+                ? numberFormatter.format(item.totalCopies)
+                : "-",
+            availableCopies:
+              item.availableCopies !== null && item.availableCopies !== undefined
+                ? numberFormatter.format(item.availableCopies)
+                : "-",
+            borrowCount: numberFormatter.format(item.borrowCount || 0),
+          }));
+        } else if (reportKey === "fines") {
+          const { data } = await api.get("/reports/fines", { params: { limit: 30 } });
+          const items = data.items || [];
+          const totals = data.totals || {};
+
+          nextSummary = [
+            { label: "Outstanding Fines", value: moneyFormatter.format(totals.outstanding || 0) },
+            { label: "Overdue Loans", value: numberFormatter.format(totals.overdueLoans || 0) },
+            { label: "Average Fine", value: moneyFormatter.format(totals.averageFine || 0) },
+            { label: "Avg Days Overdue", value: moneyFormatter.format(totals.averageDaysOverdue || 0) },
+          ];
+          nextChart = items.map((item) => ({
+            label: item.borrower || "Unknown Borrower",
+            value: Number(item.fine || 0),
+          }));
+          nextChartLabel = "Outstanding fines by borrower";
+          nextChartColor = "#ef4444";
+          nextColumns = [
+            { key: "borrower", label: "Borrower" },
+            { key: "title", label: "Title" },
+            { key: "daysOverdue", label: "Days Overdue" },
+            { key: "fine", label: "Fine" },
+          ];
+          nextRows = items.map((item) => ({
+            id: item.loanId,
+            borrower: item.borrower || "Unknown Borrower",
+            title: item.title || "Untitled",
+            daysOverdue: numberFormatter.format(item.daysOverdue || 0),
+            fine: moneyFormatter.format(item.fine || 0),
+          }));
         } else {
           const { data } = await api.get("/reports/top-books", { params: { days: timeRange.days, limit: 12 } });
           const items = data.items || [];

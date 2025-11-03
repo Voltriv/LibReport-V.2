@@ -9,6 +9,17 @@ const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
 const DEFAULT_RANGE_HOURS = 24;
 const PAGE_SIZE = 10;
 
+const createDefaultStaffing = () => ({
+  averageDailyVisits: 0,
+  totalVisits: 0,
+  visitsPerStaff: 0,
+  lookbackDays: 0,
+  peakHours: [],
+  busyDays: [],
+  recommendations: [],
+  window: null
+});
+
 const createDefaultStats = () => ({
   inbound: { total: 0, today: 0, range: 0 },
   outbound: { total: 0, today: 0, range: 0 },
@@ -17,7 +28,8 @@ const createDefaultStats = () => ({
   activeLoans: 0,
   rangeHours: DEFAULT_RANGE_HOURS,
   rangeSince: null,
-  startOfDay: null
+  startOfDay: null,
+  staffing: createDefaultStaffing()
 });
 
 function formatStudentId(raw) {
@@ -70,6 +82,22 @@ const Tracker = () => {
       next.rangeHours = data?.range?.hours ?? next.rangeHours;
       next.rangeSince = data?.range?.since ?? null;
       next.startOfDay = data?.today?.startOfDay ?? null;
+      if (data?.staffing) {
+        const staffingData = data.staffing;
+        next.staffing = {
+          ...createDefaultStaffing(),
+          averageDailyVisits: Number(staffingData.averageDailyVisits || 0),
+          totalVisits: Number(staffingData.totalVisits || 0),
+          visitsPerStaff: Number(staffingData.visitsPerStaff || 0),
+          lookbackDays: Number(staffingData.lookbackDays || 0),
+          peakHours: Array.isArray(staffingData.peakHours) ? staffingData.peakHours : [],
+          busyDays: Array.isArray(staffingData.busyDays) ? staffingData.busyDays : [],
+          recommendations: Array.isArray(staffingData.recommendations) ? staffingData.recommendations : [],
+          window: staffingData.window || null
+        };
+      } else {
+        next.staffing = createDefaultStaffing();
+      }
       setStats(next);
     } catch {
       setStats(createDefaultStats());
@@ -214,6 +242,17 @@ const Tracker = () => {
     const dt = new Date(stats.startOfDay);
     return Number.isNaN(dt.getTime()) ? null : dt.toLocaleDateString();
   })();
+  const staffing = stats.staffing || createDefaultStaffing();
+  const staffingWindowLabel = (() => {
+    const since = staffing?.window?.since;
+    if (!since) return null;
+    const dt = new Date(since);
+    return Number.isNaN(dt.getTime()) ? null : dt.toLocaleDateString();
+  })();
+  const staffingHasInsights =
+    (Array.isArray(staffing.peakHours) && staffing.peakHours.length > 0) ||
+    (Array.isArray(staffing.busyDays) && staffing.busyDays.length > 0) ||
+    (Array.isArray(staffing.recommendations) && staffing.recommendations.length > 0);
   const inboundSubtitle = [
     `Today: ${formatNumber(stats.inbound.today)}`,
     rangeLabel ? `${rangeLabel}: ${formatNumber(stats.inbound.range)}` : null
@@ -337,6 +376,129 @@ const Tracker = () => {
             {rangeLabel ? `${rangeLabel} window since ${rangeSinceLabel || 'recently'}. ` : ''}
             {startOfDayLabel ? `Daily counts reset at midnight (${startOfDayLabel}).` : ''}
           </p>
+        )}
+
+        {staffingHasInsights && (
+          <section className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+            <div className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500 flex items-center justify-center">
+                  <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Staffing Planner</h3>
+                  <p className="text-sm text-slate-600 dark:text-stone-400">
+                    Rolling {formatNumber(staffing.lookbackDays || 7)}-day window
+                    {staffingWindowLabel ? ` starting ${staffingWindowLabel}` : ''}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-300 uppercase tracking-wide">
+                    Avg Daily Visits
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-emerald-900 dark:text-emerald-200">
+                    {Number(staffing.averageDailyVisits || 0).toFixed(1)}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-300 uppercase tracking-wide">
+                    Visits / Staff
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-emerald-900 dark:text-emerald-200">
+                    {formatNumber(staffing.visitsPerStaff || 0)}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-300 uppercase tracking-wide">
+                    Total Visits
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-emerald-900 dark:text-emerald-200">
+                    {formatNumber(staffing.totalVisits || 0)}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-700 dark:text-stone-200 mb-3">Peak Hours</h4>
+                {Array.isArray(staffing.peakHours) && staffing.peakHours.length ? (
+                  <ul className="space-y-3">
+                    {staffing.peakHours.map((slot) => (
+                      <li
+                        key={slot.label}
+                        className="flex items-center justify-between rounded-xl bg-slate-50 dark:bg-stone-800 px-4 py-3"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-slate-900 dark:text-stone-100">{slot.label}</p>
+                          <p className="text-xs text-slate-500 dark:text-stone-400">
+                            Avg {Number(slot.avgVisits || 0).toFixed(1)} visits • Staff goal {formatNumber(slot.recommendedStaff || 0)}
+                          </p>
+                        </div>
+                        <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-200 text-sm font-semibold">
+                          {formatNumber(slot.recommendedStaff || 0)}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500 dark:text-stone-400">
+                    Not enough visit data to plot peak hours yet.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-sky-500 flex items-center justify-center">
+                  <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10m-11 9h12a2 2 0 002-2V7a2 2 0 00-2-2h-1M7 5H6a2 2 0 00-2 2v11a2 2 0 002 2h1" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Coverage Notes</h3>
+                  <p className="text-sm text-slate-600 dark:text-stone-400">
+                    Guide shifts around busiest days and queues
+                  </p>
+                </div>
+              </div>
+              <div className="mb-5">
+                <h4 className="text-sm font-semibold text-slate-700 dark:text-stone-200 mb-3">Busy Days</h4>
+                {Array.isArray(staffing.busyDays) && staffing.busyDays.length ? (
+                  <ul className="space-y-2">
+                    {staffing.busyDays.map((day) => (
+                      <li
+                        key={day.label}
+                        className="flex items-center justify-between rounded-xl bg-slate-50 dark:bg-stone-800 px-4 py-2 text-sm text-slate-700 dark:text-stone-200"
+                      >
+                        <span>{day.label}</span>
+                        <span>{Number(day.avgVisits || 0).toFixed(1)} visits/day</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500 dark:text-stone-400">
+                    Not enough visit data to highlight weekly trends yet.
+                  </p>
+                )}
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-700 dark:text-stone-200 mb-3">Recommendations</h4>
+                {Array.isArray(staffing.recommendations) && staffing.recommendations.length ? (
+                  <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 dark:text-stone-300">
+                    {staffing.recommendations.map((note, idx) => (
+                      <li key={idx}>{note}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500 dark:text-stone-400">
+                    Staffing insights will appear after a few days of tracker usage.
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
         )}
 
         {/* Manual Entry */}
