@@ -272,15 +272,37 @@ const Tracker = () => {
   const logsShowingStart = logs.length === 0 ? 0 : logsStartIndex + 1;
   const logsShowingEnd = Math.min(logsStartIndex + PAGE_SIZE, logs.length);
   const trackerCards = [
-    { label: 'Total Outbound', value: stats.outbound.total, color: 'blue', icon: '📤', subtitle: outboundSubtitle },
-    { label: 'Total Inbound', value: stats.inbound.total, color: 'green', icon: '📥', subtitle: inboundSubtitle },
-    { label: 'Overdue', value: stats.overdue, color: 'red', icon: '⚠️', subtitle: 'Loans past due' },
+    {
+      label: 'Total Outbound',
+      value: stats.outbound.total,
+      color: 'blue',
+      icon: '?',
+      subtitle: outboundSubtitle,
+      href: '#tracker-logs'
+    },
+    {
+      label: 'Total Inbound',
+      value: stats.inbound.total,
+      color: 'green',
+      icon: '?',
+      subtitle: inboundSubtitle,
+      href: '#tracker-logs'
+    },
+    {
+      label: 'Overdue',
+      value: stats.overdue,
+      color: 'red',
+      icon: '?',
+      subtitle: 'Loans past due',
+      href: '#tracker-logs'
+    },
     {
       label: 'Active Visits',
       value: stats.active,
       color: 'purple',
-      icon: '👥',
-      subtitle: `Active loans: ${formatNumber(stats.activeLoans)}`
+      icon: '??',
+      subtitle: `Active loans: ${formatNumber(stats.activeLoans)}`,
+      href: '#tracker-feed'
     }
   ];
 
@@ -330,12 +352,16 @@ const Tracker = () => {
         {/* Stats Cards */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-3">
           {trackerCards.map((c) => (
-            <div key={c.label} className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${
+            <a
+              key={c.label}
+              href={c.href || '#tracker-logs'}
+              className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${
               c.color === 'blue' ? 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800' :
               c.color === 'green' ? 'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800' :
               c.color === 'red' ? 'from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 ring-1 ring-red-200 dark:ring-red-800' :
               'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 ring-1 ring-purple-200 dark:ring-purple-800'
-            } p-6 hover:shadow-xl transition-all duration-300`}>
+            } p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-400`}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className={`text-sm font-medium ${
@@ -365,10 +391,10 @@ const Tracker = () => {
                   c.color === 'red' ? 'bg-red-500' :
                   'bg-purple-500'
                 } flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
-                  <span className="text-2xl">{c.icon}</span>
+                  <span className="text-2xl" aria-hidden="true">{c.icon}</span>
                 </div>
               </div>
-            </div>
+            </a>
           ))}
         </section>
         {(rangeSinceLabel || startOfDayLabel) && (

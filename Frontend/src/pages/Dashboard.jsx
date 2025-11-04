@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import ReportModal from "../components/GenReports";
 import profileImage from "../assets/pfp.png";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api, { getStoredUser, clearAuthSession, broadcastAuthChange } from "../api";
 import {
   LineChart,
@@ -108,7 +108,11 @@ const Dashboard = () => {
 
         {/* Stats Cards */}
         <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-          <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800 p-6 hover:shadow-xl transition-all duration-300">
+          <Link
+            to="/booksmanagement"
+            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            aria-label="Go to Books Management to view all books"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Books</p>
@@ -121,9 +125,13 @@ const Dashboard = () => {
                 </svg>
               </div>
             </div>
-          </div>
+          </Link>
 
-          <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800 p-6 hover:shadow-xl transition-all duration-300">
+          <Link
+            to="/borrowing"
+            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400"
+            aria-label="Open Borrow Management to review borrowed books"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-green-600 dark:text-green-400">Books Borrowed</p>
@@ -136,9 +144,13 @@ const Dashboard = () => {
                 </svg>
               </div>
             </div>
-          </div>
+          </Link>
 
-          <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 ring-1 ring-red-200 dark:ring-red-800 p-6 hover:shadow-xl transition-all duration-300">
+          <Link
+            to="/borrowing"
+            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 ring-1 ring-red-200 dark:ring-red-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+            aria-label="View overdue loans in Borrow Management"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-red-600 dark:text-red-400">Overdue Books</p>
@@ -151,9 +163,13 @@ const Dashboard = () => {
                 </svg>
               </div>
             </div>
-          </div>
+          </Link>
 
-          <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 ring-1 ring-purple-200 dark:ring-purple-800 p-6 hover:shadow-xl transition-all duration-300">
+          <Link
+            to="/usermanagement"
+            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 ring-1 ring-purple-200 dark:ring-purple-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+            aria-label="Open User Management to review active users"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Active Users</p>
@@ -168,7 +184,7 @@ const Dashboard = () => {
                 </svg>
               </div>
             </div>
-          </div>
+          </Link>
         </section>
 
         {/* Usage Chart */}
