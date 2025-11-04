@@ -1,7 +1,6 @@
 import React, { useEffect, Suspense, lazy } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import SignIn from "./pages/SignIn";
-import "./styles/Auth.css";
 import { initTheme, applyTheme } from "./theme";
 import { getStoredUser, hasStoredToken } from "./api";
 

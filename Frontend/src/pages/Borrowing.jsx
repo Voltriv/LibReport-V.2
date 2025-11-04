@@ -562,7 +562,7 @@ const Borrowing = () => {
 
         <header className="mb-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-brand-green-dark/80 dark:text-brand-gold-soft">
+            <p className="text-sm font-semibold uppercase tracking-wide text-brand-green-muted dark:text-brand-gold-soft">
               Circulation
             </p>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Borrowing</h1>

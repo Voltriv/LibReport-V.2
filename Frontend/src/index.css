@@ -56,12 +56,35 @@ body {
 .bg-brand-greenDark { background-color: var(--brand-greenDark) !important; }
 .bg-brand-gold { background-color: var(--brand-gold) !important; }
 .text-brand-green { color: var(--brand-green) !important; }
+.text-brand-greenDark { color: var(--brand-greenDark) !important; }
+.text-brand-green-dark { color: var(--brand-greenDark) !important; }
+.text-brand-green-muted { color: rgba(var(--brand-green-rgb), 0.8) !important; }
 .text-brand-gold { color: var(--brand-gold) !important; }
+.text-brand-gold-soft { color: rgba(var(--brand-gold-rgb), 0.7) !important; }
 .text-brand-gold-ink { color: var(--brand-gold-ink) !important; }
 .border-brand-green { border-color: var(--brand-green) !important; }
 .border-brand-gold { border-color: var(--brand-gold) !important; }
 .bg-brand-green-soft { background-color: rgba(var(--brand-green-rgb), 0.15) !important; }
 .bg-brand-gold-soft { background-color: rgba(var(--brand-gold-rgb), 0.2) !important; }
+
+/* Shared buttons */
+.btn-brand {
+  background: var(--brand-gold);
+  color: #fff;
+  transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease;
+  will-change: transform, filter;
+}
+
+.btn-brand:hover {
+  transform: scale(1.015);
+  filter: brightness(1.02);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.btn-brand:active {
+  transform: scale(0.995) translateY(1px);
+  filter: brightness(0.98);
+}
 
 /* Student nav styling */
 .student-nav-link {
