@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import profileImage from "../assets/pfp.png";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
 
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
@@ -278,7 +278,7 @@ const Tracker = () => {
       color: 'blue',
       icon: '?',
       subtitle: outboundSubtitle,
-      href: '#tracker-logs'
+      to: '/attendance#attendance-history'
     },
     {
       label: 'Total Inbound',
@@ -286,7 +286,7 @@ const Tracker = () => {
       color: 'green',
       icon: '?',
       subtitle: inboundSubtitle,
-      href: '#tracker-logs'
+      to: '/attendance#attendance-history'
     },
     {
       label: 'Overdue',
@@ -294,7 +294,7 @@ const Tracker = () => {
       color: 'red',
       icon: '?',
       subtitle: 'Loans past due',
-      href: '#tracker-logs'
+      to: '/attendance#attendance-history'
     },
     {
       label: 'Active Visits',
@@ -302,7 +302,7 @@ const Tracker = () => {
       color: 'purple',
       icon: '??',
       subtitle: `Active loans: ${formatNumber(stats.activeLoans)}`,
-      href: '#tracker-feed'
+      to: '/attendance#attendance-history'
     }
   ];
 
@@ -352,9 +352,9 @@ const Tracker = () => {
         {/* Stats Cards */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-3">
           {trackerCards.map((c) => (
-            <a
+            <Link
               key={c.label}
-              href={c.href || '#tracker-logs'}
+              to={c.to || '/attendance'}
               className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${
               c.color === 'blue' ? 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800' :
               c.color === 'green' ? 'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800' :
@@ -394,7 +394,7 @@ const Tracker = () => {
                   <span className="text-2xl" aria-hidden="true">{c.icon}</span>
                 </div>
               </div>
-            </a>
+            </Link>
           ))}
         </section>
         {(rangeSinceLabel || startOfDayLabel) && (

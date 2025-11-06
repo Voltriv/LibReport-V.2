@@ -85,6 +85,7 @@ const Sidebar = () => {
   const primaryNav = [
     { to: "/dashboard", label: "Dashboard", icon: "" },
     { to: "/tracker", label: "Tracker", icon: "" },
+    { to: "/attendance", label: "Attendance", icon: "" },
     { to: "/usage-heatmaps", label: "Usage Heatmaps", icon: "" },
     { to: "/reports", label: "Reports", icon: "" },
     { to: "/library", label: "Library", icon: "" },

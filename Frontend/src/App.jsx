@@ -19,6 +19,7 @@ const safeLazy = (importFunc) =>
 const Dashboard = safeLazy(() => import("./pages/Dashboard"));
 const UsageHeatmaps = safeLazy(() => import("./pages/UsageHeatmaps"));
 const Tracker = safeLazy(() => import("./pages/Tracker"));
+const Attendance = safeLazy(() => import("./pages/Attendance"));
 const Reports = safeLazy(() => import("./pages/Reports"));
 const UserManagement = safeLazy(() => import("./pages/UserManagement"));
 const BooksManagement = safeLazy(() => import("./pages/BooksManagement"));
@@ -201,6 +202,16 @@ function App() {
                 <RequireAuth>
                   <RequireAdmin>
                     <Tracker />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/attendance"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <Attendance />
                   </RequireAdmin>
                 </RequireAuth>
               }

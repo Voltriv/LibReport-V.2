@@ -1,0 +1,901 @@
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import Sidebar from "../components/Sidebar";
+import profileImage from "../assets/pfp.png";
+import api, { broadcastAuthChange, clearAuthSession, getStoredUser } from "../api";
+import usePagination from "../hooks/usePagination";
+
+const DEFAULT_RANGE_HOURS = 24;
+const LOG_FETCH_LIMIT = 200;
+const PAGE_SIZE_DEFAULT = 15;
+const AUTO_REFRESH_INTERVAL = 60000;
+const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
+
+const STATUS_CLASSES = {
+  Borrowed: "bg-indigo-600",
+  Returned: "bg-emerald-600",
+  Overdue: "bg-rose-600"
+};
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "Borrowed", label: "Borrowed" },
+  { value: "Returned", label: "Returned" },
+  { value: "Overdue", label: "Overdue" }
+];
+
+const createDefaultStats = () => ({
+  inbound: { total: 0, today: 0, range: 0 },
+  outbound: { total: 0, today: 0, range: 0 },
+  overdue: 0,
+  active: 0,
+  activeLoans: 0,
+  rangeHours: DEFAULT_RANGE_HOURS,
+  rangeSince: null,
+  startOfDay: null
+});
+
+function formatNumber(value) {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric.toLocaleString() : "0";
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return "-";
+  return dt.toLocaleString();
+}
+
+function formatStudentId(raw) {
+  const digits = String(raw || "").replace(/\D/g, "").slice(0, 12);
+  const part1 = digits.slice(0, 2);
+  const part2 = digits.slice(2, 6);
+  const part3 = digits.slice(6, 12);
+  return [part1, part2, part3].filter(Boolean).join("-");
+}
+
+function toVisitPayload(code) {
+  const normalized = formatStudentId(code);
+  if (!STUDENT_ID_PATTERN.test(normalized)) return null;
+  return { studentId: normalized };
+}
+
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+    oscillator.start();
+    setTimeout(() => {
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.08);
+      oscillator.stop(ctx.currentTime + 0.1);
+    }, 80);
+  } catch {
+    /* noop */
+  }
+}
+
+function mapLogRow(row, index) {
+  return {
+    id: row.id || `log-${index}`,
+    status: row.status || "Borrowed",
+    borrowedAtLabel: formatDate(row.borrowedAt),
+    dueAtLabel: row.returnedAt
+      ? `Returned ${formatDate(row.returnedAt)}`
+      : row.dueAt
+      ? formatDate(row.dueAt)
+      : "-",
+    material: row.material || "Unknown material",
+    user: row.user || row.studentId || "Unknown user"
+  };
+}
+
+function mapRecentVisit(row, index) {
+  const enteredLabel = formatDate(row.enteredAt);
+  const exitedLabel = row.exitedAt ? formatDate(row.exitedAt) : null;
+  return {
+    id: row.studentId || row.barcode || `visit-${index}`,
+    name: row.name || row.studentId || row.barcode || "Unknown visitor",
+    branch: row.branch || "Main",
+    enteredAt: enteredLabel,
+    exitedAt: exitedLabel,
+    isActive: !row.exitedAt
+  };
+}
+
+const Attendance = () => {
+  const navigate = useNavigate();
+  const routeLocation = useLocation();
+
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [userName, setUserName] = useState("Account");
+
+  const [stats, setStats] = useState(() => createDefaultStats());
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
+
+  const [logs, setLogs] = useState([]);
+  const [logsDays, setLogsDays] = useState(30);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState("");
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const [manualInput, setManualInput] = useState("");
+  const [manualBusy, setManualBusy] = useState(false);
+  const [manualMessage, setManualMessage] = useState("");
+
+  const [recentVisits, setRecentVisits] = useState([]);
+  const [recentMinutes, setRecentMinutes] = useState(180);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentError, setRecentError] = useState("");
+
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
+  useEffect(() => {
+    const stored = getStoredUser();
+    if (!stored) return;
+    const name =
+      stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split("@")[0] : "");
+    if (name) setUserName(name);
+  }, []);
+
+  const statsRangeLabel = stats.rangeHours ? `Last ${stats.rangeHours}h` : null;
+  const statsSinceLabel = useMemo(() => {
+    if (!stats.rangeSince) return null;
+    const dt = new Date(stats.rangeSince);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt.toLocaleString();
+  }, [stats.rangeSince]);
+  const startOfDayLabel = useMemo(() => {
+    if (!stats.startOfDay) return null;
+    const dt = new Date(stats.startOfDay);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt.toLocaleString();
+  }, [stats.startOfDay]);
+
+  const refreshStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError("");
+    try {
+      const { data } = await api.get("/tracker/stats", { params: { hours: DEFAULT_RANGE_HOURS } });
+      const next = createDefaultStats();
+      next.inbound = {
+        total: data?.totals?.inbound ?? data?.inbound ?? 0,
+        today: data?.today?.inbound ?? 0,
+        range: data?.inbound ?? 0
+      };
+      next.outbound = {
+        total: data?.totals?.outbound ?? data?.outbound ?? 0,
+        today: data?.today?.outbound ?? 0,
+        range: data?.outbound ?? 0
+      };
+      next.overdue = data?.overdue ?? 0;
+      next.active = data?.active ?? 0;
+      next.activeLoans = data?.activeLoans ?? 0;
+      next.rangeHours = data?.range?.hours ?? next.rangeHours;
+      next.rangeSince = data?.range?.since ?? null;
+      next.startOfDay = data?.today?.startOfDay ?? null;
+      setStats(next);
+    } catch (err) {
+      console.error("Failed to load attendance stats", err);
+      setStats(createDefaultStats());
+      setStatsError("Unable to load attendance stats right now.");
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  const refreshLogs = useCallback(async () => {
+    setLogsLoading(true);
+    setLogsError("");
+    try {
+      const { data } = await api.get("/tracker/logs", {
+        params: { limit: LOG_FETCH_LIMIT, days: logsDays }
+      });
+      const items = Array.isArray(data?.items) ? data.items.map(mapLogRow) : [];
+      setLogs(items);
+    } catch (err) {
+      console.error("Failed to load attendance logs", err);
+      setLogs([]);
+      setLogsError("Unable to load history logs right now.");
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [logsDays]);
+
+  const refreshRecentVisits = useCallback(async () => {
+    setRecentLoading(true);
+    setRecentError("");
+    try {
+      const { data } = await api.get("/visits/recent", { params: { minutes: recentMinutes } });
+      const items = Array.isArray(data?.items) ? data.items.map(mapRecentVisit) : [];
+      setRecentVisits(items);
+    } catch (err) {
+      console.error("Failed to load recent visits", err);
+      setRecentVisits([]);
+      setRecentError("Unable to load recent visits right now.");
+    } finally {
+      setRecentLoading(false);
+    }
+  }, [recentMinutes]);
+
+  const handleRefreshAll = useCallback(() => {
+    refreshStats();
+    refreshLogs();
+    refreshRecentVisits();
+  }, [refreshLogs, refreshRecentVisits, refreshStats]);
+
+  useEffect(() => {
+    refreshStats();
+  }, [refreshStats]);
+
+  useEffect(() => {
+    refreshLogs();
+  }, [refreshLogs]);
+
+  useEffect(() => {
+    refreshRecentVisits();
+  }, [refreshRecentVisits]);
+
+  useEffect(() => {
+    if (!autoRefresh) return undefined;
+    const timer = setInterval(() => {
+      refreshStats();
+      refreshLogs();
+      refreshRecentVisits();
+    }, AUTO_REFRESH_INTERVAL);
+    return () => clearInterval(timer);
+  }, [autoRefresh, refreshLogs, refreshRecentVisits, refreshStats]);
+
+  useEffect(() => {
+    if (routeLocation.hash === "#attendance-history") {
+      const anchor = document.getElementById("attendance-history");
+      if (anchor) {
+        anchor.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  }, [routeLocation]);
+  const filteredLogs = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return logs.filter((log) => {
+      const statusMatch = statusFilter === "all" || log.status === statusFilter;
+      if (!statusMatch) return false;
+      if (!term) return true;
+      return (
+        log.user.toLowerCase().includes(term) ||
+        log.material.toLowerCase().includes(term) ||
+        log.borrowedAtLabel.toLowerCase().includes(term) ||
+        log.dueAtLabel.toLowerCase().includes(term)
+      );
+    });
+  }, [logs, searchTerm, statusFilter]);
+
+  const statusCounts = useMemo(() => {
+    return logs.reduce(
+      (acc, log) => {
+        acc[log.status] = (acc[log.status] || 0) + 1;
+        return acc;
+      },
+      { Borrowed: 0, Returned: 0, Overdue: 0 }
+    );
+  }, [logs]);
+
+  const pagination = usePagination(filteredLogs, pageSize);
+  const {
+    page,
+    pageCount,
+    pageItems: pagedLogs,
+    showingStart,
+    showingEnd,
+    totalItems,
+    isFirstPage,
+    isLastPage,
+    prevPage,
+    nextPage
+  } = pagination;
+
+  const logsRangeDescription = useMemo(() => {
+    if (!logsDays) return null;
+    return `Showing activity from the last ${logsDays} days`;
+  }, [logsDays]);
+
+  const summaryCards = useMemo(
+    () => [
+      {
+        key: "inbound",
+        label: "Total Inbound",
+        icon: (
+          <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        ),
+        value: stats.inbound.total,
+        details: [`Today: ${formatNumber(stats.inbound.today)}`, statsRangeLabel ? `${statsRangeLabel}: ${formatNumber(stats.inbound.range)}` : null],
+        accent: "from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 ring-emerald-200 dark:ring-emerald-800",
+        valueClass: "text-emerald-900 dark:text-emerald-100",
+        labelClass: "text-emerald-600 dark:text-emerald-300"
+      },
+      {
+        key: "outbound",
+        label: "Total Outbound",
+        icon: (
+          <svg className="h-5 w-5 text-sky-600 dark:text-sky-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4m8-8l-4 4m4-4l4 4m-4 16v-3m0 0a9 9 0 01-9-9h3m6 9a9 9 0 009-9h-3" />
+          </svg>
+        ),
+        value: stats.outbound.total,
+        details: [`Today: ${formatNumber(stats.outbound.today)}`, statsRangeLabel ? `${statsRangeLabel}: ${formatNumber(stats.outbound.range)}` : null],
+        accent: "from-sky-50 to-sky-100 dark:from-sky-900/20 dark:to-sky-800/20 ring-sky-200 dark:ring-sky-800",
+        valueClass: "text-sky-900 dark:text-sky-100",
+        labelClass: "text-sky-600 dark:text-sky-300"
+      },
+      {
+        key: "active",
+        label: "Active Visits",
+        icon: (
+          <svg className="h-5 w-5 text-purple-600 dark:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5V4H2v16h5m10 0v-6a2 2 0 10-4 0v6m4 0h-4" />
+          </svg>
+        ),
+        value: stats.active,
+        details: [`Active loans: ${formatNumber(stats.activeLoans)}`],
+        accent: "from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 ring-purple-200 dark:ring-purple-800",
+        valueClass: "text-purple-900 dark:text-purple-100",
+        labelClass: "text-purple-600 dark:text-purple-300"
+      },
+      {
+        key: "overdue",
+        label: "Overdue",
+        icon: (
+          <svg className="h-5 w-5 text-rose-600 dark:text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+        value: stats.overdue,
+        details: ["Loans past due"],
+        accent: "from-rose-50 to-rose-100 dark:from-rose-900/20 dark:to-rose-800/20 ring-rose-200 dark:ring-rose-800",
+        valueClass: "text-rose-900 dark:text-rose-100",
+        labelClass: "text-rose-600 dark:text-rose-300"
+      }
+    ],
+    [stats, statsRangeLabel]
+  );
+
+  const handleLogout = useCallback(() => {
+    setShowLogoutModal(false);
+    setShowDropdown(false);
+    clearAuthSession();
+    broadcastAuthChange();
+    navigate("/signin", { replace: true });
+  }, [navigate]);
+
+  const handleManualSubmit = useCallback(
+    async (type) => {
+      const payload = toVisitPayload(manualInput);
+      if (!payload) {
+        setManualMessage("Student ID must match 00-0000-000000");
+        return;
+      }
+      setManualInput(payload.studentId);
+      setManualBusy(true);
+      setManualMessage("");
+      try {
+        if (type === "enter") {
+          const { data } = await api.post("/visit/enter", payload);
+          setManualMessage(`Entered: ${data?.user?.fullName || payload.studentId}`);
+          beep();
+        } else {
+          const { data } = await api.post("/visit/exit", payload);
+          setManualMessage(
+            data?.exitedAt ? `Exited at ${new Date(data.exitedAt).toLocaleTimeString()}` : "Exit recorded."
+          );
+          beep();
+        }
+        refreshStats();
+        refreshRecentVisits();
+      } catch (err) {
+        const fallback = type === "enter" ? "Enter failed" : "Exit failed";
+        setManualMessage(err?.response?.data?.error || fallback);
+      } finally {
+        setManualBusy(false);
+      }
+    },
+    [manualInput, refreshRecentVisits, refreshStats]
+  );
+
+  const handleExport = useCallback(() => {
+    if (!filteredLogs.length) return;
+    const headers = ["Status", "Borrowed Date", "Due / Return", "Material", "User"];
+    const rows = filteredLogs.map((log) =>
+      [
+        log.status,
+        log.borrowedAtLabel,
+        log.dueAtLabel,
+        log.material,
+        log.user
+      ].map((value) => `"${String(value || "").replace(/"/g, '""')}"`).join(",")
+    );
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `attendance-history-${Date.now()}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [filteredLogs]);
+
+  const isValidManualId = STUDENT_ID_PATTERN.test(String(manualInput).trim());
+
+  return (
+    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+      <Sidebar />
+
+      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Attendance</h1>
+            <p className="text-slate-600 dark:text-stone-400 mt-1">
+              Detailed tracker for library visits and activity history.
+            </p>
+            {(statsRangeLabel || startOfDayLabel) && (
+              <p className="mt-2 text-xs text-slate-500 dark:text-stone-400">
+                {statsRangeLabel ? `${statsRangeLabel} window since ${statsSinceLabel || "recently"}. ` : ""}
+                {startOfDayLabel ? `Daily counts reset at midnight (${startOfDayLabel}).` : ""}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setAutoRefresh((prev) => !prev)}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium ring-1 transition-colors duration-200 ${
+                autoRefresh
+                  ? "bg-emerald-100 text-emerald-700 ring-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-500/40"
+                  : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-100 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+              }`}
+            >
+              <span
+                className={`inline-flex h-2.5 w-2.5 rounded-full ${
+                  autoRefresh ? "bg-emerald-500" : "bg-slate-300"
+                }`}
+              />
+              Auto refresh
+            </button>
+            <button
+              onClick={handleRefreshAll}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              Refresh
+            </button>
+            <Link
+              to="/tracker"
+              className="inline-flex items-center gap-2 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-stone-200 hover:bg-white dark:hover:bg-stone-900 transition-colors duration-200"
+            >
+              Back to Tracker
+            </Link>
+            <div className="relative">
+              <button
+                onClick={() => setShowDropdown((prev) => !prev)}
+                className="inline-flex items-center gap-3 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
+              >
+                <img
+                  src={profileImage}
+                  alt="Profile"
+                  className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20"
+                />
+                <span
+                  className="text-sm font-medium text-slate-700 dark:text-stone-200 max-w-[12rem] truncate"
+                  title={userName}
+                >
+                  {userName}
+                </span>
+                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showDropdown && (
+                <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                  <button
+                    className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
+                    onClick={() => setShowLogoutModal(true)}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+          {summaryCards.map((card) => (
+            <div
+              key={card.key}
+              className={`rounded-2xl bg-gradient-to-br ${card.accent} p-6 ring-1 ring-inset shadow-lg transition transform hover:-translate-y-1 hover:shadow-xl`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-sm font-medium ${card.labelClass}`}>{card.label}</p>
+                  <p className={`mt-2 text-3xl font-bold ${card.valueClass}`}>{formatNumber(card.value)}</p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/70 dark:bg-stone-900/60 ring-1 ring-white/40">
+                  {card.icon}
+                </div>
+              </div>
+              <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-stone-300">
+                {card.details.filter(Boolean).map((detail, idx) => (
+                  <li key={idx}>{detail}</li>
+                ))}
+                {statsLoading && <li className="text-slate-500 dark:text-stone-400">Refreshing…</li>}
+              </ul>
+            </div>
+          ))}
+        </section>
+        {statsError && (
+          <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+            {statsError}
+          </div>
+        )}
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <section
+            id="attendance-history"
+            className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg p-6"
+          >
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">History Logs</h2>
+                <p className="text-sm text-slate-600 dark:text-stone-400">
+                  {logsRangeDescription || "Recent borrowing and visit activity"}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="text-xs font-medium text-slate-600 dark:text-stone-300">
+                  Last
+                  <select
+                    value={logsDays}
+                    onChange={(event) => setLogsDays(Number(event.target.value) || 30)}
+                    className="ml-2 rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                  >
+                    <option value={7}>7 days</option>
+                    <option value={30}>30 days</option>
+                    <option value={90}>90 days</option>
+                    <option value={180}>180 days</option>
+                  </select>
+                </label>
+                <label className="text-xs font-medium text-slate-600 dark:text-stone-300">
+                  Rows per page
+                  <select
+                    value={pageSize}
+                    onChange={(event) => setPageSize(Number(event.target.value) || PAGE_SIZE_DEFAULT)}
+                    className="ml-2 rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                  >
+                    <option value={10}>10</option>
+                    <option value={15}>15</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              {STATUS_OPTIONS.map((option) => {
+                const isActive = statusFilter === option.value;
+                const displayCount =
+                  option.value === "all" ? logs.length : statusCounts[option.value] || 0;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold transition ${
+                      isActive
+                        ? "bg-slate-900 text-white shadow"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700"
+                    }`}
+                    onClick={() => setStatusFilter(option.value)}
+                  >
+                    {option.label}
+                    <span className="inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-full bg-white/80 px-2 text-[0.7rem] text-slate-700 dark:bg-stone-900/70 dark:text-stone-200">
+                      {displayCount}
+                    </span>
+                  </button>
+                );
+              })}
+              <div className="relative ml-auto flex-1 min-w-[12rem]">
+                <input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search user or material"
+                  className="w-full rounded-xl border border-slate-200 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-2 text-sm text-slate-700 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                />
+                <svg
+                  className="absolute inset-y-0 right-3 my-auto h-4 w-4 text-slate-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m0 0A7 7 0 1010.5 17a7 7 0 006.15-3.35z" />
+                </svg>
+              </div>
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={!filteredLogs.length}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Export CSV
+              </button>
+            </div>
+            {logsError && (
+              <div className="mb-4 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300">
+                {logsError}
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-slate-600 dark:text-stone-300">
+                    <th className="py-2 pr-4">Status</th>
+                    <th className="py-2 pr-4">Borrowed Date</th>
+                    <th className="py-2 pr-4">Due / Return</th>
+                    <th className="py-2 pr-4">Material</th>
+                    <th className="py-2 pr-4">User</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-stone-700">
+                  {logsLoading ? (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-slate-500 dark:text-stone-400">
+                        Loading logs…
+                      </td>
+                    </tr>
+                  ) : pagedLogs.length > 0 ? (
+                    pagedLogs.map((log) => (
+                      <tr key={log.id} className="text-slate-800 dark:text-stone-100 transition hover:bg-slate-50/60 dark:hover:bg-stone-800/60">
+                        <td className="py-3 pr-4">
+                          <span
+                            className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold text-white ${
+                              STATUS_CLASSES[log.status] || STATUS_CLASSES.Borrowed
+                            }`}
+                          >
+                            {log.status}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-4">{log.borrowedAtLabel}</td>
+                        <td className="py-3 pr-4">{log.dueAtLabel}</td>
+                        <td className="py-3 pr-4">{log.material}</td>
+                        <td className="py-3 pr-4">{log.user}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-slate-500 dark:text-stone-400">
+                        No history logs available for the selected filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-stone-700 dark:text-stone-400 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                {totalItems === 0
+                  ? "No logs to display"
+                  : `Showing ${showingStart}-${showingEnd} of ${totalItems} ${
+                      totalItems === 1 ? "entry" : "entries"
+                    }`}
+              </span>
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-stone-300">
+                <button
+                  type="button"
+                  onClick={prevPage}
+                  disabled={isFirstPage || totalItems === 0}
+                  className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                >
+                  Prev
+                </button>
+                <span className="text-xs">
+                  Page {page} of {pageCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={nextPage}
+                  disabled={isLastPage || totalItems === 0}
+                  className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <div className="space-y-6">
+            <section className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-brand-green flex items-center justify-center">
+                  <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Manual Entry</h3>
+                  <p className="text-sm text-slate-600 dark:text-stone-400">Record visits without scanning</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">
+                    Student ID
+                  </label>
+                  <input
+                    value={manualInput}
+                    onChange={(event) => setManualInput(formatStudentId(event.target.value))}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleManualSubmit("enter");
+                      }
+                    }}
+                    inputMode="numeric"
+                    maxLength={14}
+                    placeholder="03-0000-000000"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 font-mono"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200 font-medium"
+                    disabled={manualBusy || !isValidManualId}
+                    onClick={() => handleManualSubmit("enter")}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Enter Library
+                  </button>
+                  <button
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200 font-medium"
+                    disabled={manualBusy || !isValidManualId}
+                    onClick={() => handleManualSubmit("exit")}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Exit Library
+                  </button>
+                </div>
+              </div>
+              {manualMessage && (
+                <div className="mt-4 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-stone-800 dark:text-stone-200">
+                  {manualMessage}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Recent Visits</h3>
+                  <p className="text-sm text-slate-600 dark:text-stone-400">
+                    Visitors recorded in the last {recentMinutes} minutes
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={recentMinutes}
+                    onChange={(event) => setRecentMinutes(Number(event.target.value) || 60)}
+                    className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                  >
+                    <option value={60}>60 min</option>
+                    <option value={120}>2 hours</option>
+                    <option value={180}>3 hours</option>
+                    <option value={360}>6 hours</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={refreshRecentVisits}
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-100 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              {recentError && (
+                <div className="mb-4 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300">
+                  {recentError}
+                </div>
+              )}
+
+              <ul className="divide-y divide-slate-200 dark:divide-stone-700 text-sm">
+                {recentLoading ? (
+                  <li className="py-4 text-slate-500 dark:text-stone-400">Loading recent visits…</li>
+                ) : recentVisits.length === 0 ? (
+                  <li className="py-4 text-slate-500 dark:text-stone-400">No visits recorded for the selected window.</li>
+                ) : (
+                  recentVisits.map((visit) => (
+                    <li key={visit.id} className="py-3 flex flex-col gap-1">
+                      <div className="flex items-center justify-between text-slate-800 dark:text-stone-100">
+                        <span className="font-semibold">{visit.name}</span>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold ${
+                            visit.isActive
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
+                              : "bg-slate-100 text-slate-600 dark:bg-stone-800 dark:text-stone-300"
+                          }`}
+                        >
+                          {visit.isActive ? "Active" : "Exited"}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-xs text-slate-500 dark:text-stone-300">
+                        <span>Entered {visit.enteredAt}</span>
+                        <span>Branch: {visit.branch}</span>
+                        {visit.exitedAt && <span>Exited {visit.exitedAt}</span>}
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </section>
+          </div>
+        </div>
+      </main>
+
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">
+              Are you sure you want to logout?
+            </h3>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200"
+                onClick={() => setShowLogoutModal(false)}
+              >
+                Close
+              </button>
+              <button
+                className="rounded-lg px-4 py-2 bg-red-600 text-white hover:bg-red-500"
+                onClick={handleLogout}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Attendance;
