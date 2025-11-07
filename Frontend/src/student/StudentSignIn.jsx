@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api, { persistAuthSession } from "../api";
+import { inputClass } from "../designSystem/classes";
 
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
 const formatStudentId = (value) => {
@@ -17,6 +18,8 @@ const StudentSignIn = () => {
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [identifierTouched, setIdentifierTouched] = React.useState(false);
+  const [passwordTouched, setPasswordTouched] = React.useState(false);
 
   const highlights = React.useMemo(
     () => [
@@ -36,9 +39,29 @@ const StudentSignIn = () => {
     []
   );
 
+  const trimmedIdentifier = identifier.trim();
+  const identifierError = identifierTouched
+    ? !trimmedIdentifier
+      ? "Student ID is required."
+      : !STUDENT_ID_PATTERN.test(trimmedIdentifier)
+      ? "Student ID must match 00-0000-000000."
+      : ""
+    : "";
+  const passwordError = passwordTouched
+    ? !password
+      ? "Password is required."
+      : password.length < 6
+      ? "Password must be at least 6 characters."
+      : ""
+    : "";
+  const identifierHelpId = "student-id-help";
+  const passwordHelpId = "student-password-help";
+
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setIdentifierTouched(true);
+    setPasswordTouched(true);
     const trimmed = identifier.trim();
     if (!trimmed || !password) {
       setError("Please enter your student ID and password.");
@@ -122,25 +145,47 @@ const StudentSignIn = () => {
                 <label className="text-sm font-medium text-slate-700">Student ID</label>
                 <input
                   value={identifier}
-                  onChange={(e) => setIdentifier(formatStudentId(e.target.value))}
+                  onChange={(e) => {
+                    if (!identifierTouched) setIdentifierTouched(true);
+                    setIdentifier(formatStudentId(e.target.value));
+                  }}
+                  onBlur={() => setIdentifierTouched(true)}
                   type="text"
-
                   placeholder="03-0000-000000"
-
                   inputMode="numeric"
                   maxLength={14}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold font-mono"
+                  className={`${inputClass("mt-1 font-mono text-slate-900 placeholder-slate-400")} bg-white`}
+                  aria-invalid={identifierError ? "true" : "false"}
+                  aria-describedby={identifierError ? identifierHelpId : undefined}
+                  data-error={identifierError ? "true" : "false"}
                 />
+                {identifierError && (
+                  <p id={identifierHelpId} className="input-feedback error">
+                    {identifierError}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-slate-700">Password</label>
                 <input
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    if (!passwordTouched) setPasswordTouched(true);
+                    setPassword(e.target.value);
+                  }}
+                  onBlur={() => setPasswordTouched(true)}
                   type="password"
                   placeholder="Enter your password"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                  className={inputClass("mt-1 text-slate-900 placeholder-slate-400")}
+                  aria-invalid={passwordError ? "true" : "false"}
+                  aria-describedby={passwordError ? passwordHelpId : undefined}
+                  data-error={passwordError ? "true" : "false"}
                 />
+                {passwordError && (
+                  <p id={passwordHelpId} className="input-feedback error">
+                    {passwordError}
+                  </p>
+                )}
               </div>
 
               <button type="submit" disabled={loading} className="btn-student-primary w-full">
@@ -150,7 +195,10 @@ const StudentSignIn = () => {
 
             <div className="mt-8 space-y-4 text-left">
               {highlights.map((item) => (
-                <div key={item.title} className="flex gap-3">
+                <div
+                  key={item.title}
+                  className="interactive-card flex gap-3 rounded-2xl border border-slate-100 dark:border-stone-800 p-3"
+                >
                   <span className="student-check-icon">✓</span>
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{item.title}</p>

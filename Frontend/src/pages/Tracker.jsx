@@ -1,9 +1,11 @@
 /* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useCallback, useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
+import CollapsibleSection from "../components/CollapsibleSection";
 import profileImage from "../assets/pfp.png";
 import { Link, useNavigate } from "react-router-dom";
 import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
+import { surfacePanelClass, inputClass } from "../designSystem/classes";
 
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
 const DEFAULT_RANGE_HOURS = 24;
@@ -59,6 +61,7 @@ const Tracker = () => {
   const [stats, setStats] = useState(() => createDefaultStats());
   const [feed, setFeed] = useState([]);
   const [input, setInput] = useState('');
+  const [inputTouched, setInputTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -192,6 +195,7 @@ const Tracker = () => {
   }
 
   async function doEnter() {
+    setInputTouched(true);
     const payload = toPayload(input);
     if (!payload) {
       setMessage('Student ID must match 00-0000-000000');
@@ -204,11 +208,13 @@ const Tracker = () => {
       setMessage(`Entered: ${data?.user?.fullName || payload.studentId || payload.barcode}`);
       beep();
       refreshStats();
+      refreshLogs();
     } catch (e) {
       setMessage(e?.response?.data?.error || 'Enter failed');
     } finally { setBusy(false); }
   }
   async function doExit() {
+    setInputTouched(true);
     const payload = toPayload(input);
     if (!payload) {
       setMessage('Student ID must match 00-0000-000000');
@@ -221,6 +227,7 @@ const Tracker = () => {
       setMessage(`Exited at ${new Date(data.exitedAt).toLocaleTimeString()}`);
       beep();
       refreshStats();
+      refreshLogs();
     } catch (e) {
       setMessage(e?.response?.data?.error || 'Exit failed');
     } finally { setBusy(false); }
@@ -305,6 +312,16 @@ const Tracker = () => {
       to: '/attendance#attendance-history'
     }
   ];
+  const manualInputHelpId = "tracker-manual-entry-help";
+  const normalizedInput = String(input).trim();
+  const manualEntryInvalid = !normalizedInput || !STUDENT_ID_PATTERN.test(normalizedInput);
+  const manualEntryError = !inputTouched
+    ? ""
+    : !normalizedInput
+    ? "Student ID is required."
+    : manualEntryInvalid
+    ? "Student ID must match 00-0000-000000."
+    : "";
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
@@ -529,28 +546,28 @@ const Tracker = () => {
 
         {/* Manual Entry */}
         <section className="grid grid-cols-1 gap-6 mb-8">
-          <div className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
-            <div className="flex items-center gap-3 mb-6">
+          <CollapsibleSection
+            title="Manual Entry"
+            subtitle="Track student visits manually"
+            actions={
               <div className="h-10 w-10 rounded-xl bg-brand-green flex items-center justify-center">
                 <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                 </svg>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Manual Entry</h3>
-                <p className="text-sm text-slate-600 dark:text-stone-400">Track student visits manually</p>
-              </div>
-            </div>
-            
+            }
+          >
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Enter Student ID</label>
-                <input 
-                  value={input} 
+                <input
+                  value={input}
                   onChange={(e) => {
                     const formatted = formatStudentId(e.target.value);
+                    if (!inputTouched) setInputTouched(true);
                     setInput(formatted);
                   }}
+                  onBlur={() => setInputTouched(true)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -560,14 +577,24 @@ const Tracker = () => {
                   inputMode="numeric"
                   maxLength={14}
                   placeholder="03-0000-000000"
-                  className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 font-mono" 
+                  data-error={manualEntryError ? "true" : "false"}
+                  aria-invalid={manualEntryError ? "true" : "false"}
+                  aria-describedby={manualEntryError ? manualInputHelpId : undefined}
+                  className={inputClass("bg-white dark:bg-stone-950 text-slate-900 dark:text-stone-100 placeholder-slate-400 font-mono")}
                 />
+                {manualEntryError ? (
+                  <p id={manualInputHelpId} className="input-feedback error">
+                    {manualEntryError}
+                  </p>
+                ) : inputTouched && !manualEntryInvalid && normalizedInput ? (
+                  <p className="input-feedback success">Ready to record visits for {normalizedInput}.</p>
+                ) : null}
               </div>
               
               <div className="flex gap-3">
                 <button 
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200 font-medium" 
-                  disabled={busy || !STUDENT_ID_PATTERN.test(String(input).trim())} 
+                  disabled={busy || manualEntryInvalid} 
                   onClick={doEnter}
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -577,7 +604,7 @@ const Tracker = () => {
                 </button>
                 <button 
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200 font-medium" 
-                  disabled={busy || !STUDENT_ID_PATTERN.test(String(input).trim())} 
+                  disabled={busy || manualEntryInvalid} 
                   onClick={doExit}
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -588,11 +615,11 @@ const Tracker = () => {
               </div>
             </div>
             {message && <div className="mt-3 text-sm text-slate-700 dark:text-stone-200">{message}</div>}
-          </div>
+          </CollapsibleSection>
         </section>
 
         {/* Quick logs */}
-        <section className="mt-6 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+        <section className={`${surfacePanelClass} mt-6 p-4`}>
           <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Quick Logs</h3>
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -706,5 +733,9 @@ const Tracker = () => {
 };
 
 export default Tracker;
+
+
+
+
 
 

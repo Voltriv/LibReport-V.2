@@ -2,27 +2,26 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import CollapsibleSection from "../components/CollapsibleSection";
 import profileImage from "../assets/pfp.png";
 import api, { broadcastAuthChange, clearAuthSession, getStoredUser } from "../api";
 import usePagination from "../hooks/usePagination";
+import { surfacePanelClass, autoRefreshButtonClass, inputClass } from "../designSystem/classes";
 
 const DEFAULT_RANGE_HOURS = 24;
-const LOG_FETCH_LIMIT = 200;
 const PAGE_SIZE_DEFAULT = 15;
 const AUTO_REFRESH_INTERVAL = 60000;
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
 
 const STATUS_CLASSES = {
-  Borrowed: "bg-indigo-600",
-  Returned: "bg-emerald-600",
-  Overdue: "bg-rose-600"
+  Active: "bg-emerald-600",
+  Exited: "bg-indigo-600"
 };
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All" },
-  { value: "Borrowed", label: "Borrowed" },
-  { value: "Returned", label: "Returned" },
-  { value: "Overdue", label: "Overdue" }
+  { value: "Active", label: "Active" },
+  { value: "Exited", label: "Exited" }
 ];
 
 const createDefaultStats = () => ({
@@ -35,11 +34,6 @@ const createDefaultStats = () => ({
   rangeSince: null,
   startOfDay: null
 });
-
-function formatNumber(value) {
-  const numeric = Number(value ?? 0);
-  return Number.isFinite(numeric) ? numeric.toLocaleString() : "0";
-}
 
 function formatDate(value) {
   if (!value) return "-";
@@ -84,17 +78,19 @@ function beep() {
 }
 
 function mapLogRow(row, index) {
+  const enteredLabel = formatDate(row.enteredAt || row.borrowedAt);
+  const exitedLabel = row.exitedAt ? formatDate(row.exitedAt) : row.returnedAt ? formatDate(row.returnedAt) : null;
+  const branch = row.branch || row.material || "Main";
+  const visitor = row.name || row.user || row.studentId || row.barcode || `Visitor ${index + 1}`;
+  const status = row.exitedAt || row.returnedAt ? "Exited" : row.status === "Returned" ? "Exited" : "Active";
+
   return {
-    id: row.id || `log-${index}`,
-    status: row.status || "Borrowed",
-    borrowedAtLabel: formatDate(row.borrowedAt),
-    dueAtLabel: row.returnedAt
-      ? `Returned ${formatDate(row.returnedAt)}`
-      : row.dueAt
-      ? formatDate(row.dueAt)
-      : "-",
-    material: row.material || "Unknown material",
-    user: row.user || row.studentId || "Unknown user"
+    id: row.id || row.visitId || row.studentId || `log-${index}`,
+    status,
+    borrowedAtLabel: enteredLabel,
+    dueAtLabel: exitedLabel ? `Exited ${exitedLabel}` : "Still inside",
+    material: branch,
+    user: visitor
   };
 }
 
@@ -120,7 +116,6 @@ const Attendance = () => {
   const [userName, setUserName] = useState("Account");
 
   const [stats, setStats] = useState(() => createDefaultStats());
-  const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState("");
 
   const [logs, setLogs] = useState([]);
@@ -132,6 +127,7 @@ const Attendance = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const [manualInput, setManualInput] = useState("");
+  const [manualTouched, setManualTouched] = useState(false);
   const [manualBusy, setManualBusy] = useState(false);
   const [manualMessage, setManualMessage] = useState("");
 
@@ -165,7 +161,6 @@ const Attendance = () => {
   }, [stats.startOfDay]);
 
   const refreshStats = useCallback(async () => {
-    setStatsLoading(true);
     setStatsError("");
     try {
       const { data } = await api.get("/tracker/stats", { params: { hours: DEFAULT_RANGE_HOURS } });
@@ -191,8 +186,6 @@ const Attendance = () => {
       console.error("Failed to load attendance stats", err);
       setStats(createDefaultStats());
       setStatsError("Unable to load attendance stats right now.");
-    } finally {
-      setStatsLoading(false);
     }
   }, []);
 
@@ -200,15 +193,14 @@ const Attendance = () => {
     setLogsLoading(true);
     setLogsError("");
     try {
-      const { data } = await api.get("/tracker/logs", {
-        params: { limit: LOG_FETCH_LIMIT, days: logsDays }
-      });
+      const minutes = Math.max(60, logsDays * 24 * 60);
+      const { data } = await api.get("/visits/recent", { params: { minutes } });
       const items = Array.isArray(data?.items) ? data.items.map(mapLogRow) : [];
       setLogs(items);
     } catch (err) {
       console.error("Failed to load attendance logs", err);
       setLogs([]);
-      setLogsError("Unable to load history logs right now.");
+      setLogsError("Unable to load attendance logs right now.");
     } finally {
       setLogsLoading(false);
     }
@@ -284,10 +276,11 @@ const Attendance = () => {
   const statusCounts = useMemo(() => {
     return logs.reduce(
       (acc, log) => {
-        acc[log.status] = (acc[log.status] || 0) + 1;
+        const key = log.status === "Active" || log.status === "Exited" ? log.status : "Exited";
+        acc[key] = (acc[key] || 0) + 1;
         return acc;
       },
-      { Borrowed: 0, Returned: 0, Overdue: 0 }
+      { Active: 0, Exited: 0 }
     );
   }, [logs]);
 
@@ -307,70 +300,20 @@ const Attendance = () => {
 
   const logsRangeDescription = useMemo(() => {
     if (!logsDays) return null;
-    return `Showing activity from the last ${logsDays} days`;
+    return `Attendance recorded over the last ${logsDays} days`;
   }, [logsDays]);
 
-  const summaryCards = useMemo(
-    () => [
-      {
-        key: "inbound",
-        label: "Total Inbound",
-        icon: (
-          <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-        ),
-        value: stats.inbound.total,
-        details: [`Today: ${formatNumber(stats.inbound.today)}`, statsRangeLabel ? `${statsRangeLabel}: ${formatNumber(stats.inbound.range)}` : null],
-        accent: "from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 ring-emerald-200 dark:ring-emerald-800",
-        valueClass: "text-emerald-900 dark:text-emerald-100",
-        labelClass: "text-emerald-600 dark:text-emerald-300"
-      },
-      {
-        key: "outbound",
-        label: "Total Outbound",
-        icon: (
-          <svg className="h-5 w-5 text-sky-600 dark:text-sky-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4m8-8l-4 4m4-4l4 4m-4 16v-3m0 0a9 9 0 01-9-9h3m6 9a9 9 0 009-9h-3" />
-          </svg>
-        ),
-        value: stats.outbound.total,
-        details: [`Today: ${formatNumber(stats.outbound.today)}`, statsRangeLabel ? `${statsRangeLabel}: ${formatNumber(stats.outbound.range)}` : null],
-        accent: "from-sky-50 to-sky-100 dark:from-sky-900/20 dark:to-sky-800/20 ring-sky-200 dark:ring-sky-800",
-        valueClass: "text-sky-900 dark:text-sky-100",
-        labelClass: "text-sky-600 dark:text-sky-300"
-      },
-      {
-        key: "active",
-        label: "Active Visits",
-        icon: (
-          <svg className="h-5 w-5 text-purple-600 dark:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5V4H2v16h5m10 0v-6a2 2 0 10-4 0v6m4 0h-4" />
-          </svg>
-        ),
-        value: stats.active,
-        details: [`Active loans: ${formatNumber(stats.activeLoans)}`],
-        accent: "from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 ring-purple-200 dark:ring-purple-800",
-        valueClass: "text-purple-900 dark:text-purple-100",
-        labelClass: "text-purple-600 dark:text-purple-300"
-      },
-      {
-        key: "overdue",
-        label: "Overdue",
-        icon: (
-          <svg className="h-5 w-5 text-rose-600 dark:text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        ),
-        value: stats.overdue,
-        details: ["Loans past due"],
-        accent: "from-rose-50 to-rose-100 dark:from-rose-900/20 dark:to-rose-800/20 ring-rose-200 dark:ring-rose-800",
-        valueClass: "text-rose-900 dark:text-rose-100",
-        labelClass: "text-rose-600 dark:text-rose-300"
-      }
-    ],
-    [stats, statsRangeLabel]
-  );
+  const normalizedManualInput = manualInput.trim();
+  const manualInputInvalid = !normalizedManualInput || !STUDENT_ID_PATTERN.test(normalizedManualInput);
+  const manualInputError = !manualTouched
+    ? ""
+    : !normalizedManualInput
+    ? "Student ID is required."
+    : manualInputInvalid
+    ? "Student ID must match 00-0000-000000."
+    : "";
+  const manualInputHelpId = "attendance-manual-entry-help";
+
 
   const handleLogout = useCallback(() => {
     setShowLogoutModal(false);
@@ -382,6 +325,7 @@ const Attendance = () => {
 
   const handleManualSubmit = useCallback(
     async (type) => {
+      setManualTouched(true);
       const payload = toVisitPayload(manualInput);
       if (!payload) {
         setManualMessage("Student ID must match 00-0000-000000");
@@ -391,6 +335,7 @@ const Attendance = () => {
       setManualBusy(true);
       setManualMessage("");
       try {
+        const timestamp = new Date();
         if (type === "enter") {
           const { data } = await api.post("/visit/enter", payload);
           setManualMessage(`Entered: ${data?.user?.fullName || payload.studentId}`);
@@ -402,8 +347,17 @@ const Attendance = () => {
           );
           beep();
         }
+        const manualLog = mapLogRow({
+          id: `manual-${Date.now()}`,
+          enteredAt: timestamp.toISOString(),
+          exitedAt: type === "exit" ? timestamp.toISOString() : null,
+          material: "Manual Entry",
+          name: payload.studentId
+        });
+        setLogs((prev) => [manualLog, ...prev].slice(0, 500));
         refreshStats();
         refreshRecentVisits();
+        refreshLogs();
       } catch (err) {
         const fallback = type === "enter" ? "Enter failed" : "Exit failed";
         setManualMessage(err?.response?.data?.error || fallback);
@@ -411,7 +365,7 @@ const Attendance = () => {
         setManualBusy(false);
       }
     },
-    [manualInput, refreshRecentVisits, refreshStats]
+    [manualInput, refreshLogs, refreshRecentVisits, refreshStats]
   );
 
   const handleExport = useCallback(() => {
@@ -436,8 +390,6 @@ const Attendance = () => {
     URL.revokeObjectURL(url);
   }, [filteredLogs]);
 
-  const isValidManualId = STUDENT_ID_PATTERN.test(String(manualInput).trim());
-
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <Sidebar />
@@ -459,11 +411,7 @@ const Attendance = () => {
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => setAutoRefresh((prev) => !prev)}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium ring-1 transition-colors duration-200 ${
-                autoRefresh
-                  ? "bg-emerald-100 text-emerald-700 ring-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-500/40"
-                  : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-100 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
-              }`}
+              className={autoRefreshButtonClass(autoRefresh)}
             >
               <span
                 className={`inline-flex h-2.5 w-2.5 rounded-full ${
@@ -529,30 +477,6 @@ const Attendance = () => {
           </div>
         </div>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
-          {summaryCards.map((card) => (
-            <div
-              key={card.key}
-              className={`rounded-2xl bg-gradient-to-br ${card.accent} p-6 ring-1 ring-inset shadow-lg transition transform hover:-translate-y-1 hover:shadow-xl`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-sm font-medium ${card.labelClass}`}>{card.label}</p>
-                  <p className={`mt-2 text-3xl font-bold ${card.valueClass}`}>{formatNumber(card.value)}</p>
-                </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/70 dark:bg-stone-900/60 ring-1 ring-white/40">
-                  {card.icon}
-                </div>
-              </div>
-              <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-stone-300">
-                {card.details.filter(Boolean).map((detail, idx) => (
-                  <li key={idx}>{detail}</li>
-                ))}
-                {statsLoading && <li className="text-slate-500 dark:text-stone-400">Refreshing…</li>}
-              </ul>
-            </div>
-          ))}
-        </section>
         {statsError && (
           <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
             {statsError}
@@ -560,15 +484,12 @@ const Attendance = () => {
         )}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <section
-            id="attendance-history"
-            className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg p-6"
-          >
+          <section id="attendance-history" className={`${surfacePanelClass} p-6`}>
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-4">
               <div>
-                <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">History Logs</h2>
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Attendance</h2>
                 <p className="text-sm text-slate-600 dark:text-stone-400">
-                  {logsRangeDescription || "Recent borrowing and visit activity"}
+                  {logsRangeDescription || "Recorded student attendance for the selected range"}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -624,11 +545,11 @@ const Attendance = () => {
                   </button>
                 );
               })}
-              <div className="relative ml-auto flex-1 min-w-[12rem]">
+              <div className="relative flex-1 min-w-[12rem] w-full md:w-auto md:ml-auto">
                 <input
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search user or material"
+                  placeholder="Search visitor or branch"
                   className="w-full rounded-xl border border-slate-200 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-2 text-sm text-slate-700 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-green"
                 />
                 <svg
@@ -644,7 +565,7 @@ const Attendance = () => {
                 type="button"
                 onClick={handleExport}
                 disabled={!filteredLogs.length}
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                className="inline-flex w-full justify-center md:w-auto items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -663,17 +584,17 @@ const Attendance = () => {
                 <thead>
                   <tr className="text-left text-slate-600 dark:text-stone-300">
                     <th className="py-2 pr-4">Status</th>
-                    <th className="py-2 pr-4">Borrowed Date</th>
-                    <th className="py-2 pr-4">Due / Return</th>
-                    <th className="py-2 pr-4">Material</th>
-                    <th className="py-2 pr-4">User</th>
+                    <th className="py-2 pr-4">Entered At</th>
+                    <th className="py-2 pr-4">Exit / Update</th>
+                    <th className="py-2 pr-4">Location</th>
+                    <th className="py-2 pr-4">Visitor</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-stone-700">
                   {logsLoading ? (
                     <tr>
                       <td colSpan={5} className="py-6 text-center text-slate-500 dark:text-stone-400">
-                        Loading logs…
+                        Loading attendance logs...
                       </td>
                     </tr>
                   ) : pagedLogs.length > 0 ? (
@@ -682,7 +603,7 @@ const Attendance = () => {
                         <td className="py-3 pr-4">
                           <span
                             className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold text-white ${
-                              STATUS_CLASSES[log.status] || STATUS_CLASSES.Borrowed
+                              STATUS_CLASSES[log.status] || "bg-indigo-600"
                             }`}
                           >
                             {log.status}
@@ -738,7 +659,7 @@ const Attendance = () => {
           </section>
 
           <div className="space-y-6">
-            <section className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg p-6">
+            <section className={`${surfacePanelClass} p-6`}>
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-brand-green flex items-center justify-center">
                   <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -758,7 +679,11 @@ const Attendance = () => {
                   </label>
                   <input
                     value={manualInput}
-                    onChange={(event) => setManualInput(formatStudentId(event.target.value))}
+                    onChange={(event) => {
+                      if (!manualTouched) setManualTouched(true);
+                      setManualInput(formatStudentId(event.target.value));
+                    }}
+                    onBlur={() => setManualTouched(true)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
@@ -768,14 +693,24 @@ const Attendance = () => {
                     inputMode="numeric"
                     maxLength={14}
                     placeholder="03-0000-000000"
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 font-mono"
+                    aria-invalid={manualInputError ? "true" : "false"}
+                    aria-describedby={manualInputError ? manualInputHelpId : undefined}
+                    data-error={manualInputError ? "true" : "false"}
+                    className={inputClass("bg-white dark:bg-stone-950 text-slate-900 dark:text-stone-100 placeholder-slate-400 font-mono")}
                   />
+                  {manualInputError ? (
+                    <p id={manualInputHelpId} className="input-feedback error">
+                      {manualInputError}
+                    </p>
+                  ) : manualTouched && !manualInputInvalid && normalizedManualInput ? (
+                    <p className="input-feedback success">Ready to record visits for {normalizedManualInput}.</p>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200 font-medium"
-                    disabled={manualBusy || !isValidManualId}
+                    disabled={manualBusy || manualInputInvalid}
                     onClick={() => handleManualSubmit("enter")}
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -785,7 +720,7 @@ const Attendance = () => {
                   </button>
                   <button
                     className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200 font-medium"
-                    disabled={manualBusy || !isValidManualId}
+                    disabled={manualBusy || manualInputInvalid}
                     onClick={() => handleManualSubmit("exit")}
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -802,14 +737,11 @@ const Attendance = () => {
               )}
             </section>
 
-            <section className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg p-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Recent Visits</h3>
-                  <p className="text-sm text-slate-600 dark:text-stone-400">
-                    Visitors recorded in the last {recentMinutes} minutes
-                  </p>
-                </div>
+            <CollapsibleSection
+              className="p-6"
+              title="Recent Visits"
+              subtitle={`Visitors recorded in the last ${recentMinutes} minutes`}
+              actions={
                 <div className="flex items-center gap-2">
                   <select
                     value={recentMinutes}
@@ -829,8 +761,8 @@ const Attendance = () => {
                     Refresh
                   </button>
                 </div>
-              </div>
-
+              }
+            >
               {recentError && (
                 <div className="mb-4 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300">
                   {recentError}
@@ -866,7 +798,7 @@ const Attendance = () => {
                   ))
                 )}
               </ul>
-            </section>
+            </CollapsibleSection>
           </div>
         </div>
       </main>

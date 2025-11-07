@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import ReportModal from "../components/GenReports";
+import CollapsibleSection from "../components/CollapsibleSection";
 import profileImage from "../assets/pfp.png";
 import { Link, useNavigate } from "react-router-dom";
 import api, { getStoredUser, clearAuthSession, broadcastAuthChange } from "../api";
@@ -110,7 +111,7 @@ const Dashboard = () => {
         <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
           <Link
             to="/booksmanagement"
-            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            className="interactive-card group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
             aria-label="Go to Books Management to view all books"
           >
             <div className="flex items-center justify-between">
@@ -129,7 +130,7 @@ const Dashboard = () => {
 
           <Link
             to="/borrowing"
-            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400"
+            className="interactive-card group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400"
             aria-label="Open Borrow Management to review borrowed books"
           >
             <div className="flex items-center justify-between">
@@ -148,7 +149,7 @@ const Dashboard = () => {
 
           <Link
             to="/borrowing"
-            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 ring-1 ring-red-200 dark:ring-red-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+            className="interactive-card group relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 ring-1 ring-red-200 dark:ring-red-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
             aria-label="View overdue loans in Borrow Management"
           >
             <div className="flex items-center justify-between">
@@ -167,7 +168,7 @@ const Dashboard = () => {
 
           <Link
             to="/usermanagement"
-            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 ring-1 ring-purple-200 dark:ring-purple-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+            className="interactive-card group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 ring-1 ring-purple-200 dark:ring-purple-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
             aria-label="Open User Management to review active users"
           >
             <div className="flex items-center justify-between">
@@ -238,7 +239,7 @@ const Dashboard = () => {
         </section>
 
         {/* Bottom Section */}
-        <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* Quick Reports Card */}
           <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 ring-1 ring-amber-200 dark:ring-amber-800 p-6 hover:shadow-xl transition-all duration-300">
             <div className="flex items-start justify-between mb-4">
@@ -266,22 +267,24 @@ const Dashboard = () => {
             </button>
           </div>
 
-          {/* Popular Books Card */}
-          <div className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
-            <div className="flex items-center gap-3 mb-6">
+          <CollapsibleSection
+            className="h-full"
+            title="Popular Books"
+            subtitle="Most borrowed titles"
+            actions={
               <div className="h-10 w-10 rounded-xl bg-brand-green flex items-center justify-center">
                 <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                 </svg>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Popular Books</h3>
-                <p className="text-sm text-slate-600 dark:text-stone-400">Most borrowed titles</p>
-              </div>
-            </div>
+            }
+          >
             <div className="space-y-3">
-              {topBooks.slice(0,5).map((b, index) => (
-                <div key={b.bookId || b.title} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-stone-800 hover:bg-slate-100 dark:hover:bg-stone-700 transition-colors duration-200">
+              {topBooks.slice(0, 5).map((b, index) => (
+                <div
+                  key={b.bookId || b.title}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-stone-800 hover:bg-slate-100 dark:hover:bg-stone-700 transition-colors duration-200"
+                >
                   <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-brand-green/10 flex items-center justify-center">
                     <span className="text-sm font-bold text-brand-green">#{index + 1}</span>
                   </div>
@@ -297,21 +300,20 @@ const Dashboard = () => {
                 </div>
               ))}
             </div>
-          </div>
+          </CollapsibleSection>
 
-          {/* Frequent Borrowers Card */}
-          <div className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
-            <div className="flex items-center gap-3 mb-6">
+          <CollapsibleSection
+            className="h-full"
+            title="Frequent Borrowers"
+            subtitle="Top patrons by loan volume"
+            actions={
               <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center">
                 <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-1a4 4 0 00-4-4h-1m-4 5v-1a4 4 0 014-4h0m-4 5H7v-1a4 4 0 014-4h0m0 5v-1a4 4 0 014-4h0m-4-7a4 4 0 110-8 4 4 0 010 8z" />
                 </svg>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Frequent Borrowers</h3>
-                <p className="text-sm text-slate-600 dark:text-stone-400">Top patrons by loan volume</p>
-              </div>
-            </div>
+            }
+          >
             <div className="space-y-3">
               {topBorrowers.length ? (
                 topBorrowers.slice(0, 5).map((b, index) => {
@@ -325,10 +327,8 @@ const Dashboard = () => {
                         <span className="text-sm font-bold text-indigo-600 dark:text-indigo-200">#{index + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 dark:text-stone-100 truncate">
-                          {b.fullName}
-                        </p>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-stone-400">
+                        <p className="text-sm font-medium text-slate-900 dark:text-stone-100 truncate">{b.fullName}</p>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-stone-400">
                           <span>{numberFormatter.format(b.borrows || 0)} loans</span>
                           <span>Active {numberFormatter.format(b.activeLoans || 0)}</span>
                           {b.overdueLoans ? (
@@ -352,7 +352,7 @@ const Dashboard = () => {
                 </div>
               )}
             </div>
-          </div>
+          </CollapsibleSection>
         </section>
 
         {showReport && <ReportModal onClose={() => setShowReport(false)} />}

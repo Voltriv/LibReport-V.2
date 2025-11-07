@@ -6,26 +6,6 @@
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!-- Tailwind CSS (CDN) for rapid UI iteration -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      // Tailwind customization: shared brand palette + dark mode support
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              brand: {
-                green: '#2F5D3A',
-                greenDark: '#24432B',
-                gold: '#D4A72C',
-                cream: '#F5F1E6'
-              }
-            }
-          }
-        }
-      }
-    </script>
     <!-- PDF export libraries (CDN) -->
     <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>

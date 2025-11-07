@@ -112,7 +112,9 @@ const Sidebar = () => {
         </svg>
       </button>
 
-      <aside className={`fixed top-0 left-0 h-full w-80 transform transition-all duration-300 ease-out bg-gradient-to-br from-brand-green via-brand-green to-brand-greenDark text-white shadow-2xl z-40 ${sidebarTranslate} ${desktopTranslate}`}>
+      <aside
+        className={`sidebar-scroll fixed top-0 left-0 h-full w-80 transform transition-all duration-300 ease-out bg-gradient-to-b from-[#90C06F] via-[#4B6734] to-[#1F2A1A] dark:from-[#182012] dark:via-[#10160f] dark:to-[#060908] text-white shadow-2xl z-40 overflow-y-auto ${sidebarTranslate} ${desktopTranslate}`}
+      >
         <div className="flex items-center justify-between gap-4 p-6 border-b border-white/20 backdrop-blur-sm">
           <div className="flex items-center gap-4">
             <div className="relative">
@@ -124,7 +126,7 @@ const Sidebar = () => {
               <div className="text-xs text-white/70 font-medium">Admin Portal</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <ThemeToggle />
             <button
               className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
