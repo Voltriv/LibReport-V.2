@@ -90,11 +90,11 @@ const Admins = () => {
   // Inline guard: show friendly message if librarian_staff somehow lands here
   if (role === 'librarian_staff') {
     return (
-      <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+      <div className="min-h-screen theme-shell">
         <Sidebar />
         <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Admins</h1>
-          <div className="mt-6 p-6 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700">
+          <div className="mt-6 p-6 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700">
             <p className="text-slate-700 dark:text-stone-200">You are not authorized to view this page.</p>
             <a href="/dashboard" className="inline-block mt-4 btn-brand text-white px-4 py-2 rounded-lg">Go to Dashboard</a>
           </div>
@@ -104,7 +104,7 @@ const Admins = () => {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen theme-shell">
       <Sidebar />
 
       <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
@@ -138,7 +138,7 @@ const Admins = () => {
                 </svg>
               </button>
               {showDropdown && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                   <button
                     className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
                     onClick={() => setShowLogoutModal(true)}
@@ -157,11 +157,11 @@ const Admins = () => {
         <h2 className="mt-6 text-2xl font-semibold text-slate-900 dark:text-stone-100">Admins</h2>
 
         <form
-          className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-3 p-4 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700"
+          className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-3 p-4 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700"
           onSubmit={onCreate}
         >
           <input
-            className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2"
+            className="rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-3 py-2"
             placeholder="Admin ID"
             value={creating.adminId}
             onChange={(e) =>
@@ -172,28 +172,28 @@ const Admins = () => {
             required
           />
           <input
-            className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2"
+            className="rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-3 py-2"
             placeholder="Full Name"
             value={creating.fullName}
             onChange={(e) => setCreating((s) => ({ ...s, fullName: e.target.value }))}
             required
           />
           <input
-            className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2"
+            className="rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-3 py-2"
             placeholder="Email (optional)"
             value={creating.email}
             onChange={(e) => setCreating((s) => ({ ...s, email: e.target.value }))}
           />
           <input
             type="password"
-            className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2"
+            className="rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-3 py-2"
             placeholder="Password"
             value={creating.password}
             onChange={(e) => setCreating((s) => ({ ...s, password: e.target.value }))}
             required
           />
           <select
-            className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2"
+            className="rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-3 py-2"
             value={creating.role}
             onChange={(e) => setCreating((s) => ({ ...s, role: e.target.value }))}
             required
@@ -207,10 +207,10 @@ const Admins = () => {
           {error && <div className="md:col-span-6 text-sm text-red-600">{error}</div>}
         </form>
 
-        <div className="mt-6 p-4 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700">
+        <div className="mt-6 p-4 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700">
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <input
-              className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 flex-1"
+              className="rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-3 py-2 flex-1"
               placeholder="Search adminId / name / email"
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -239,7 +239,7 @@ const Admins = () => {
                     <td className="py-2 pr-4">{a.role === 'librarian' ? 'Librarian' : a.role === 'librarian_staff' ? 'Librarian Staffs' : a.role}</td>
                     <td className="py-2 pr-4 text-right">
                       <button
-                        className="rounded px-3 py-1.5 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 mr-2"
+                        className="rounded px-3 py-1.5 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel mr-2"
                         onClick={() => {
                           const np = prompt(`New password for ${a.fullName}`);
                           if (!np) return;
@@ -267,11 +267,11 @@ const Admins = () => {
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
+          <div className="w-full max-w-md rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Are you sure you want to logout?</h3>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
-                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200"
+                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200"
                 onClick={() => setShowLogoutModal(false)}
               >
                 Close

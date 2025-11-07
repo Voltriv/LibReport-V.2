@@ -76,7 +76,7 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen theme-shell">
       <Sidebar />
 
       <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
@@ -87,7 +87,7 @@ const Dashboard = () => {
             <p className="text-slate-600 dark:text-stone-400 mt-1">Welcome back, {userName}! Here's your library overview.</p>
           </div>
           <div className="relative">
-            <button onClick={() => setShowDropdown(!showDropdown)} className="inline-flex items-center gap-3 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200">
+            <button onClick={() => setShowDropdown(!showDropdown)} className="inline-flex items-center gap-3 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200">
               <img src={profileImage} alt="Profile" className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20" />
               <span className="text-sm font-medium text-slate-700 dark:text-stone-200 max-w-[12rem] truncate" title={userName}>{userName}</span>
               <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -95,7 +95,7 @@ const Dashboard = () => {
               </svg>
             </button>
             {showDropdown && (
-              <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+              <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                 <button className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2" onClick={() => setShowLogoutModal(true)}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -200,7 +200,7 @@ const Dashboard = () => {
               <span>Library Visits</span>
             </div>
           </div>
-          <div className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
+          <div className="rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
             <ResponsiveContainer width="100%" height={350}>
               <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -360,7 +360,7 @@ const Dashboard = () => {
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
                 <svg className="h-5 w-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -372,7 +372,7 @@ const Dashboard = () => {
             <p className="text-slate-600 dark:text-stone-400 mb-6">Are you sure you want to logout? You'll need to sign in again to access the admin panel.</p>
             <div className="flex items-center justify-end gap-3">
               <button 
-                className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200" 
+                className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200" 
                 onClick={() => setShowLogoutModal(false)}
               >
                 Cancel

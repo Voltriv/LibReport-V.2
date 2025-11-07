@@ -4,7 +4,7 @@ import logo from "../assets/logo.png";
 import api, { persistAuthSession } from "../api";
 
 const inputClass =
-  "mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent";
+  "mt-1 w-full rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-3 py-2 text-slate-900 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent";
 
 const SignIn = () => {
   const navigate = useNavigate();
@@ -44,7 +44,7 @@ const SignIn = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-stone-50 dark:bg-stone-950 flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen w-full theme-shell flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 overflow-hidden rounded-2xl shadow-lg bg-white/90 dark:bg-stone-900/70 ring-1 ring-slate-200 dark:ring-stone-700">
         <div className="hidden md:flex flex-col items-center justify-center gap-6 p-10 bg-gradient-to-br from-brand-green to-brand-greenDark text-white">
           <img src={logo} alt="University Logo" className="h-24 w-24 rounded-full shadow-md" />

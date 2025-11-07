@@ -391,7 +391,7 @@ const Attendance = () => {
   }, [filteredLogs]);
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen theme-shell">
       <Sidebar />
 
       <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
@@ -461,7 +461,7 @@ const Attendance = () => {
                 </svg>
               </button>
               {showDropdown && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                   <button
                     className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
                     onClick={() => setShowLogoutModal(true)}
@@ -498,7 +498,7 @@ const Attendance = () => {
                   <select
                     value={logsDays}
                     onChange={(event) => setLogsDays(Number(event.target.value) || 30)}
-                    className="ml-2 rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                    className="ml-2 rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
                   >
                     <option value={7}>7 days</option>
                     <option value={30}>30 days</option>
@@ -511,7 +511,7 @@ const Attendance = () => {
                   <select
                     value={pageSize}
                     onChange={(event) => setPageSize(Number(event.target.value) || PAGE_SIZE_DEFAULT)}
-                    className="ml-2 rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                    className="ml-2 rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
                   >
                     <option value={10}>10</option>
                     <option value={15}>15</option>
@@ -550,7 +550,7 @@ const Attendance = () => {
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Search visitor or branch"
-                  className="w-full rounded-xl border border-slate-200 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-2 text-sm text-slate-700 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                  className="w-full rounded-xl border border-slate-200 dark:border-stone-600 theme-panel px-4 py-2 text-sm text-slate-700 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-green"
                 />
                 <svg
                   className="absolute inset-y-0 right-3 my-auto h-4 w-4 text-slate-400"
@@ -696,7 +696,7 @@ const Attendance = () => {
                     aria-invalid={manualInputError ? "true" : "false"}
                     aria-describedby={manualInputError ? manualInputHelpId : undefined}
                     data-error={manualInputError ? "true" : "false"}
-                    className={inputClass("bg-white dark:bg-stone-950 text-slate-900 dark:text-stone-100 placeholder-slate-400 font-mono")}
+                    className={inputClass("theme-panel text-slate-900 dark:text-stone-100 placeholder-slate-400 font-mono")}
                   />
                   {manualInputError ? (
                     <p id={manualInputHelpId} className="input-feedback error">
@@ -746,7 +746,7 @@ const Attendance = () => {
                   <select
                     value={recentMinutes}
                     onChange={(event) => setRecentMinutes(Number(event.target.value) || 60)}
-                    className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                    className="rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
                   >
                     <option value={60}>60 min</option>
                     <option value={120}>2 hours</option>
@@ -805,13 +805,13 @@ const Attendance = () => {
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
+          <div className="w-full max-w-md rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">
               Are you sure you want to logout?
             </h3>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
-                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200"
+                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200"
                 onClick={() => setShowLogoutModal(false)}
               >
                 Close

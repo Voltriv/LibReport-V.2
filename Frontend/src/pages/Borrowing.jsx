@@ -555,7 +555,7 @@ const Borrowing = () => {
   }, [returnTarget, loadActiveLoans, loadLoanHistory, showToast]);
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen theme-shell">
       <Sidebar />
       <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
         {toast ? <InlineToast toast={toast} onClose={hideToast} /> : null}

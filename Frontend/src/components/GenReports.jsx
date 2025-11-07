@@ -19,13 +19,13 @@ const GenReport = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="relative w-full max-w-lg rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
+      <div className="relative w-full max-w-lg rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6">
         <button className="absolute right-3 top-3 text-slate-500 hover:text-slate-700 dark:text-stone-400 dark:hover:text-slate-200" onClick={onClose}>&times;</button>
 
         <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Quick Report</h2>
         <p className="text-sm text-slate-500 dark:text-stone-300 mt-1">Date: {currentDate} | Time: {currentTime}</p>
 
-        <div className="mt-4 rounded-lg bg-stone-50 dark:bg-stone-950 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+        <div className="mt-4 rounded-lg theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
           <h3 className="text-sm font-medium text-slate-700 dark:text-stone-200">Summary</h3>
           <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             <div className="flex items-center justify-between"><span className="text-slate-500">Active Users</span><span className="font-semibold text-slate-900 dark:text-stone-100">{counts.users}</span></div>

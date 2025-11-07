@@ -294,7 +294,7 @@ const UserManagement = () => {
   const showingEnd = Math.min(startIndex + PAGE_SIZE, users.length);
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen theme-shell">
       <Sidebar />
 
       <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
@@ -337,7 +337,7 @@ const UserManagement = () => {
                 </svg>
               </button>
               {isDropdownOpen && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                   <button
                     className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
                     onClick={() => setShowLogoutModal(true)}
@@ -388,7 +388,7 @@ const UserManagement = () => {
         </section>
 
         {/* Users Table */}
-        <section className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg overflow-hidden">
+        <section className="rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-200 dark:border-stone-700">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900 dark:text-stone-100">User Directory</h2>
@@ -517,7 +517,7 @@ const UserManagement = () => {
 
         {isCreateModalOpen && (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
+            <div className="w-full max-w-lg rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-brand-green/10 flex items-center justify-center">
                   <svg className="h-5 w-5 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -541,7 +541,7 @@ const UserManagement = () => {
                     name="fullName"
                     value={createForm.fullName}
                     onChange={handleCreateChange}
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                     required
                   />
                   {createErrors.fullName && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{createErrors.fullName}</p>}
@@ -557,8 +557,8 @@ const UserManagement = () => {
                     inputMode="numeric"
                     className={`w-full rounded-xl px-4 py-3 font-mono transition-colors duration-200 ${
                       createErrors.studentId
-                        ? "border border-red-400 text-red-700 focus:ring-2 focus:ring-red-400 focus:border-red-400 bg-white dark:bg-stone-950"
-                        : "border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent"
+                        ? "border border-red-400 text-red-700 focus:ring-2 focus:ring-red-400 focus:border-red-400 theme-panel"
+                        : "border border-slate-300 dark:border-stone-600 theme-panel text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent"
                     }`}
                     maxLength={14}
                     required
@@ -572,7 +572,7 @@ const UserManagement = () => {
                     name="email"
                     value={createForm.email}
                     onChange={handleCreateChange}
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                     required
                   />
                   {createErrors.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{createErrors.email}</p>}
@@ -583,7 +583,7 @@ const UserManagement = () => {
                     name="department"
                     value={createForm.department}
                     onChange={handleCreateChange}
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                     required
                   >
                     <option value="">Select a department</option>
@@ -602,7 +602,7 @@ const UserManagement = () => {
                     name="password"
                     value={createForm.password}
                     onChange={handleCreateChange}
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                     required
                   />
                   {createErrors.password && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{createErrors.password}</p>}
@@ -614,7 +614,7 @@ const UserManagement = () => {
                     name="confirmPassword"
                     value={createForm.confirmPassword}
                     onChange={handleCreateChange}
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                     required
                   />
                   {createErrors.confirmPassword && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{createErrors.confirmPassword}</p>}
@@ -623,7 +623,7 @@ const UserManagement = () => {
                 <div className="mt-8 flex items-center justify-end gap-3">
                   <button
                     type="button"
-                    className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
+                    className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
                     onClick={() => {
                       setIsCreateModalOpen(false);
                       setCreateErrors({});
@@ -651,7 +651,7 @@ const UserManagement = () => {
 
         {isModalOpen && selectedUser && (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="w-full max-w-md rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl max-h-[90vh] flex flex-col">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-brand-green/10 flex items-center justify-center">
                   <svg className="h-5 w-5 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -674,7 +674,7 @@ const UserManagement = () => {
                     name="fullName"
                     value={selectedUser.fullName}
                     onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                   />
                 </div>
                 <div>
@@ -684,7 +684,7 @@ const UserManagement = () => {
                     name="studentId"
                     value={selectedUser.studentId}
                     onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 font-mono"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200 font-mono"
                   />
                 </div>
                 <div>
@@ -693,7 +693,7 @@ const UserManagement = () => {
                     name="department"
                     value={selectedUser.department || ""}
                     onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                   >
                     <option value="">Select a department</option>
                     {DEPARTMENTS.map((dept) => (
@@ -709,7 +709,7 @@ const UserManagement = () => {
                     name="role"
                     value={selectedUser.role}
                     onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                   >
                     <option value="student">Student</option>
                     <option value="faculty">Faculty</option>
@@ -728,7 +728,7 @@ const UserManagement = () => {
                         status: normalizeStatus(e.target.value),
                       }))
                     }
-                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                    className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-4 py-3 text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                   >
                     <option value="active">Active</option>
                     <option value="disabled">Disabled</option>
@@ -748,7 +748,7 @@ const UserManagement = () => {
                         name="newPassword"
                         value={selectedUser.newPassword || ""}
                         onChange={handleInputChange}
-                        className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-sm text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                        className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-3 py-2 text-sm text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                         placeholder="Leave blank to keep current password"
                       />
                     </div>
@@ -761,7 +761,7 @@ const UserManagement = () => {
                         name="confirmPassword"
                         value={selectedUser.confirmPassword || ""}
                         onChange={handleInputChange}
-                        className="w-full rounded-xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-2 text-sm text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
+                        className="w-full rounded-xl border border-slate-300 dark:border-stone-600 theme-panel px-3 py-2 text-sm text-slate-900 dark:text-stone-100 focus:ring-2 focus:ring-brand-green focus:border-transparent transition-colors duration-200"
                         placeholder="Re-enter new password"
                       />
                     </div>
@@ -774,7 +774,7 @@ const UserManagement = () => {
               
               <div className="mt-8 flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-stone-700">
                 <button
-                  className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
+                  className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
                   onClick={closeEditModal}
                 >
                   Cancel
@@ -795,7 +795,7 @@ const UserManagement = () => {
 
         {showLogoutModal && (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
+            <div className="w-full max-w-md rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
                   <svg className="h-5 w-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -807,7 +807,7 @@ const UserManagement = () => {
               <p className="text-slate-600 dark:text-stone-400 mb-6">Are you sure you want to logout? You'll need to sign in again to access the admin panel.</p>
               <div className="flex items-center justify-end gap-3">
                 <button
-                  className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
+                  className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
                   onClick={() => setShowLogoutModal(false)}
                 >
                   Cancel

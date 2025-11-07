@@ -100,7 +100,7 @@ const UsageHeatmaps = () => {
   const chartLabel = view === "hourly" ? "Visits by Hour" : "Visits by Day of Week";
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen theme-shell">
       <Sidebar />
 
       <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
@@ -134,7 +134,7 @@ const UsageHeatmaps = () => {
                 </svg>
               </button>
               {showDropdown && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                   <button
                     className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
                     onClick={() => setShowLogoutModal(true)}
@@ -152,17 +152,17 @@ const UsageHeatmaps = () => {
 
         <section className="mt-6 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+            <div className="rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
               <p className="text-sm text-slate-500 dark:text-stone-300">Total Visits</p>
               <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-stone-100">{summary.total}</p>
             </div>
-            <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+            <div className="rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
               <p className="text-sm text-slate-500 dark:text-stone-300">Busiest Day</p>
               <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-stone-100">
                 {summary.peakDay.label} ({summary.peakDay.value})
               </p>
             </div>
-            <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+            <div className="rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
               <p className="text-sm text-slate-500 dark:text-stone-300">Peak Hour</p>
               <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-stone-100">
                 {summary.peakHour.label} ({summary.peakHour.value})
@@ -170,7 +170,7 @@ const UsageHeatmaps = () => {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+          <div className="rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-semibold text-slate-900 dark:text-stone-100">Usage Heatmaps</h2>
@@ -179,20 +179,20 @@ const UsageHeatmaps = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex rounded-lg bg-slate-100 dark:bg-stone-800 p-1">
                   <button
-                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === "daily" ? "bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-100 shadow" : "text-slate-600 dark:text-stone-300"}`}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === "daily" ? "theme-panel text-slate-900 dark:text-stone-100 shadow" : "text-slate-600 dark:text-stone-300"}`}
                     onClick={() => setView("daily")}
                   >
                     Day of week
                   </button>
                   <button
-                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === "hourly" ? "bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-100 shadow" : "text-slate-600 dark:text-stone-300"}`}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === "hourly" ? "theme-panel text-slate-900 dark:text-stone-100 shadow" : "text-slate-600 dark:text-stone-300"}`}
                     onClick={() => setView("hourly")}
                   >
                     Hour of day
                   </button>
                 </div>
                 <select
-                  className="rounded-lg border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-950 px-3 py-1.5 text-sm text-slate-700 dark:text-stone-200"
+                  className="rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-3 py-1.5 text-sm text-slate-700 dark:text-stone-200"
                   value={range.value}
                   onChange={(e) => {
                     const next = ranges.find((r) => r.value === Number(e.target.value));
@@ -233,11 +233,11 @@ const UsageHeatmaps = () => {
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
+          <div className="w-full max-w-md rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Are you sure you want to logout?</h3>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
-                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200"
+                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200"
                 onClick={() => setShowLogoutModal(false)}
               >
                 Close

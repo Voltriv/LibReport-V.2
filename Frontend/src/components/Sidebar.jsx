@@ -113,13 +113,13 @@ const Sidebar = () => {
       </button>
 
       <aside
-        className={`sidebar-scroll fixed top-0 left-0 h-full w-80 transform transition-all duration-300 ease-out bg-gradient-to-b from-[#90C06F] via-[#4B6734] to-[#1F2A1A] dark:from-[#182012] dark:via-[#10160f] dark:to-[#060908] text-white shadow-2xl z-40 overflow-y-auto ${sidebarTranslate} ${desktopTranslate}`}
+        className={`sidebar-scroll sidebar-surface fixed top-0 left-0 h-full w-80 transform transition-all duration-300 ease-out text-white shadow-2xl z-40 overflow-y-auto ${sidebarTranslate} ${desktopTranslate}`}
       >
         <div className="flex items-center justify-between gap-4 p-6 border-b border-white/20 backdrop-blur-sm">
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <img src={logo} alt="Logo" className="h-12 w-12 rounded-xl shadow-lg" />
-              <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-brand-gold shadow-sm"></div>
+            <div className="relative rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-brand-gold/40">
+              <img src={logo} alt="Logo" className="h-10 w-10 rounded-xl object-contain" />
+              <div className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-brand-gold shadow-sm"></div>
             </div>
             <div>
               <span className="text-xl font-bold">LibReport</span>

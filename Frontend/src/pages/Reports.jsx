@@ -404,7 +404,7 @@ const Reports = () => {
   }, [reportType, timeRange]);
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen theme-shell">
       <Sidebar />
 
       {/* Print styles: hide chrome and show only report area when printing */}
@@ -449,7 +449,7 @@ const Reports = () => {
                 </svg>
               </button>
               {showDropdown && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                   <button
                     className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
                     onClick={() => setShowLogoutModal(true)}
@@ -476,7 +476,7 @@ const Reports = () => {
                 className={`rounded-lg px-3 py-1.5 ring-1 ring-slate-200 dark:ring-stone-700 ${
                   timeRange.value === range.value
                     ? "bg-brand-gold text-white"
-                    : "bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200"
+                    : "theme-panel text-slate-700 dark:text-stone-200"
                 }`}
               >
                 {range.label}
@@ -492,7 +492,7 @@ const Reports = () => {
                 const next = REPORT_OPTIONS.find((opt) => opt.value === e.target.value);
                 if (next) setReportType(next);
               }}
-              className="rounded-lg px-3 py-1.5 bg-white dark:bg-stone-950 ring-1 ring-slate-200 dark:ring-stone-700 text-slate-700 dark:text-stone-200"
+              className="rounded-lg px-3 py-1.5 theme-panel ring-1 ring-slate-200 dark:ring-stone-700 text-slate-700 dark:text-stone-200"
             >
               {REPORT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -507,7 +507,7 @@ const Reports = () => {
           )}
 
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+            <div className="rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="text-left text-slate-600 dark:text-stone-300">
@@ -540,7 +540,7 @@ const Reports = () => {
               </table>
             </div>
 
-            <div className="rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+            <div className="rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
               <p className="text-sm text-slate-500 dark:text-stone-300 mb-2">{chartLabel}</p>
               <div className="h-[250px]">
                 {loadingReport && chartData.length === 0 ? (
@@ -566,7 +566,7 @@ const Reports = () => {
             </div>
           </div>
 
-          <div className="mt-6 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4 overflow-x-auto">
+          <div className="mt-6 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-left text-slate-600 dark:text-stone-300">
@@ -618,11 +618,11 @@ const Reports = () => {
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
+          <div className="w-full max-w-md rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Are you sure you want to logout?</h3>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
-                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200"
+                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200"
                 onClick={() => setShowLogoutModal(false)}
               >
                 Close

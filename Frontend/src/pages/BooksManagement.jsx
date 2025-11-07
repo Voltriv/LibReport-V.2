@@ -164,7 +164,7 @@ const BooksManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen theme-shell">
       <Sidebar />
       <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
         {/* Header */}
@@ -225,7 +225,7 @@ const BooksManagement = () => {
                 </svg>
               </button>
               {profileMenuOpen && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                   <button
                     className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
                     onClick={() => setShowLogoutModal(true)}
@@ -275,7 +275,7 @@ const BooksManagement = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {books.map((book) => (
-                <div key={book.id} className="group relative bg-white dark:bg-stone-900 rounded-2xl ring-1 ring-slate-200 dark:ring-stone-700 hover:shadow-xl transition-all duration-300">
+                <div key={book.id} className="group relative theme-panel rounded-2xl ring-1 ring-slate-200 dark:ring-stone-700 hover:shadow-xl transition-all duration-300">
                   {/* Cover */}
                   <div className="aspect-[3/4] bg-gradient-to-br from-slate-100 to-slate-200 dark:from-stone-800 dark:to-stone-700 flex items-center justify-center relative overflow-hidden">
                     {/* Fallback placeholder sits behind the image */}
@@ -311,7 +311,7 @@ const BooksManagement = () => {
                         </button>
 
                         {cardMenuOpenId === book.id && (
-                          <div className="absolute right-0 mt-2 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                          <div className="absolute right-0 mt-2 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                             <button
                               onClick={() => {
                                 setEditingBook(book);
@@ -415,7 +415,7 @@ const BooksManagement = () => {
         {/* Logout Modal (unchanged) */}
         {showLogoutModal && (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
+            <div className="w-full max-w-md rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
                   <svg className="h-5 w-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -429,7 +429,7 @@ const BooksManagement = () => {
               </p>
               <div className="flex items-center justify-end gap-3">
                 <button
-                  className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
+                  className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
                   onClick={() => setShowLogoutModal(false)}
                 >
                   Cancel

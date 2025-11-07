@@ -15,6 +15,7 @@
   }
 
   :root[data-theme='dark'] {
+    color-scheme: dark;
     --bg: #111827;
     --panel: #1f2937;
     --text: #f1f5f9;
@@ -28,7 +29,8 @@
   }
 
   :root[data-theme='light'] {
-    --bg: #f6f7f4;
+    color-scheme: light;
+    --bg: #ffffff;
     --panel: #ffffff;
     --text: #14212b;
     --muted: #4a5a66;
@@ -44,6 +46,16 @@
     background: var(--bg);
     color: var(--text);
     font-family: var(--font-display);
+  }
+
+  :root[data-theme='light'] :where([class*="dark:text-"]) {
+    color: inherit !important;
+  }
+
+  :root[data-theme='light'] :where([class*="dark:hover:text-"]):hover,
+  :root[data-theme='light'] :where([class*="dark:focus:text-"]):focus,
+  :root[data-theme='light'] :where([class*="dark:focus-visible:text-"]):focus-visible {
+    color: inherit !important;
   }
 
   body.has-admin-sidebar {
@@ -63,6 +75,62 @@
 }
 
 @layer components {
+
+/* Theme surfaces */
+.theme-shell {
+  background: var(--bg);
+  color: var(--text);
+  transition: background 240ms ease, color 240ms ease;
+}
+
+.theme-panel {
+  background: var(--panel);
+  color: var(--text);
+  transition: background 240ms ease, color 240ms ease;
+}
+
+.sidebar-surface {
+  background-image: linear-gradient(175deg, #7fb55f 0%, #4b6734 55%, #243219 100%);
+  color: #f8fafc;
+}
+
+:root[data-theme='dark'] .sidebar-surface {
+  background-image: linear-gradient(180deg, #0c1107 0%, #111b0e 55%, #050705 100%);
+}
+
+.theme-toggle {
+  border-radius: 0.75rem;
+  padding: 0.4rem 0.95rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background-color: rgba(255, 255, 255, 0.95);
+  color: #24341f;
+  border: 1px solid rgba(75, 103, 52, 0.35);
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.18);
+  transition: background-color 200ms ease, color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+}
+
+.theme-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 30px rgba(17, 24, 39, 0.22);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid rgba(var(--brand-gold-rgb), 0.65);
+  outline-offset: 3px;
+}
+
+:root[data-theme='dark'] .theme-toggle {
+  background-color: rgba(15, 23, 42, 0.4);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme='dark'] .theme-toggle:hover {
+  background-color: rgba(15, 23, 42, 0.6);
+}
 
 /* Shared interactive surfaces */
 .interactive-card {
@@ -297,32 +365,7 @@
 .student-auth-surface {
   position: relative;
   isolation: isolate;
-}
-
-.student-auth-surface::before,
-.student-auth-surface::after {
-  content: '';
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(60px);
-  opacity: 0.65;
-  z-index: -1;
-}
-
-.student-auth-surface::before {
-  width: 280px;
-  height: 280px;
-  top: -80px;
-  right: -120px;
-  background: radial-gradient(circle at 30% 30%, rgba(var(--brand-gold-rgb), 0.35), transparent 65%);
-}
-
-.student-auth-surface::after {
-  width: 360px;
-  height: 360px;
-  bottom: -140px;
-  left: -120px;
-  background: radial-gradient(circle at 40% 40%, rgba(var(--brand-green-rgb), 0.3), transparent 60%);
+  background: #4b6734;
 }
 
 .student-check-icon {

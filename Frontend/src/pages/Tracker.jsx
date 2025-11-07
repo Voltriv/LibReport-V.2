@@ -324,7 +324,7 @@ const Tracker = () => {
     : "";
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen theme-shell">
       <Sidebar />
 
       <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
@@ -353,7 +353,7 @@ const Tracker = () => {
                 </svg>
               </button>
               {showDropdown && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
                   <button className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2" onClick={() => setShowLogoutModal(true)}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -423,7 +423,7 @@ const Tracker = () => {
 
         {staffingHasInsights && (
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
-            <div className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
+            <div className="rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-emerald-500 flex items-center justify-center">
                   <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -492,7 +492,7 @@ const Tracker = () => {
                 )}
               </div>
             </div>
-            <div className="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
+            <div className="rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-sky-500 flex items-center justify-center">
                   <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -580,7 +580,7 @@ const Tracker = () => {
                   data-error={manualEntryError ? "true" : "false"}
                   aria-invalid={manualEntryError ? "true" : "false"}
                   aria-describedby={manualEntryError ? manualInputHelpId : undefined}
-                  className={inputClass("bg-white dark:bg-stone-950 text-slate-900 dark:text-stone-100 placeholder-slate-400 font-mono")}
+                  className={inputClass("theme-panel text-slate-900 dark:text-stone-100 placeholder-slate-400 font-mono")}
                 />
                 {manualEntryError ? (
                   <p id={manualInputHelpId} className="input-feedback error">
@@ -702,7 +702,7 @@ const Tracker = () => {
         </section>
 
         {/* Recent visits feed */}
-        <section className="mt-6 rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+        <section className="mt-6 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Recent Visits</h3>
           <ul className="mt-2 divide-y divide-slate-200 dark:divide-slate-700">
             {feed.map((v, i) => (
@@ -719,10 +719,10 @@ const Tracker = () => {
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-white dark:bg-stone-900 ring-1 ring-slate-200 dark:ring-stone-700 p-6">
+          <div className="w-full max-w-md rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Are you sure you want to logout?</h3>
             <div className="mt-6 flex items-center justify-end gap-3">
-              <button className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 bg-white dark:bg-stone-950 text-slate-700 dark:text-stone-200" onClick={() => setShowLogoutModal(false)}>Close</button>
+              <button className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200" onClick={() => setShowLogoutModal(false)}>Close</button>
               <button className="rounded-lg px-4 py-2 bg-red-600 text-white hover:bg-red-500" onClick={handleLogout}>Confirm</button>
             </div>
           </div>
