@@ -20,8 +20,8 @@ const CollapsibleSection = ({
         onClick={() => setOpen((prev) => !prev)}
       >
         <div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">{title}</h3>
-          {subtitle && <p className="text-sm text-slate-600 dark:text-stone-400">{subtitle}</p>}
+          <h3 className="text-lg font-bold text-slate-900 [[data-theme=dark]_&]:text-stone-100">{title}</h3>
+          {subtitle && <p className="text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-400">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-2">
           {actions}

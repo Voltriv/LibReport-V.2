@@ -634,8 +634,8 @@ const Borrowing = () => {
           >
             {loansError ? <ErrorBanner message={loansError} /> : null}
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-left text-sm dark:divide-stone-800">
-                <thead className="bg-slate-50/80 dark:bg-stone-900/60">
+              <table className="min-w-full divide-y divide-slate-200 text-left text-sm [[data-theme=dark]_&]:divide-stone-800">
+                <thead className="bg-slate-50/80 [[data-theme=dark]_&]:bg-stone-900/60">
                   <tr>
                     <TableHead>Book</TableHead>
                     <TableHead>Borrower</TableHead>
@@ -645,7 +645,7 @@ const Borrowing = () => {
                     <TableHead align="right">Actions</TableHead>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 bg-white dark:divide-stone-800 dark:bg-stone-900/60">
+                <tbody className="divide-y divide-slate-200 bg-white [[data-theme=dark]_&]:divide-stone-800 [[data-theme=dark]_&]:bg-stone-900/60">
                   {loansLoading ? (
                     <TableMessage colSpan={6}>Loading loans...</TableMessage>
                   ) : activeLoans.length === 0 ? (
@@ -701,8 +701,8 @@ const Borrowing = () => {
               <EmptyState message="No history logs to display for this filter." />
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 text-left text-sm dark:divide-stone-800">
-                  <thead className="bg-slate-50/80 dark:bg-stone-900/60">
+                <table className="min-w-full divide-y divide-slate-200 text-left text-sm [[data-theme=dark]_&]:divide-stone-800">
+                  <thead className="bg-slate-50/80 [[data-theme=dark]_&]:bg-stone-900/60">
                     <tr>
                       <TableHead>Book</TableHead>
                       <TableHead>Borrower</TableHead>
@@ -712,38 +712,38 @@ const Borrowing = () => {
                       <TableHead>Status</TableHead>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white dark:divide-stone-800 dark:bg-stone-900/60">
+                  <tbody className="divide-y divide-slate-200 bg-white [[data-theme=dark]_&]:divide-stone-800 [[data-theme=dark]_&]:bg-stone-900/60">
                     {paginatedHistory.map((loan) => (
                       <tr key={loan.id || loan.bookId || loan.title}>
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
-                            <span className="font-medium text-slate-900 dark:text-stone-100">{loan.title || "Untitled"}</span>
+                            <span className="font-medium text-slate-900 [[data-theme=dark]_&]:text-stone-100">{loan.title || "Untitled"}</span>
                             {loan.bookCode ? (
-                              <span className="text-xs text-slate-500 dark:text-stone-400">{loan.bookCode}</span>
+                              <span className="text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">{loan.bookCode}</span>
                             ) : null}
                           </div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium text-slate-600 dark:text-stone-200">
+                            <span className="text-sm font-medium text-slate-600 [[data-theme=dark]_&]:text-stone-200">
                               {loan.borrowerName || loan.student || "Unknown"}
                             </span>
                             {loan.borrowerStudentId ? (
-                              <span className="text-xs text-slate-500 dark:text-stone-400">{loan.borrowerStudentId}</span>
+                              <span className="text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">{loan.borrowerStudentId}</span>
                             ) : null}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
+                        <td className="px-6 py-4 text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                           {loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--"}
                         </td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
+                        <td className="px-6 py-4 text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                           {loan.dueAt ? loan.dueAt.toLocaleDateString() : "--"}
                         </td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
+                        <td className="px-6 py-4 text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                           {loan.returnedAt ? loan.returnedAt.toLocaleDateString() : "--"}
                         </td>
                         <td className="px-6 py-4">
-                          <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-stone-800 dark:text-stone-200">
+                          <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-700 [[data-theme=dark]_&]:bg-stone-800 [[data-theme=dark]_&]:text-stone-200">
                             {STATUS_LABELS[loan.statusKey] || loan.status || "Completed"}
                           </span>
                         </td>
@@ -812,7 +812,7 @@ function InlineToast({ toast, onClose }) {
 
 function StatsCard({ pendingCount }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
+    <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow ring-1 ring-slate-200 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:ring-stone-700">
       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-green/10 text-brand-green-dark">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -832,7 +832,7 @@ function StatsCard({ pendingCount }) {
       </div>
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending requests</p>
-        <p className="text-2xl font-semibold text-slate-900 dark:text-stone-100">{pendingCount}</p>
+        <p className="text-2xl font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">{pendingCount}</p>
       </div>
     </div>
   );
@@ -840,11 +840,11 @@ function StatsCard({ pendingCount }) {
 
 function SectionCard({ title, subtitle, action, toolbar, footer, children }) {
   return (
-    <section className="rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200 dark:bg-stone-900 dark:ring-stone-700">
+    <section className="rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:ring-stone-700">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">{title}</h2>
-          {subtitle ? <p className="text-sm text-slate-600 dark:text-stone-300">{subtitle}</p> : null}
+          <h2 className="text-xl font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">{title}</h2>
+          {subtitle ? <p className="text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-300">{subtitle}</p> : null}
         </div>
         {action ? <div className="flex-shrink-0">{action}</div> : null}
       </div>
@@ -853,7 +853,7 @@ function SectionCard({ title, subtitle, action, toolbar, footer, children }) {
 
       <div className="mt-6 space-y-4">{children}</div>
 
-      {footer ? <div className="mt-6 border-t border-slate-200 pt-4 dark:border-stone-800">{footer}</div> : null}
+      {footer ? <div className="mt-6 border-t border-slate-200 pt-4 [[data-theme=dark]_&]:border-stone-800">{footer}</div> : null}
     </section>
   );
 }
@@ -870,7 +870,7 @@ function StatusFilter({ value, onChange, options }) {
             className={`rounded-full px-4 py-2 text-sm font-medium transition ${
               isActive
                 ? "bg-brand-green text-white shadow"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 [[data-theme=dark]_&]:bg-stone-800 [[data-theme=dark]_&]:text-stone-300 [[data-theme=dark]_&]:hover:bg-stone-700"
             }`}
             type="button"
           >
@@ -897,9 +897,9 @@ function ApprovalDialog({ request, busy, error, onClose, onSubmit }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
-      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-stone-900">
-        <h3 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Approve request</h3>
-        <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">
+      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl [[data-theme=dark]_&]:bg-stone-900">
+        <h3 className="text-xl font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Approve request</h3>
+        <p className="mt-2 text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-300">
           Set the loan duration for <span className="font-semibold">{request.book?.title}</span> requested by
           <span className="font-semibold"> {request.user?.name || "student"}</span>.
         </p>
@@ -911,7 +911,7 @@ function ApprovalDialog({ request, busy, error, onClose, onSubmit }) {
           }}
         >
           <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-stone-200">
+            <label className="block text-sm font-semibold text-slate-700 [[data-theme=dark]_&]:text-stone-200">
               Loan duration (days)
             </label>
             <input
@@ -920,21 +920,21 @@ function ApprovalDialog({ request, busy, error, onClose, onSubmit }) {
               max={180}
               value={days}
               onChange={(e) => setDays(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-100"
             />
-            <p className="mt-1 text-xs text-slate-500 dark:text-stone-400">
+            <p className="mt-1 text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">
               Defaults to {request.daysRequested || 28} days if left unchanged.
             </p>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-stone-200">
+            <label className="block text-sm font-semibold text-slate-700 [[data-theme=dark]_&]:text-stone-200">
               Admin note (optional)
             </label>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-100"
             />
           </div>
           {error && (
@@ -944,7 +944,7 @@ function ApprovalDialog({ request, busy, error, onClose, onSubmit }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:hover:bg-stone-800"
             >
               Cancel
             </button>
@@ -975,9 +975,9 @@ function RejectDialog({ request, busy, error, onClose, onSubmit }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
-      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-stone-900">
-        <h3 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Reject request</h3>
-        <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">
+      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl [[data-theme=dark]_&]:bg-stone-900">
+        <h3 className="text-xl font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Reject request</h3>
+        <p className="mt-2 text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-300">
           Optionally share a note with <span className="font-semibold">{request.user?.name || "the student"}</span> explaining why
           the request for <span className="font-semibold">{request.book?.title}</span> was declined.
         </p>
@@ -989,14 +989,14 @@ function RejectDialog({ request, busy, error, onClose, onSubmit }) {
           }}
         >
           <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-stone-200">
+            <label className="block text-sm font-semibold text-slate-700 [[data-theme=dark]_&]:text-stone-200">
               Admin note (optional)
             </label>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={4}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-100"
             />
           </div>
           {error && (
@@ -1006,7 +1006,7 @@ function RejectDialog({ request, busy, error, onClose, onSubmit }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:hover:bg-stone-800"
             >
               Cancel
             </button>
@@ -1041,13 +1041,13 @@ function RenewDialog({ loan, busy, error, onClose, onSubmit }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
-      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-stone-900">
-        <h3 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Renew loan</h3>
-        <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">
+      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl [[data-theme=dark]_&]:bg-stone-900">
+        <h3 className="text-xl font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Renew loan</h3>
+        <p className="mt-2 text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-300">
           Extend the due date for <span className="font-semibold">{loan.title}</span> currently borrowed by
           <span className="font-semibold"> {loan.student || "a student"}</span>.
         </p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-stone-400">Current due date: {existingDue}</p>
+        <p className="mt-1 text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">Current due date: {existingDue}</p>
         <form
           className="mt-6 space-y-4"
           onSubmit={(e) => {
@@ -1056,24 +1056,24 @@ function RenewDialog({ loan, busy, error, onClose, onSubmit }) {
           }}
         >
           <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-stone-200">Extend by (days)</label>
+            <label className="block text-sm font-semibold text-slate-700 [[data-theme=dark]_&]:text-stone-200">Extend by (days)</label>
             <input
               type="number"
               min={1}
               max={180}
               value={days}
               onChange={(e) => setDays(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-100"
             />
-            <p className="mt-1 text-xs text-slate-500 dark:text-stone-400">Provide a custom date below to override the duration.</p>
+            <p className="mt-1 text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">Provide a custom date below to override the duration.</p>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-stone-200">Set exact due date (optional)</label>
+            <label className="block text-sm font-semibold text-slate-700 [[data-theme=dark]_&]:text-stone-200">Set exact due date (optional)</label>
             <input
               type="datetime-local"
               value={dueAt}
               onChange={(e) => setDueAt(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-100"
             />
           </div>
           {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
@@ -1081,7 +1081,7 @@ function RenewDialog({ loan, busy, error, onClose, onSubmit }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:hover:bg-stone-800"
             >
               Cancel
             </button>
@@ -1107,13 +1107,13 @@ function ReturnDialog({ loan, busy, error, onClose, onSubmit }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
-      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-stone-900">
-        <h3 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Mark loan as returned</h3>
-        <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">
+      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl [[data-theme=dark]_&]:bg-stone-900">
+        <h3 className="text-xl font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Mark loan as returned</h3>
+        <p className="mt-2 text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-300">
           Confirm that <span className="font-semibold">{loan.title}</span> borrowed by
           <span className="font-semibold"> {loan.student || "a student"}</span> has been returned.
         </p>
-        <dl className="mt-4 grid grid-cols-1 gap-2 text-sm text-slate-600 dark:text-stone-300 sm:grid-cols-2">
+        <dl className="mt-4 grid grid-cols-1 gap-2 text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-300 sm:grid-cols-2">
           <div>
             <dt className="font-semibold">Borrowed</dt>
             <dd>{borrowedLabel}</dd>
@@ -1128,7 +1128,7 @@ function ReturnDialog({ loan, busy, error, onClose, onSubmit }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-200 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:hover:bg-stone-800"
           >
             Cancel
           </button>
@@ -1153,7 +1153,7 @@ function RefreshButton({ onClick, busy, label = "Refresh" }) {
       onClick={onClick}
       disabled={busy}
       type="button"
-      className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 disabled:opacity-60 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+      className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 disabled:opacity-60 [[data-theme=dark]_&]:bg-stone-800 [[data-theme=dark]_&]:text-stone-300 [[data-theme=dark]_&]:hover:bg-stone-700"
     >
       <svg
         className={`h-4 w-4 ${busy ? "animate-spin" : ""}`}
@@ -1179,7 +1179,7 @@ function SectionPagination({ isEmpty, page, pageCount, showingStart, showingEnd,
   const isNextDisabled = safePageIndex >= safePageCount - 1;
   return (
     <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-      <p className="text-sm text-slate-600 dark:text-stone-400">
+      <p className="text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-400">
         {loading ? "Loading..." : `Showing ${showingStart}-${showingEnd} of ${total} ${noun}${total === 1 ? "" : "s"}`}
       </p>
       <div className="flex items-center gap-2">
@@ -1187,18 +1187,18 @@ function SectionPagination({ isEmpty, page, pageCount, showingStart, showingEnd,
           type="button"
           onClick={onPrev}
           disabled={isPrevDisabled}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:hover:bg-stone-800"
         >
           Prev
         </button>
-        <span className="text-sm text-slate-600 dark:text-stone-400">
+        <span className="text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-400">
           Page {safePageIndex + 1} of {safePageCount}
         </span>
         <button
           type="button"
           onClick={onNext}
           disabled={isNextDisabled}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:hover:bg-stone-800"
         >
           Next
         </button>
@@ -1216,7 +1216,7 @@ function SkeletonList({ count = 3 }) {
   return (
     <div className="space-y-3">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="h-20 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-stone-800" />
+        <div key={i} className="h-20 w-full animate-pulse rounded-2xl bg-slate-100 [[data-theme=dark]_&]:bg-stone-800" />
       ))}
     </div>
   );
@@ -1224,7 +1224,7 @@ function SkeletonList({ count = 3 }) {
 
 function EmptyState({ message }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-400">
+    <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 [[data-theme=dark]_&]:border-stone-800 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-400">
       {message}
     </div>
   );
@@ -1234,12 +1234,12 @@ function RequestCard({ request, onApprove, onReject }) {
   const requestedAt = request.requestedAt ? request.requestedAt.toLocaleString() : "--";
   const isPending = canonicalRequestStatus(request) === "pending";
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4 dark:border-stone-800">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4 [[data-theme=dark]_&]:border-stone-800">
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-slate-900 dark:text-stone-100">
+        <p className="truncate text-sm font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">
           {request.book?.title || "Untitled"}
         </p>
-        <p className="truncate text-sm text-slate-600 dark:text-stone-300">
+        <p className="truncate text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-300">
           {request.user?.name || "Student"} • {requestedAt}
         </p>
       </div>
@@ -1248,7 +1248,7 @@ function RequestCard({ request, onApprove, onReject }) {
           <button
             onClick={onReject}
             type="button"
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:hover:bg-stone-800"
           >
             Reject
           </button>
@@ -1267,7 +1267,7 @@ function RequestCard({ request, onApprove, onReject }) {
 
 function TableHead({ children, align = "left" }) {
   return (
-    <th className={`px-6 py-3 text-${align} text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-stone-400`}>
+    <th className={`px-6 py-3 text-${align} text-xs font-semibold uppercase tracking-wide text-slate-500 [[data-theme=dark]_&]:text-stone-400`}>
       {children}
     </th>
   );
@@ -1276,7 +1276,7 @@ function TableHead({ children, align = "left" }) {
 function TableMessage({ colSpan = 1, children }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-6 py-6 text-center text-slate-500 dark:text-stone-400">
+      <td colSpan={colSpan} className="px-6 py-6 text-center text-slate-500 [[data-theme=dark]_&]:text-stone-400">
         {children}
       </td>
     </tr>
@@ -1288,30 +1288,30 @@ function ActiveLoanRow({ loan, onRenew, onReturn }) {
     <tr>
       <td className="px-6 py-4">
         <div className="flex flex-col">
-          <span className="font-medium text-slate-900 dark:text-stone-100">{loan.title || "Untitled"}</span>
-          {loan.bookCode ? <span className="text-xs text-slate-500 dark:text-stone-400">{loan.bookCode}</span> : null}
+          <span className="font-medium text-slate-900 [[data-theme=dark]_&]:text-stone-100">{loan.title || "Untitled"}</span>
+          {loan.bookCode ? <span className="text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">{loan.bookCode}</span> : null}
         </div>
       </td>
       <td className="px-6 py-4">
         <div className="flex flex-col">
-          <span className="text-sm font-medium text-slate-600 dark:text-stone-200">
+          <span className="text-sm font-medium text-slate-600 [[data-theme=dark]_&]:text-stone-200">
             {loan.borrowerName || loan.student || "Unknown"}
           </span>
           {loan.borrowerStudentId ? (
-            <span className="text-xs text-slate-500 dark:text-stone-400">{loan.borrowerStudentId}</span>
+            <span className="text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">{loan.borrowerStudentId}</span>
           ) : null}
         </div>
       </td>
-      <td className="px-6 py-4 text-slate-500 dark:text-stone-400">
+      <td className="px-6 py-4 text-slate-500 [[data-theme=dark]_&]:text-stone-400">
         {loan.borrowedAt ? loan.borrowedAt.toLocaleDateString() : "--"}
       </td>
-      <td className="px-6 py-4 text-slate-500 dark:text-stone-400">{loan.dueAt ? loan.dueAt.toLocaleDateString() : "--"}</td>
+      <td className="px-6 py-4 text-slate-500 [[data-theme=dark]_&]:text-stone-400">{loan.dueAt ? loan.dueAt.toLocaleDateString() : "--"}</td>
       <td className="px-6 py-4">
         <span
           className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
             loan.status === "Overdue"
-              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200"
-              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
+              ? "bg-red-100 text-red-700 [[data-theme=dark]_&]:bg-red-900/30 [[data-theme=dark]_&]:text-red-200"
+              : "bg-emerald-100 text-emerald-700 [[data-theme=dark]_&]:bg-emerald-900/30 [[data-theme=dark]_&]:text-emerald-200"
           }`}
         >
           {loan.status}
@@ -1321,14 +1321,14 @@ function ActiveLoanRow({ loan, onRenew, onReturn }) {
         <button
           onClick={onRenew}
           type="button"
-          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:hover:bg-stone-800"
         >
           Renew
         </button>
         <button
           onClick={onReturn}
           type="button"
-          className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+          className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:hover:bg-stone-800"
         >
           Mark returned
         </button>

@@ -446,7 +446,7 @@ const StudentCatalog = () => {
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 font-medium transition hover:border-brand-green hover:text-brand-green"
               >
                 {chip.label}
-                <span aria-hidden="true">Ã—</span>
+                <span aria-hidden="true">{'\u00d7'}</span>
               </button>
             ))}
           </div>
@@ -455,7 +455,7 @@ const StudentCatalog = () => {
         <div className="mt-6 flex flex-col gap-2 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
           <div>
             {showSkeleton
-              ? "Fetching resultsâ€¦"
+              ? "Fetching results\u2026"
               : `Showing ${totalToShow} ${baseLabel}${filterLabel}`}
           </div>
           {!showSkeleton && lastUpdated && (

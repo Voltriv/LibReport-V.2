@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useState } from "react"
 import { NavLink } from "react-router-dom";
 import logo from "../assets/fav_logo.png";
 import api, { getStoredUser } from "../api";
+import ThemeToggle from "./ThemeToggle";
 
 const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -74,7 +75,7 @@ const Sidebar = () => {
   const sidebarTranslate = isOpen ? "translate-x-0" : "-translate-x-full";
   const desktopTranslate = isDesktopCollapsed ? "md:-translate-x-full" : "md:translate-x-0";
   const toggleButtonClassName = [
-    "fixed top-3 left-3 z-50 inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 shadow transition",
+    "fixed top-3 left-3 z-50 inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/90 [[data-theme=dark]_&]:bg-stone-900/80 ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 shadow transition",
     isDesktopCollapsed ? "md:inline-flex" : "md:hidden",
   ].join(" ");
 
@@ -106,7 +107,7 @@ const Sidebar = () => {
         aria-label={toggleButtonLabel}
         aria-expanded={isDesktopCollapsed ? false : isOpen}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-slate-700 dark:text-stone-200">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-slate-700 [[data-theme=dark]_&]:text-stone-200">
           <path fillRule="evenodd" d="M3.75 5.25a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75zm0 6a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75zm0 6a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75z" clipRule="evenodd" />
         </svg>
       </button>
@@ -193,7 +194,8 @@ const Sidebar = () => {
           </div>
         </nav>
 
-        <div className="border-t border-white/10 px-6 py-5 text-xs text-white/80">
+        <div className="border-t border-white/10 px-6 py-5 text-xs text-white/80 space-y-4">
+          <ThemeToggle variant="sidebar" className="w-full justify-between" />
           <div className="flex items-center justify-between text-white">
             <span className="font-semibold uppercase tracking-wider text-[0.65rem] text-white/70">
               System Status

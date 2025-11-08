@@ -197,7 +197,7 @@ const StudentSignIn = () => {
               {highlights.map((item) => (
                 <div
                   key={item.title}
-                  className="interactive-card flex gap-3 rounded-2xl border border-slate-100 dark:border-stone-800 p-3"
+                  className="interactive-card flex gap-3 rounded-2xl border border-slate-100 [[data-theme=dark]_&]:border-stone-800 p-3"
                 >
                   <span className="student-check-icon">✓</span>
                   <div>

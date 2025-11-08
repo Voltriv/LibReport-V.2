@@ -139,15 +139,15 @@ const Dashboard = () => {
         <section className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-stone-100">Weekly Usage</h3>
-              <p className="text-slate-600 dark:text-stone-400 mt-1">Library visits over the past week</p>
+              <h3 className="text-2xl font-bold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Weekly Usage</h3>
+              <p className="text-slate-600 [[data-theme=dark]_&]:text-stone-400 mt-1">Library visits over the past week</p>
             </div>
-            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-stone-400">
+            <div className="flex items-center gap-2 text-sm text-slate-500 [[data-theme=dark]_&]:text-stone-400">
               <div className="h-3 w-3 rounded-full bg-brand-green"></div>
               <span>Library Visits</span>
             </div>
           </div>
-          <div className="rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
+          <div className="rounded-2xl theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 p-6 shadow-lg">
             <ResponsiveContainer width="100%" height={350}>
               <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -188,7 +188,7 @@ const Dashboard = () => {
         {/* Bottom Section */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* Quick Reports Card */}
-          <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 ring-1 ring-amber-200 dark:ring-amber-800 p-6 hover:shadow-xl transition-all duration-300">
+          <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 [[data-theme=dark]_&]:from-amber-900/20 [[data-theme=dark]_&]:to-amber-800/20 ring-1 ring-amber-200 [[data-theme=dark]_&]:ring-amber-800 p-6 hover:shadow-xl transition-all duration-300">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-amber-500 flex items-center justify-center">
@@ -197,12 +197,12 @@ const Dashboard = () => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100">Quick Reports</h3>
-                  <p className="text-sm text-amber-600 dark:text-amber-400">Generate comprehensive reports</p>
+                  <h3 className="text-lg font-bold text-amber-900 [[data-theme=dark]_&]:text-amber-100">Quick Reports</h3>
+                  <p className="text-sm text-amber-600 [[data-theme=dark]_&]:text-amber-400">Generate comprehensive reports</p>
                 </div>
               </div>
             </div>
-            <p className="text-sm text-amber-700 dark:text-amber-300 mb-4">Create detailed reports for library usage, overdue books, and user activity.</p>
+            <p className="text-sm text-amber-700 [[data-theme=dark]_&]:text-amber-300 mb-4">Create detailed reports for library usage, overdue books, and user activity.</p>
             <button 
               className="inline-flex items-center gap-2 rounded-xl bg-amber-500 text-white font-medium px-4 py-2 hover:bg-amber-600 transition-colors duration-200 group-hover:scale-105 transform" 
               onClick={() => setShowReport(true)}
@@ -230,14 +230,14 @@ const Dashboard = () => {
               {topBooks.slice(0, 5).map((b, index) => (
                 <div
                   key={b.bookId || b.title}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-stone-800 hover:bg-slate-100 dark:hover:bg-stone-700 transition-colors duration-200"
+                  className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 [[data-theme=dark]_&]:bg-stone-800 hover:bg-slate-100 [[data-theme=dark]_&]:hover:bg-stone-700 transition-colors duration-200"
                 >
                   <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-brand-green/10 flex items-center justify-center">
                     <span className="text-sm font-bold text-brand-green">#{index + 1}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 dark:text-stone-100 truncate">{b.title}</p>
-                    <p className="text-xs text-slate-500 dark:text-stone-400">by {b.author}</p>
+                    <p className="text-sm font-medium text-slate-900 [[data-theme=dark]_&]:text-stone-100 truncate">{b.title}</p>
+                    <p className="text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">by {b.author}</p>
                   </div>
                   <div className="flex-shrink-0">
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-brand-green/10 text-brand-green">
@@ -268,25 +268,25 @@ const Dashboard = () => {
                   return (
                     <div
                       key={b.userId || `borrower-${index}`}
-                      className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-stone-800 hover:bg-slate-100 dark:hover:bg-stone-700 transition-colors duration-200"
+                      className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 [[data-theme=dark]_&]:bg-stone-800 hover:bg-slate-100 [[data-theme=dark]_&]:hover:bg-stone-700 transition-colors duration-200"
                     >
-                      <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
-                        <span className="text-sm font-bold text-indigo-600 dark:text-indigo-200">#{index + 1}</span>
+                      <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-indigo-50 [[data-theme=dark]_&]:bg-indigo-900/30 flex items-center justify-center">
+                        <span className="text-sm font-bold text-indigo-600 [[data-theme=dark]_&]:text-indigo-200">#{index + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 dark:text-stone-100 truncate">{b.fullName}</p>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-stone-400">
+                        <p className="text-sm font-medium text-slate-900 [[data-theme=dark]_&]:text-stone-100 truncate">{b.fullName}</p>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                           <span>{numberFormatter.format(b.borrows || 0)} loans</span>
                           <span>Active {numberFormatter.format(b.activeLoans || 0)}</span>
                           {b.overdueLoans ? (
-                            <span className="text-red-500 dark:text-red-400">
+                            <span className="text-red-500 [[data-theme=dark]_&]:text-red-400">
                               {numberFormatter.format(b.overdueLoans)} overdue
                             </span>
                           ) : null}
                         </div>
                       </div>
                       <div className="flex-shrink-0">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 [[data-theme=dark]_&]:bg-indigo-900/30 text-indigo-700 [[data-theme=dark]_&]:text-indigo-200">
                           {shareValue.toFixed(1)}%
                         </span>
                       </div>
@@ -294,7 +294,7 @@ const Dashboard = () => {
                   );
                 })
               ) : (
-                <div className="rounded-xl bg-slate-50 dark:bg-stone-800 p-4 text-sm text-slate-500 dark:text-stone-400">
+                <div className="rounded-xl bg-slate-50 [[data-theme=dark]_&]:bg-stone-800 p-4 text-sm text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                   No borrower data yet. Approve more loans to see top patrons here.
                 </div>
               )}

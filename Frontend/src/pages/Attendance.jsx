@@ -13,14 +13,12 @@ const AUTO_REFRESH_INTERVAL = 60000;
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
 
 const STATUS_CLASSES = {
-  Active: "bg-emerald-600",
-  Exited: "bg-indigo-600"
+  Active: "bg-emerald-600"
 };
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All" },
-  { value: "Active", label: "Active" },
-  { value: "Exited", label: "Exited" }
+  { value: "Active", label: "Present" }
 ];
 
 const createDefaultStats = () => ({
@@ -78,16 +76,14 @@ function beep() {
 
 function mapLogRow(row, index) {
   const enteredLabel = formatDate(row.enteredAt || row.borrowedAt);
-  const exitedLabel = row.exitedAt ? formatDate(row.exitedAt) : row.returnedAt ? formatDate(row.returnedAt) : null;
   const branch = row.branch || row.material || "Main";
   const visitor = row.name || row.user || row.studentId || row.barcode || `Visitor ${index + 1}`;
-  const status = row.exitedAt || row.returnedAt ? "Exited" : row.status === "Returned" ? "Exited" : "Active";
 
   return {
     id: row.id || row.visitId || row.studentId || `log-${index}`,
-    status,
+    status: "Active",
     borrowedAtLabel: enteredLabel,
-    dueAtLabel: exitedLabel ? `Exited ${exitedLabel}` : "Still inside",
+    dueAtLabel: `Entered ${enteredLabel}`,
     material: branch,
     user: visitor
   };
@@ -95,14 +91,12 @@ function mapLogRow(row, index) {
 
 function mapRecentVisit(row, index) {
   const enteredLabel = formatDate(row.enteredAt);
-  const exitedLabel = row.exitedAt ? formatDate(row.exitedAt) : null;
   return {
     id: row.studentId || row.barcode || `visit-${index}`,
     name: row.name || row.studentId || row.barcode || "Unknown visitor",
     branch: row.branch || "Main",
     enteredAt: enteredLabel,
-    exitedAt: exitedLabel,
-    isActive: !row.exitedAt
+    isActive: true
   };
 }
 
@@ -266,14 +260,7 @@ const Attendance = () => {
   }, [logs, searchTerm, statusFilter]);
 
   const statusCounts = useMemo(() => {
-    return logs.reduce(
-      (acc, log) => {
-        const key = log.status === "Active" || log.status === "Exited" ? log.status : "Exited";
-        acc[key] = (acc[key] || 0) + 1;
-        return acc;
-      },
-      { Active: 0, Exited: 0 }
-    );
+    return { Active: logs.length };
   }, [logs]);
 
   const pagination = usePagination(filteredLogs, pageSize);
@@ -308,7 +295,7 @@ const Attendance = () => {
 
 
   const handleManualSubmit = useCallback(
-    async (type) => {
+    async () => {
       setManualTouched(true);
       const payload = toVisitPayload(manualInput);
       if (!payload) {
@@ -320,21 +307,13 @@ const Attendance = () => {
       setManualMessage("");
       try {
         const timestamp = new Date();
-        if (type === "enter") {
-          const { data } = await api.post("/visit/enter", payload);
-          setManualMessage(`Entered: ${data?.user?.fullName || payload.studentId}`);
-          beep();
-        } else {
-          const { data } = await api.post("/visit/exit", payload);
-          setManualMessage(
-            data?.exitedAt ? `Exited at ${new Date(data.exitedAt).toLocaleTimeString()}` : "Exit recorded."
-          );
-          beep();
-        }
+        const { data } = await api.post("/visit/enter", payload);
+        setManualMessage(`Entered: ${data?.user?.fullName || payload.studentId}`);
+        beep();
         const manualLog = mapLogRow({
           id: `manual-${Date.now()}`,
           enteredAt: timestamp.toISOString(),
-          exitedAt: type === "exit" ? timestamp.toISOString() : null,
+          exitedAt: null,
           material: "Manual Entry",
           name: payload.studentId
         });
@@ -343,7 +322,7 @@ const Attendance = () => {
         refreshRecentVisits();
         refreshLogs();
       } catch (err) {
-        const fallback = type === "enter" ? "Enter failed" : "Exit failed";
+        const fallback = "Enter failed";
         setManualMessage(err?.response?.data?.error || fallback);
       } finally {
         setManualBusy(false);
@@ -387,7 +366,7 @@ const Attendance = () => {
       <button
         type="button"
         onClick={handleRefreshAll}
-        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 [[data-theme=dark]_&]:bg-stone-800 text-slate-700 [[data-theme=dark]_&]:text-stone-300 px-4 py-2 hover:bg-slate-200 [[data-theme=dark]_&]:hover:bg-stone-700 transition-colors duration-200"
       >
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -401,7 +380,7 @@ const Attendance = () => {
       </button>
       <Link
         to="/tracker"
-        className="inline-flex items-center gap-2 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-stone-200 hover:bg-white dark:hover:bg-stone-900 transition-colors duration-200"
+        className="inline-flex items-center gap-2 rounded-xl bg-white/90 [[data-theme=dark]_&]:bg-stone-900/80 ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 px-4 py-2 text-sm font-medium text-slate-600 [[data-theme=dark]_&]:text-stone-200 hover:bg-white [[data-theme=dark]_&]:hover:bg-stone-900 transition-colors duration-200"
       >
         Back to Tracker
       </Link>
@@ -417,7 +396,7 @@ const Attendance = () => {
     >
 
         {statsError && (
-          <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+          <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700 [[data-theme=dark]_&]:border-amber-500/40 [[data-theme=dark]_&]:bg-amber-500/10 [[data-theme=dark]_&]:text-amber-300">
             {statsError}
           </div>
         )}
@@ -426,18 +405,18 @@ const Attendance = () => {
           <section id="attendance-history" className={`${surfacePanelClass} p-6`}>
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-4">
               <div>
-                <h2 className="text-xl font-semibold text-slate-900 dark:text-stone-100">Attendance</h2>
-                <p className="text-sm text-slate-600 dark:text-stone-400">
+                <h2 className="text-xl font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Attendance</h2>
+                <p className="text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-400">
                   {logsRangeDescription || "Recorded student attendance for the selected range"}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <label className="text-xs font-medium text-slate-600 dark:text-stone-300">
+                <label className="text-xs font-medium text-slate-600 [[data-theme=dark]_&]:text-stone-300">
                   Last
                   <select
                     value={logsDays}
                     onChange={(event) => setLogsDays(Number(event.target.value) || 30)}
-                    className="ml-2 rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                    className="ml-2 rounded-lg border border-slate-300 [[data-theme=dark]_&]:border-stone-600 theme-panel px-2 py-1 text-xs text-slate-700 [[data-theme=dark]_&]:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
                   >
                     <option value={7}>7 days</option>
                     <option value={30}>30 days</option>
@@ -445,12 +424,12 @@ const Attendance = () => {
                     <option value={180}>180 days</option>
                   </select>
                 </label>
-                <label className="text-xs font-medium text-slate-600 dark:text-stone-300">
+                <label className="text-xs font-medium text-slate-600 [[data-theme=dark]_&]:text-stone-300">
                   Rows per page
                   <select
                     value={pageSize}
                     onChange={(event) => setPageSize(Number(event.target.value) || PAGE_SIZE_DEFAULT)}
-                    className="ml-2 rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                    className="ml-2 rounded-lg border border-slate-300 [[data-theme=dark]_&]:border-stone-600 theme-panel px-2 py-1 text-xs text-slate-700 [[data-theme=dark]_&]:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
                   >
                     <option value={10}>10</option>
                     <option value={15}>15</option>
@@ -473,12 +452,12 @@ const Attendance = () => {
                     className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold transition ${
                       isActive
                         ? "bg-slate-900 text-white shadow"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 [[data-theme=dark]_&]:bg-stone-800 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:hover:bg-stone-700"
                     }`}
                     onClick={() => setStatusFilter(option.value)}
                   >
                     {option.label}
-                    <span className="inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-full bg-white/80 px-2 text-[0.7rem] text-slate-700 dark:bg-stone-900/70 dark:text-stone-200">
+                    <span className="inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-full bg-white/80 px-2 text-[0.7rem] text-slate-700 [[data-theme=dark]_&]:bg-stone-900/70 [[data-theme=dark]_&]:text-stone-200">
                       {displayCount}
                     </span>
                   </button>
@@ -489,7 +468,7 @@ const Attendance = () => {
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Search visitor or branch"
-                  className="w-full rounded-xl border border-slate-200 dark:border-stone-600 theme-panel px-4 py-2 text-sm text-slate-700 dark:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                  className="w-full rounded-xl border border-slate-200 [[data-theme=dark]_&]:border-stone-600 theme-panel px-4 py-2 text-sm text-slate-700 [[data-theme=dark]_&]:text-stone-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-green"
                 />
                 <svg
                   className="absolute inset-y-0 right-3 my-auto h-4 w-4 text-slate-400"
@@ -504,7 +483,7 @@ const Attendance = () => {
                 type="button"
                 onClick={handleExport}
                 disabled={!filteredLogs.length}
-                className="inline-flex w-full justify-center md:w-auto items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                className="inline-flex w-full justify-center md:w-auto items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:ring-stone-700 [[data-theme=dark]_&]:hover:bg-stone-800"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -513,7 +492,7 @@ const Attendance = () => {
               </button>
             </div>
             {logsError && (
-              <div className="mb-4 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300">
+              <div className="mb-4 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 [[data-theme=dark]_&]:border-rose-500/40 [[data-theme=dark]_&]:bg-rose-500/10 [[data-theme=dark]_&]:text-rose-300">
                 {logsError}
               </div>
             )}
@@ -521,28 +500,28 @@ const Attendance = () => {
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="text-left text-slate-600 dark:text-stone-300">
+                  <tr className="text-left text-slate-600 [[data-theme=dark]_&]:text-stone-300">
                     <th className="py-2 pr-4">Status</th>
                     <th className="py-2 pr-4">Entered At</th>
-                    <th className="py-2 pr-4">Exit / Update</th>
+                    <th className="py-2 pr-4">Entry Note</th>
                     <th className="py-2 pr-4">Location</th>
                     <th className="py-2 pr-4">Visitor</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-stone-700">
+                <tbody className="divide-y divide-slate-200 [[data-theme=dark]_&]:divide-stone-700">
                   {logsLoading ? (
                     <tr>
-                      <td colSpan={5} className="py-6 text-center text-slate-500 dark:text-stone-400">
+                      <td colSpan={5} className="py-6 text-center text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                         Loading attendance logs...
                       </td>
                     </tr>
                   ) : pagedLogs.length > 0 ? (
                     pagedLogs.map((log) => (
-                      <tr key={log.id} className="text-slate-800 dark:text-stone-100 transition hover:bg-slate-50/60 dark:hover:bg-stone-800/60">
+                      <tr key={log.id} className="text-slate-800 [[data-theme=dark]_&]:text-stone-100 transition hover:bg-slate-50/60 [[data-theme=dark]_&]:hover:bg-stone-800/60">
                         <td className="py-3 pr-4">
                           <span
                             className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold text-white ${
-                              STATUS_CLASSES[log.status] || "bg-indigo-600"
+                              STATUS_CLASSES[log.status] || "bg-emerald-600"
                             }`}
                           >
                             {log.status}
@@ -556,7 +535,7 @@ const Attendance = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="py-6 text-center text-slate-500 dark:text-stone-400">
+                      <td colSpan={5} className="py-6 text-center text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                         No history logs available for the selected filters.
                       </td>
                     </tr>
@@ -565,7 +544,7 @@ const Attendance = () => {
               </table>
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-stone-700 dark:text-stone-400 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-3 text-xs text-slate-500 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-400 sm:flex-row sm:items-center sm:justify-between">
               <span>
                 {totalItems === 0
                   ? "No logs to display"
@@ -573,12 +552,12 @@ const Attendance = () => {
                       totalItems === 1 ? "entry" : "entries"
                     }`}
               </span>
-              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-stone-300">
+              <div className="flex items-center gap-2 text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-300">
                 <button
                   type="button"
                   onClick={prevPage}
                   disabled={isFirstPage || totalItems === 0}
-                  className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                  className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:ring-stone-700 [[data-theme=dark]_&]:hover:bg-stone-800"
                 >
                   Prev
                 </button>
@@ -589,7 +568,7 @@ const Attendance = () => {
                   type="button"
                   onClick={nextPage}
                   disabled={isLastPage || totalItems === 0}
-                  className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                  className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:ring-stone-700 [[data-theme=dark]_&]:hover:bg-stone-800"
                 >
                   Next
                 </button>
@@ -606,14 +585,14 @@ const Attendance = () => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Manual Entry</h3>
-                  <p className="text-sm text-slate-600 dark:text-stone-400">Record visits without scanning</p>
+                  <h3 className="text-lg font-bold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Manual Entry</h3>
+                  <p className="text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-400">Record visits without scanning</p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 [[data-theme=dark]_&]:text-stone-300 mb-2">
                     Student ID
                   </label>
                   <input
@@ -626,7 +605,7 @@ const Attendance = () => {
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
-                        handleManualSubmit("enter");
+                        handleManualSubmit();
                       }
                     }}
                     inputMode="numeric"
@@ -635,7 +614,7 @@ const Attendance = () => {
                     aria-invalid={manualInputError ? "true" : "false"}
                     aria-describedby={manualInputError ? manualInputHelpId : undefined}
                     data-error={manualInputError ? "true" : "false"}
-                    className={inputClass("theme-panel text-slate-900 dark:text-stone-100 placeholder-slate-400 font-mono")}
+                    className={inputClass("theme-panel text-slate-900 [[data-theme=dark]_&]:text-stone-100 placeholder-slate-400 font-mono")}
                   />
                   {manualInputError ? (
                     <p id={manualInputHelpId} className="input-feedback error">
@@ -650,27 +629,17 @@ const Attendance = () => {
                   <button
                     className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200 font-medium"
                     disabled={manualBusy || manualInputInvalid}
-                    onClick={() => handleManualSubmit("enter")}
+                    onClick={handleManualSubmit}
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                     Enter Library
                   </button>
-                  <button
-                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200 font-medium"
-                    disabled={manualBusy || manualInputInvalid}
-                    onClick={() => handleManualSubmit("exit")}
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Exit Library
-                  </button>
                 </div>
               </div>
               {manualMessage && (
-                <div className="mt-4 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-stone-800 dark:text-stone-200">
+                <div className="mt-4 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 [[data-theme=dark]_&]:bg-stone-800 [[data-theme=dark]_&]:text-stone-200">
                   {manualMessage}
                 </div>
               )}
@@ -685,7 +654,7 @@ const Attendance = () => {
                   <select
                     value={recentMinutes}
                     onChange={(event) => setRecentMinutes(Number(event.target.value) || 60)}
-                    className="rounded-lg border border-slate-300 dark:border-stone-600 theme-panel px-2 py-1 text-xs text-slate-700 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
+                    className="rounded-lg border border-slate-300 [[data-theme=dark]_&]:border-stone-600 theme-panel px-2 py-1 text-xs text-slate-700 [[data-theme=dark]_&]:text-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-green"
                   >
                     <option value={60}>60 min</option>
                     <option value={120}>2 hours</option>
@@ -695,7 +664,7 @@ const Attendance = () => {
                   <button
                     type="button"
                     onClick={refreshRecentVisits}
-                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-100 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-100 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:ring-stone-700 [[data-theme=dark]_&]:hover:bg-stone-800"
                   >
                     Refresh
                   </button>
@@ -703,35 +672,28 @@ const Attendance = () => {
               }
             >
               {recentError && (
-                <div className="mb-4 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300">
+                <div className="mb-4 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 [[data-theme=dark]_&]:border-rose-500/40 [[data-theme=dark]_&]:bg-rose-500/10 [[data-theme=dark]_&]:text-rose-300">
                   {recentError}
                 </div>
               )}
 
-              <ul className="divide-y divide-slate-200 dark:divide-stone-700 text-sm">
+              <ul className="divide-y divide-slate-200 [[data-theme=dark]_&]:divide-stone-700 text-sm">
                 {recentLoading ? (
-                  <li className="py-4 text-slate-500 dark:text-stone-400">Loading recent visits…</li>
+                  <li className="py-4 text-slate-500 [[data-theme=dark]_&]:text-stone-400">Loading recent visits…</li>
                 ) : recentVisits.length === 0 ? (
-                  <li className="py-4 text-slate-500 dark:text-stone-400">No visits recorded for the selected window.</li>
+                  <li className="py-4 text-slate-500 [[data-theme=dark]_&]:text-stone-400">No visits recorded for the selected window.</li>
                 ) : (
                   recentVisits.map((visit) => (
                     <li key={visit.id} className="py-3 flex flex-col gap-1">
-                      <div className="flex items-center justify-between text-slate-800 dark:text-stone-100">
+                      <div className="flex items-center justify-between text-slate-800 [[data-theme=dark]_&]:text-stone-100">
                         <span className="font-semibold">{visit.name}</span>
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold ${
-                            visit.isActive
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
-                              : "bg-slate-100 text-slate-600 dark:bg-stone-800 dark:text-stone-300"
-                          }`}
-                        >
-                          {visit.isActive ? "Active" : "Exited"}
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold bg-emerald-100 text-emerald-700 [[data-theme=dark]_&]:bg-emerald-500/10 [[data-theme=dark]_&]:text-emerald-200">
+                          Present
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-3 text-xs text-slate-500 dark:text-stone-300">
+                      <div className="flex flex-wrap gap-3 text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-300">
                         <span>Entered {visit.enteredAt}</span>
                         <span>Branch: {visit.branch}</span>
-                        {visit.exitedAt && <span>Exited {visit.exitedAt}</span>}
                       </div>
                     </li>
                   ))

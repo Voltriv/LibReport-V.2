@@ -1,4 +1,4 @@
-﻿/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
+/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useCallback, useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import CollapsibleSection from "../components/CollapsibleSection";
@@ -265,13 +265,13 @@ const Tracker = () => {
     rangeLabel ? `${rangeLabel}: ${formatNumber(stats.inbound.range)}` : null
   ]
     .filter(Boolean)
-    .join(' ΓÇó ');
+    .join(' \u2022 ');
   const outboundSubtitle = [
     `Today: ${formatNumber(stats.outbound.today)}`,
     rangeLabel ? `${rangeLabel}: ${formatNumber(stats.outbound.range)}` : null
   ]
     .filter(Boolean)
-    .join(' ΓÇó ');
+    .join(' \u2022 ');
   const logsPageCount = Math.max(1, Math.ceil((logs.length || 0) / PAGE_SIZE));
   const safeLogsPage = Math.min(Math.max(logsPage, 1), logsPageCount);
   const logsStartIndex = (safeLogsPage - 1) * PAGE_SIZE;
@@ -331,13 +331,13 @@ const Tracker = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Tracker</h1>
-            <p className="text-slate-600 dark:text-stone-400 mt-1">Monitor library visits and user activity</p>
+            <h1 className="text-3xl font-bold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Tracker</h1>
+            <p className="text-slate-600 [[data-theme=dark]_&]:text-stone-400 mt-1">Monitor library visits and user activity</p>
           </div>
           <div className="flex items-center gap-4">
             <button 
               onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 [[data-theme=dark]_&]:bg-stone-800 text-slate-700 [[data-theme=dark]_&]:text-stone-300 px-4 py-2 hover:bg-slate-200 [[data-theme=dark]_&]:hover:bg-stone-700 transition-colors duration-200"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -345,16 +345,16 @@ const Tracker = () => {
               Refresh
             </button>
             <div className="relative">
-              <button onClick={() => setShowDropdown(!showDropdown)} className="inline-flex items-center gap-3 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200">
+              <button onClick={() => setShowDropdown(!showDropdown)} className="inline-flex items-center gap-3 rounded-xl bg-white/90 [[data-theme=dark]_&]:bg-stone-900/80 ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200">
                 <img src={profileImage} alt="Profile" className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20" />
-                <span className="text-sm font-medium text-slate-700 dark:text-stone-200 max-w-[12rem] truncate" title={userName}>{userName}</span>
+                <span className="text-sm font-medium text-slate-700 [[data-theme=dark]_&]:text-stone-200 max-w-[12rem] truncate" title={userName}>{userName}</span>
                 <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {showDropdown && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
-                  <button className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2" onClick={() => setShowLogoutModal(true)}>
+                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 shadow-xl p-2 z-50">
+                  <button className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 [[data-theme=dark]_&]:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2" onClick={() => setShowLogoutModal(true)}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
@@ -373,32 +373,32 @@ const Tracker = () => {
               key={c.label}
               to={c.to || '/attendance'}
               className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${
-              c.color === 'blue' ? 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800' :
-              c.color === 'green' ? 'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800' :
-              c.color === 'red' ? 'from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 ring-1 ring-red-200 dark:ring-red-800' :
-              'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 ring-1 ring-purple-200 dark:ring-purple-800'
+              c.color === 'blue' ? 'from-blue-50 to-blue-100 [[data-theme=dark]_&]:from-blue-900/20 [[data-theme=dark]_&]:to-blue-800/20 ring-1 ring-blue-200 [[data-theme=dark]_&]:ring-blue-800' :
+              c.color === 'green' ? 'from-green-50 to-green-100 [[data-theme=dark]_&]:from-green-900/20 [[data-theme=dark]_&]:to-green-800/20 ring-1 ring-green-200 [[data-theme=dark]_&]:ring-green-800' :
+              c.color === 'red' ? 'from-red-50 to-red-100 [[data-theme=dark]_&]:from-red-900/20 [[data-theme=dark]_&]:to-red-800/20 ring-1 ring-red-200 [[data-theme=dark]_&]:ring-red-800' :
+              'from-purple-50 to-purple-100 [[data-theme=dark]_&]:from-purple-900/20 [[data-theme=dark]_&]:to-purple-800/20 ring-1 ring-purple-200 [[data-theme=dark]_&]:ring-purple-800'
             } p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-400`}
             >
               <div className="flex items-center justify-between">
                 <div>
                   <p className={`text-sm font-medium ${
-                    c.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
-                    c.color === 'green' ? 'text-green-600 dark:text-green-400' :
-                    c.color === 'red' ? 'text-red-600 dark:text-red-400' :
-                    'text-purple-600 dark:text-purple-400'
+                    c.color === 'blue' ? 'text-blue-600 [[data-theme=dark]_&]:text-blue-400' :
+                    c.color === 'green' ? 'text-green-600 [[data-theme=dark]_&]:text-green-400' :
+                    c.color === 'red' ? 'text-red-600 [[data-theme=dark]_&]:text-red-400' :
+                    'text-purple-600 [[data-theme=dark]_&]:text-purple-400'
                   }`}>{c.label}</p>
                   <p className={`mt-2 text-3xl font-bold ${
-                    c.color === 'blue' ? 'text-blue-900 dark:text-blue-100' :
-                    c.color === 'green' ? 'text-green-900 dark:text-green-100' :
-                    c.color === 'red' ? 'text-red-900 dark:text-red-100' :
-                    'text-purple-900 dark:text-purple-100'
+                    c.color === 'blue' ? 'text-blue-900 [[data-theme=dark]_&]:text-blue-100' :
+                    c.color === 'green' ? 'text-green-900 [[data-theme=dark]_&]:text-green-100' :
+                    c.color === 'red' ? 'text-red-900 [[data-theme=dark]_&]:text-red-100' :
+                    'text-purple-900 [[data-theme=dark]_&]:text-purple-100'
                   }`}>{formatNumber(c.value)}</p>
                   {c.subtitle && (
                     <p className={`text-xs mt-1 ${
-                      c.color === 'blue' ? 'text-blue-500 dark:text-blue-300' :
-                      c.color === 'green' ? 'text-green-500 dark:text-green-300' :
-                      c.color === 'red' ? 'text-red-500 dark:text-red-300' :
-                      'text-purple-500 dark:text-purple-300'
+                      c.color === 'blue' ? 'text-blue-500 [[data-theme=dark]_&]:text-blue-300' :
+                      c.color === 'green' ? 'text-green-500 [[data-theme=dark]_&]:text-green-300' :
+                      c.color === 'red' ? 'text-red-500 [[data-theme=dark]_&]:text-red-300' :
+                      'text-purple-500 [[data-theme=dark]_&]:text-purple-300'
                     }`}>{c.subtitle}</p>
                   )}
                 </div>
@@ -415,7 +415,7 @@ const Tracker = () => {
           ))}
         </section>
         {(rangeSinceLabel || startOfDayLabel) && (
-          <p className="text-xs text-slate-500 dark:text-stone-400 mb-5">
+          <p className="text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400 mb-5">
             {rangeLabel ? `${rangeLabel} window since ${rangeSinceLabel || 'recently'}. ` : ''}
             {startOfDayLabel ? `Daily counts reset at midnight (${startOfDayLabel}).` : ''}
           </p>
@@ -423,7 +423,7 @@ const Tracker = () => {
 
         {staffingHasInsights && (
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
-            <div className="rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
+            <div className="rounded-2xl theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 p-6 shadow-lg">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-emerald-500 flex items-center justify-center">
                   <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -431,68 +431,68 @@ const Tracker = () => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Staffing Planner</h3>
-                  <p className="text-sm text-slate-600 dark:text-stone-400">
+                  <h3 className="text-lg font-bold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Staffing Planner</h3>
+                  <p className="text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-400">
                     Rolling {formatNumber(staffing.lookbackDays || 7)}-day window
                     {staffingWindowLabel ? ` starting ${staffingWindowLabel}` : ''}
                   </p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
-                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-300 uppercase tracking-wide">
+                <div className="rounded-xl bg-emerald-50 [[data-theme=dark]_&]:bg-emerald-900/20 px-4 py-3">
+                  <p className="text-xs font-medium text-emerald-600 [[data-theme=dark]_&]:text-emerald-300 uppercase tracking-wide">
                     Avg Daily Visits
                   </p>
-                  <p className="mt-1 text-lg font-semibold text-emerald-900 dark:text-emerald-200">
+                  <p className="mt-1 text-lg font-semibold text-emerald-900 [[data-theme=dark]_&]:text-emerald-200">
                     {Number(staffing.averageDailyVisits || 0).toFixed(1)}
                   </p>
                 </div>
-                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
-                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-300 uppercase tracking-wide">
+                <div className="rounded-xl bg-emerald-50 [[data-theme=dark]_&]:bg-emerald-900/20 px-4 py-3">
+                  <p className="text-xs font-medium text-emerald-600 [[data-theme=dark]_&]:text-emerald-300 uppercase tracking-wide">
                     Visits / Staff
                   </p>
-                  <p className="mt-1 text-lg font-semibold text-emerald-900 dark:text-emerald-200">
+                  <p className="mt-1 text-lg font-semibold text-emerald-900 [[data-theme=dark]_&]:text-emerald-200">
                     {formatNumber(staffing.visitsPerStaff || 0)}
                   </p>
                 </div>
-                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
-                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-300 uppercase tracking-wide">
+                <div className="rounded-xl bg-emerald-50 [[data-theme=dark]_&]:bg-emerald-900/20 px-4 py-3">
+                  <p className="text-xs font-medium text-emerald-600 [[data-theme=dark]_&]:text-emerald-300 uppercase tracking-wide">
                     Total Visits
                   </p>
-                  <p className="mt-1 text-lg font-semibold text-emerald-900 dark:text-emerald-200">
+                  <p className="mt-1 text-lg font-semibold text-emerald-900 [[data-theme=dark]_&]:text-emerald-200">
                     {formatNumber(staffing.totalVisits || 0)}
                   </p>
                 </div>
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-slate-700 dark:text-stone-200 mb-3">Peak Hours</h4>
+                <h4 className="text-sm font-semibold text-slate-700 [[data-theme=dark]_&]:text-stone-200 mb-3">Peak Hours</h4>
                 {Array.isArray(staffing.peakHours) && staffing.peakHours.length ? (
                   <ul className="space-y-3">
                     {staffing.peakHours.map((slot) => (
                       <li
                         key={slot.label}
-                        className="flex items-center justify-between rounded-xl bg-white/90 dark:bg-stone-900/70 ring-1 ring-slate-100 dark:ring-stone-700 px-4 py-3 shadow-sm"
+                        className="flex items-center justify-between rounded-xl bg-white/90 [[data-theme=dark]_&]:bg-stone-900/70 ring-1 ring-slate-100 [[data-theme=dark]_&]:ring-stone-700 px-4 py-3 shadow-sm"
                       >
                         <div>
-                          <p className="text-sm font-medium text-slate-900 dark:text-stone-100">{slot.label}</p>
-                          <p className="text-xs text-slate-500 dark:text-stone-400">
-                            Avg {Number(slot.avgVisits || 0).toFixed(1)} visits ΓÇó Staff goal {formatNumber(slot.recommendedStaff || 0)}
+                          <p className="text-sm font-medium text-slate-900 [[data-theme=dark]_&]:text-stone-100">{slot.label}</p>
+                          <p className="text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">
+                            Avg {Number(slot.avgVisits || 0).toFixed(1)} visits \u2022 Staff goal {formatNumber(slot.recommendedStaff || 0)}
                           </p>
                         </div>
-                        <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-200 text-sm font-semibold">
+                        <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-emerald-100 [[data-theme=dark]_&]:bg-emerald-900/40 text-emerald-700 [[data-theme=dark]_&]:text-emerald-200 text-sm font-semibold">
                           {formatNumber(slot.recommendedStaff || 0)}
                         </div>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-slate-500 dark:text-stone-400">
+                  <p className="text-sm text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                     Not enough visit data to plot peak hours yet.
                   </p>
                 )}
               </div>
             </div>
-            <div className="rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-lg">
+            <div className="rounded-2xl theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 p-6 shadow-lg">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-sky-500 flex items-center justify-center">
                   <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -500,20 +500,20 @@ const Tracker = () => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Coverage Notes</h3>
-                  <p className="text-sm text-slate-600 dark:text-stone-400">
+                  <h3 className="text-lg font-bold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Coverage Notes</h3>
+                  <p className="text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-400">
                     Guide shifts around busiest days and queues
                   </p>
                 </div>
               </div>
               <div className="mb-5">
-                <h4 className="text-sm font-semibold text-slate-700 dark:text-stone-200 mb-3">Busy Days</h4>
+                <h4 className="text-sm font-semibold text-slate-700 [[data-theme=dark]_&]:text-stone-200 mb-3">Busy Days</h4>
                 {Array.isArray(staffing.busyDays) && staffing.busyDays.length ? (
                   <ul className="space-y-2">
                     {staffing.busyDays.map((day) => (
                       <li
                         key={day.label}
-                        className="flex items-center justify-between rounded-xl bg-white/90 dark:bg-stone-900/70 ring-1 ring-slate-100 dark:ring-stone-700 px-4 py-2 text-sm text-slate-700 dark:text-stone-200 shadow-sm"
+                        className="flex items-center justify-between rounded-xl bg-white/90 [[data-theme=dark]_&]:bg-stone-900/70 ring-1 ring-slate-100 [[data-theme=dark]_&]:ring-stone-700 px-4 py-2 text-sm text-slate-700 [[data-theme=dark]_&]:text-stone-200 shadow-sm"
                       >
                         <span>{day.label}</span>
                         <span>{Number(day.avgVisits || 0).toFixed(1)} visits/day</span>
@@ -521,21 +521,21 @@ const Tracker = () => {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-slate-500 dark:text-stone-400">
+                  <p className="text-sm text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                     Not enough visit data to highlight weekly trends yet.
                   </p>
                 )}
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-slate-700 dark:text-stone-200 mb-3">Recommendations</h4>
+                <h4 className="text-sm font-semibold text-slate-700 [[data-theme=dark]_&]:text-stone-200 mb-3">Recommendations</h4>
                 {Array.isArray(staffing.recommendations) && staffing.recommendations.length ? (
-                  <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 dark:text-stone-300">
+                  <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-300">
                     {staffing.recommendations.map((note, idx) => (
                       <li key={idx}>{note}</li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-slate-500 dark:text-stone-400">
+                  <p className="text-sm text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                     Staffing insights will appear after a few days of tracker usage.
                   </p>
                 )}
@@ -559,7 +559,7 @@ const Tracker = () => {
           >
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-stone-300 mb-2">Enter Student ID</label>
+                <label className="block text-sm font-medium text-slate-700 [[data-theme=dark]_&]:text-stone-300 mb-2">Enter Student ID</label>
                 <input
                   value={input}
                   onChange={(e) => {
@@ -580,7 +580,7 @@ const Tracker = () => {
                   data-error={manualEntryError ? "true" : "false"}
                   aria-invalid={manualEntryError ? "true" : "false"}
                   aria-describedby={manualEntryError ? manualInputHelpId : undefined}
-                  className={inputClass("theme-panel text-slate-900 dark:text-stone-100 placeholder-slate-400 font-mono")}
+                  className={inputClass("theme-panel text-slate-900 [[data-theme=dark]_&]:text-stone-100 placeholder-slate-400 font-mono")}
                 />
                 {manualEntryError ? (
                   <p id={manualInputHelpId} className="input-feedback error">
@@ -614,17 +614,17 @@ const Tracker = () => {
                 </button>
               </div>
             </div>
-            {message && <div className="mt-3 text-sm text-slate-700 dark:text-stone-200">{message}</div>}
+            {message && <div className="mt-3 text-sm text-slate-700 [[data-theme=dark]_&]:text-stone-200">{message}</div>}
           </CollapsibleSection>
         </section>
 
         {/* Quick logs */}
         <section className={`${surfacePanelClass} mt-6 p-4`}>
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Quick Logs</h3>
+          <h3 className="text-lg font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Quick Logs</h3>
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="text-left text-slate-600 dark:text-stone-300">
+                <tr className="text-left text-slate-600 [[data-theme=dark]_&]:text-stone-300">
                   <th className="py-2 pr-4">Status</th>
                   <th className="py-2 pr-4">Borrowed Date</th>
                   <th className="py-2 pr-4">Due Date</th>
@@ -632,9 +632,9 @@ const Tracker = () => {
                   <th className="py-2 pr-4">User</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              <tbody className="divide-y divide-slate-200 [[data-theme=dark]_&]:divide-slate-700">
                 {paginatedLogs.map((log, i) => (
-                  <tr key={logsStartIndex + i} className="text-slate-800 dark:text-stone-100">
+                  <tr key={logsStartIndex + i} className="text-slate-800 [[data-theme=dark]_&]:text-stone-100">
                     <td className="py-2 pr-4">
                       <span
                         className={`inline-flex items-center rounded px-2 py-0.5 text-xs text-white ${
@@ -656,7 +656,7 @@ const Tracker = () => {
                 ))}
                 {logs.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-3 text-center text-slate-500 dark:text-stone-400">
+                    <td colSpan={5} className="py-3 text-center text-slate-500 [[data-theme=dark]_&]:text-stone-400">
                       No recent loan activity.
                     </td>
                   </tr>
@@ -664,16 +664,16 @@ const Tracker = () => {
               </tbody>
             </table>
           </div>
-          <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-stone-700 dark:text-stone-400 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-3 text-xs text-slate-500 [[data-theme=dark]_&]:border-stone-700 [[data-theme=dark]_&]:text-stone-400 sm:flex-row sm:items-center sm:justify-between">
             <span>
               {logs.length === 0
                 ? 'No logs to display'
                 : `Showing ${logsShowingStart}-${logsShowingEnd} of ${logs.length} ${logs.length === 1 ? 'log' : 'logs'}`}
             </span>
-            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-stone-300">
+            <div className="flex items-center gap-2 text-sm text-slate-600 [[data-theme=dark]_&]:text-stone-300">
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:ring-stone-700 [[data-theme=dark]_&]:hover:bg-stone-800"
                 onClick={() => setLogsPage((prev) => Math.max(1, prev - 1))}
                 disabled={logs.length === 0 || safeLogsPage <= 1}
               >
@@ -687,7 +687,7 @@ const Tracker = () => {
               </span>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700 dark:hover:bg-stone-800"
+                className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 [[data-theme=dark]_&]:bg-stone-900 [[data-theme=dark]_&]:text-stone-200 [[data-theme=dark]_&]:ring-stone-700 [[data-theme=dark]_&]:hover:bg-stone-800"
                 onClick={() => setLogsPage((prev) => Math.min(logsPageCount, prev + 1))}
                 disabled={logs.length === 0 || safeLogsPage >= logsPageCount}
               >
@@ -698,17 +698,17 @@ const Tracker = () => {
               </button>
             </div>
           </div>
-          <p className="mt-3 text-xs text-slate-500 dark:text-stone-400">Active loans: {stats.activeLoans}</p>
+          <p className="mt-3 text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">Active loans: {stats.activeLoans}</p>
         </section>
 
         {/* Recent visits feed */}
-        <section className="mt-6 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Recent Visits</h3>
-          <ul className="mt-2 divide-y divide-slate-200 dark:divide-slate-700">
+        <section className="mt-6 rounded-xl theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 p-4">
+          <h3 className="text-lg font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Recent Visits</h3>
+          <ul className="mt-2 divide-y divide-slate-200 [[data-theme=dark]_&]:divide-slate-700">
             {feed.map((v, i) => (
-              <li key={i} className="py-2 text-sm text-slate-700 dark:text-stone-200 flex items-center justify-between">
+              <li key={i} className="py-2 text-sm text-slate-700 [[data-theme=dark]_&]:text-stone-200 flex items-center justify-between">
                 <span>{v.name} <span className="text-slate-500">@ {v.branch}</span></span>
-                <span className="text-slate-500">{v.enteredAt}{v.exitedAt ? ` ΓåÆ ${v.exitedAt}` : ''}</span>
+                <span className="text-slate-500">{v.enteredAt}{v.exitedAt ? ` \u2192 ${v.exitedAt}` : ''}</span>
               </li>
             ))}
           </ul>
@@ -719,10 +719,10 @@ const Tracker = () => {
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Are you sure you want to logout?</h3>
+          <div className="w-full max-w-md rounded-xl theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 p-6">
+            <h3 className="text-lg font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Are you sure you want to logout?</h3>
             <div className="mt-6 flex items-center justify-end gap-3">
-              <button className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200" onClick={() => setShowLogoutModal(false)}>Close</button>
+              <button className="rounded-lg px-4 py-2 ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 theme-panel text-slate-700 [[data-theme=dark]_&]:text-stone-200" onClick={() => setShowLogoutModal(false)}>Close</button>
               <button className="rounded-lg px-4 py-2 bg-red-600 text-white hover:bg-red-500" onClick={handleLogout}>Confirm</button>
             </div>
           </div>

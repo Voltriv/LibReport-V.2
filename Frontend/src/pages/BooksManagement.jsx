@@ -147,7 +147,7 @@ const BooksManagement = () => {
       <button
         type="button"
         onClick={handleManualRefresh}
-        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 [[data-theme=dark]_&]:bg-stone-800 text-slate-700 [[data-theme=dark]_&]:text-stone-300 px-4 py-2 hover:bg-slate-200 [[data-theme=dark]_&]:hover:bg-stone-700 transition-colors duration-200"
       >
         <svg className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -179,21 +179,21 @@ const BooksManagement = () => {
         {/* Books Grid */}
         <section>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-stone-100">Book Collection</h2>
-            <div className="text-sm text-slate-500 dark:text-stone-400">
+            <h2 className="text-xl font-bold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Book Collection</h2>
+            <div className="text-sm text-slate-500 [[data-theme=dark]_&]:text-stone-400">
               {books.length} {books.length === 1 ? "book" : "books"} in collection
             </div>
           </div>
 
           {books.length === 0 ? (
             <div className="text-center py-12">
-              <div className="h-24 w-24 rounded-full bg-slate-100 dark:bg-stone-800 flex items-center justify-center mx-auto mb-4">
+              <div className="h-24 w-24 rounded-full bg-slate-100 [[data-theme=dark]_&]:bg-stone-800 flex items-center justify-center mx-auto mb-4">
                 <svg className="h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-slate-900 dark:text-stone-100 mb-2">No books found</h3>
-              <p className="text-slate-500 dark:text-stone-400 mb-6">Get started by adding your first book.</p>
+              <h3 className="text-lg font-medium text-slate-900 [[data-theme=dark]_&]:text-stone-100 mb-2">No books found</h3>
+              <p className="text-slate-500 [[data-theme=dark]_&]:text-stone-400 mb-6">Get started by adding your first book.</p>
               <button
                 onClick={() => setIsAddOpen(true)}
                 className="inline-flex items-center gap-2 rounded-xl bg-brand-green text-white px-6 py-3 hover:bg-brand-greenDark transition-colors duration-200"
@@ -207,16 +207,16 @@ const BooksManagement = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {books.map((book) => (
-                <div key={book.id} className="group relative theme-panel rounded-2xl ring-1 ring-slate-200 dark:ring-stone-700 hover:shadow-xl transition-all duration-300">
+                <div key={book.id} className="group relative theme-panel rounded-2xl ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 hover:shadow-xl transition-all duration-300">
                   {/* Cover */}
-                  <div className="aspect-[3/4] bg-gradient-to-br from-slate-100 to-slate-200 dark:from-stone-800 dark:to-stone-700 flex items-center justify-center relative overflow-hidden">
+                  <div className="aspect-[3/4] bg-gradient-to-br from-slate-100 to-slate-200 [[data-theme=dark]_&]:from-stone-800 [[data-theme=dark]_&]:to-stone-700 flex items-center justify-center relative overflow-hidden">
                     {/* Fallback placeholder sits behind the image */}
                     <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center">
                       <div className="text-center p-4">
                         <svg className="h-16 w-16 text-slate-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                         </svg>
-                        <p className="text-xs text-slate-500 dark:text-stone-400">No cover image</p>
+                        <p className="text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-400">No cover image</p>
                       </div>
                     </div>
                     {/* Image (hidden on error) */}
@@ -235,21 +235,21 @@ const BooksManagement = () => {
                       <div className="relative">
                         <button
                           onClick={() => toggleDropdown(book.id)}
-                          className="h-8 w-8 rounded-lg bg-white/90 dark:bg-stone-900/90 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-stone-800 transition-colors duration-200"
+                          className="h-8 w-8 rounded-lg bg-white/90 [[data-theme=dark]_&]:bg-stone-900/90 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white [[data-theme=dark]_&]:hover:bg-stone-800 transition-colors duration-200"
                         >
-                          <svg className="h-4 w-4 text-slate-600 dark:text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="h-4 w-4 text-slate-600 [[data-theme=dark]_&]:text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
                           </svg>
                         </button>
 
                         {cardMenuOpenId === book.id && (
-                          <div className="absolute right-0 mt-2 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
+                          <div className="absolute right-0 mt-2 w-48 rounded-xl theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 shadow-xl p-2 z-50">
                             <button
                               onClick={() => {
                                 setEditingBook(book);
                                 setCardMenuOpenId(null);
                               }}
-                              className="w-full text-left rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-stone-300 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
+                              className="w-full text-left rounded-lg px-3 py-2 text-sm text-slate-700 [[data-theme=dark]_&]:text-stone-300 hover:bg-slate-50 [[data-theme=dark]_&]:hover:bg-stone-800 transition-colors duration-200"
                             >
                               Edit Book
                             </button>
@@ -258,7 +258,7 @@ const BooksManagement = () => {
                                 setDeleteTarget(book);
                                 setCardMenuOpenId(null);
                               }}
-                              className="w-full text-left rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200"
+                              className="w-full text-left rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 [[data-theme=dark]_&]:hover:bg-red-900/20 transition-colors duration-200"
                             >
                               Delete Book
                             </button>
@@ -270,22 +270,22 @@ const BooksManagement = () => {
 
                   {/* Info */}
                   <div className="p-4">
-                    <h3 className="font-bold text-slate-900 dark:text-stone-100 text-sm mb-1 line-clamp-2">
+                    <h3 className="font-bold text-slate-900 [[data-theme=dark]_&]:text-stone-100 text-sm mb-1 line-clamp-2">
                       {book.title}
                     </h3>
-                    <p className="text-xs text-slate-600 dark:text-stone-400 mb-3 line-clamp-1">
+                    <p className="text-xs text-slate-600 [[data-theme=dark]_&]:text-stone-400 mb-3 line-clamp-1">
                       by {book.author}
                     </p>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-stone-800 text-slate-600 dark:text-stone-400">
+                      <span className="px-2 py-1 rounded-full bg-slate-100 [[data-theme=dark]_&]:bg-stone-800 text-slate-600 [[data-theme=dark]_&]:text-stone-400">
                         {book.departmentLabel || "No department"}
                       </span>
-                      <span className="text-slate-500 dark:text-stone-500">
+                      <span className="text-slate-500 [[data-theme=dark]_&]:text-stone-500">
                         {book.availableCopies || 0}/{book.totalCopies || 0} available
                       </span>
                     </div>
                     {book.genre && (
-                      <div className="mt-2 text-xs text-slate-500 dark:text-stone-500">
+                      <div className="mt-2 text-xs text-slate-500 [[data-theme=dark]_&]:text-stone-500">
                         Genre: {book.genre}
                       </div>
                     )}
@@ -302,8 +302,8 @@ const BooksManagement = () => {
             <div
               className={`pointer-events-auto rounded-xl px-4 py-3 shadow-lg ring-1 ${
                 toast.type === "success"
-                  ? "bg-green-50 text-green-800 ring-green-200 dark:bg-green-900/20 dark:text-green-400 dark:ring-green-800"
-                  : "bg-red-50 text-red-800 ring-red-200 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-800"
+                  ? "bg-green-50 text-green-800 ring-green-200 [[data-theme=dark]_&]:bg-green-900/20 [[data-theme=dark]_&]:text-green-400 [[data-theme=dark]_&]:ring-green-800"
+                  : "bg-red-50 text-red-800 ring-red-200 [[data-theme=dark]_&]:bg-red-900/20 [[data-theme=dark]_&]:text-red-400 [[data-theme=dark]_&]:ring-red-800"
               }`}
             >
               <div className="flex items-center gap-2">

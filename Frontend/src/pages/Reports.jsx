@@ -101,7 +101,7 @@ const Reports = () => {
     <button
       type="button"
       onClick={() => window.location.reload()}
-      className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+      className="inline-flex items-center gap-2 rounded-xl bg-slate-100 [[data-theme=dark]_&]:bg-stone-800 text-slate-700 [[data-theme=dark]_&]:text-stone-300 px-4 py-2 hover:bg-slate-200 [[data-theme=dark]_&]:hover:bg-stone-700 transition-colors duration-200"
     >
       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -415,17 +415,17 @@ const Reports = () => {
       mainClassName="print-container"
     >
         <section className="mt-6" id="report-print-root">
-          <h2 className="text-2xl font-semibold text-slate-900 dark:text-stone-100">Auto Reports</h2>
+          <h2 className="text-2xl font-semibold text-slate-900 [[data-theme=dark]_&]:text-stone-100">Auto Reports</h2>
 
           <div className="mt-3 flex items-center gap-2 print-hide">
             {TIME_RANGES.map((range) => (
               <button
                 key={range.value}
                 onClick={() => setTimeRange(range)}
-                className={`rounded-lg px-3 py-1.5 ring-1 ring-slate-200 dark:ring-stone-700 ${
+                className={`rounded-lg px-3 py-1.5 ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 ${
                   timeRange.value === range.value
                     ? "bg-brand-gold text-white"
-                    : "theme-panel text-slate-700 dark:text-stone-200"
+                    : "theme-panel text-slate-700 [[data-theme=dark]_&]:text-stone-200"
                 }`}
               >
                 {range.label}
@@ -434,14 +434,14 @@ const Reports = () => {
           </div>
 
           <div className="mt-3 flex items-center gap-2 print-hide">
-            <label className="text-sm text-slate-700 dark:text-stone-200">Report Type:</label>
+            <label className="text-sm text-slate-700 [[data-theme=dark]_&]:text-stone-200">Report Type:</label>
             <select
               value={reportType.value}
               onChange={(e) => {
                 const next = REPORT_OPTIONS.find((opt) => opt.value === e.target.value);
                 if (next) setReportType(next);
               }}
-              className="rounded-lg px-3 py-1.5 theme-panel ring-1 ring-slate-200 dark:ring-stone-700 text-slate-700 dark:text-stone-200"
+              className="rounded-lg px-3 py-1.5 theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 text-slate-700 [[data-theme=dark]_&]:text-stone-200"
             >
               {REPORT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -456,31 +456,31 @@ const Reports = () => {
           )}
 
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
+            <div className="rounded-xl theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 p-4">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="text-left text-slate-600 dark:text-stone-300">
+                  <tr className="text-left text-slate-600 [[data-theme=dark]_&]:text-stone-300">
                     <th className="py-2 pr-4">Metric</th>
                     <th className="py-2 pr-4">Value</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                <tbody className="divide-y divide-slate-200 [[data-theme=dark]_&]:divide-slate-700">
                   {loadingReport && summaryRows.length === 0 ? (
                     <tr>
-                      <td colSpan={2} className="py-6 text-center text-slate-500 dark:text-stone-300">
+                      <td colSpan={2} className="py-6 text-center text-slate-500 [[data-theme=dark]_&]:text-stone-300">
                         Loading summary...
                       </td>
                     </tr>
                   ) : summaryRows.length ? (
                     summaryRows.map((row) => (
-                      <tr key={row.label} className="text-slate-800 dark:text-stone-100">
+                      <tr key={row.label} className="text-slate-800 [[data-theme=dark]_&]:text-stone-100">
                         <td className="py-2 pr-4">{row.label}</td>
                         <td className="py-2 pr-4">{row.value}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={2} className="py-6 text-center text-slate-500 dark:text-stone-300">
+                      <td colSpan={2} className="py-6 text-center text-slate-500 [[data-theme=dark]_&]:text-stone-300">
                         No summary data available.
                       </td>
                     </tr>
@@ -489,11 +489,11 @@ const Reports = () => {
               </table>
             </div>
 
-            <div className="rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
-              <p className="text-sm text-slate-500 dark:text-stone-300 mb-2">{chartLabel}</p>
+            <div className="rounded-xl theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 p-4">
+              <p className="text-sm text-slate-500 [[data-theme=dark]_&]:text-stone-300 mb-2">{chartLabel}</p>
               <div className="h-[250px]">
                 {loadingReport && chartData.length === 0 ? (
-                  <div className="flex h-full items-center justify-center text-sm text-slate-500 dark:text-stone-300">
+                  <div className="flex h-full items-center justify-center text-sm text-slate-500 [[data-theme=dark]_&]:text-stone-300">
                     Loading chart...
                   </div>
                 ) : chartData.length ? (
@@ -507,7 +507,7 @@ const Reports = () => {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-slate-500 dark:text-stone-300">
+                  <div className="flex h-full items-center justify-center text-sm text-slate-500 [[data-theme=dark]_&]:text-stone-300">
                     No chart data available.
                   </div>
                 )}
@@ -515,10 +515,10 @@ const Reports = () => {
             </div>
           </div>
 
-          <div className="mt-6 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4 overflow-x-auto">
+          <div className="mt-6 rounded-xl theme-panel ring-1 ring-slate-200 [[data-theme=dark]_&]:ring-stone-700 p-4 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="text-left text-slate-600 dark:text-stone-300">
+                <tr className="text-left text-slate-600 [[data-theme=dark]_&]:text-stone-300">
                   {tableColumns.map((col) => (
                     <th key={col.key} className="py-2 pr-4">
                       {col.label}
@@ -526,16 +526,16 @@ const Reports = () => {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              <tbody className="divide-y divide-slate-200 [[data-theme=dark]_&]:divide-slate-700">
                 {loadingReport && tableRows.length === 0 ? (
                   <tr>
-                    <td colSpan={Math.max(1, tableColumns.length)} className="py-6 text-center text-slate-500 dark:text-stone-300">
+                    <td colSpan={Math.max(1, tableColumns.length)} className="py-6 text-center text-slate-500 [[data-theme=dark]_&]:text-stone-300">
                       Loading records...
                     </td>
                   </tr>
                 ) : tableRows.length ? (
                   tableRows.map((row, idx) => (
-                    <tr key={row.id || `${idx}-${reportType.value}`} className="text-slate-800 dark:text-stone-100">
+                    <tr key={row.id || `${idx}-${reportType.value}`} className="text-slate-800 [[data-theme=dark]_&]:text-stone-100">
                       {tableColumns.map((col) => (
                         <td key={col.key} className="py-2 pr-4">
                           {row[col.key] ?? "—"}
@@ -545,7 +545,7 @@ const Reports = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={Math.max(1, tableColumns.length)} className="py-6 text-center text-slate-500 dark:text-stone-300">
+                    <td colSpan={Math.max(1, tableColumns.length)} className="py-6 text-center text-slate-500 [[data-theme=dark]_&]:text-stone-300">
                       No records available for the selected report.
                     </td>
                   </tr>
@@ -558,7 +558,7 @@ const Reports = () => {
             <button onClick={downloadPdf} className="rounded-lg px-4 py-2 bg-brand-gold text-white hover:opacity-90 disabled:opacity-60" disabled={downloading}>
               {downloading ? 'Exporting…' : 'Download as PDF'}
             </button>
-            <button onClick={printReport} className="rounded-lg px-4 py-2 ring-1 ring-slate-300 text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800">
+            <button onClick={printReport} className="rounded-lg px-4 py-2 ring-1 ring-slate-300 text-slate-700 [[data-theme=dark]_&]:text-stone-200 hover:bg-slate-50 [[data-theme=dark]_&]:hover:bg-stone-800">
               Print
             </button>
           </div>

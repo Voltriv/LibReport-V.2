@@ -4,6 +4,7 @@ import logo from "../assets/logo.png";
 
 import api, { getStoredUser } from "../api";
 import { useStudentPushNotifications } from "../notifications/useStudentPush";
+import ThemeToggle from "../components/ThemeToggle";
 
 const anchorSections = [
   { id: "home", label: "Home" },
@@ -373,6 +374,7 @@ const StudentLayout = () => {
             >
               Catalog
             </Link>
+            <ThemeToggle className="hidden lg:inline-flex lg:ml-2" hideLabel />
             {isStudent ? (
               <div className="flex items-center gap-2.5">
                 <div className="relative">
@@ -531,6 +533,7 @@ const StudentLayout = () => {
               >
                 Catalog
               </Link>
+              <ThemeToggle className="w-full justify-center" />
               {isStudent ? (
                 <>
                   <div className="px-4 py-2 font-semibold text-slate-900 text-sm uppercase tracking-wide">My Account</div>

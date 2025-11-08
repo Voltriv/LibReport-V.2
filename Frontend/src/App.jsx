@@ -108,7 +108,7 @@ function App() {
   return (
     <Router>
       <div className="App">
-        <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Loading...</div>}>
+        <Suspense fallback={<div className="p-6 text-slate-600 [[data-theme=dark]_&]:text-slate-300">Loading...</div>}>
           <Routes>
             {/* Default Redirect */}
             <Route path="/" element={<DefaultRedirect />} />
