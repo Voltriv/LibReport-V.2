@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from "react";
-import Sidebar from "../components/Sidebar";
+import AdminPageLayout from "../components/AdminPageLayout";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import profileImage from "../assets/pfp.png";
-import { useNavigate } from "react-router-dom";
-import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
+import api from "../api";
 
 const TIME_RANGES = [
   { label: "Daily", value: "daily", days: 1 },
@@ -30,9 +28,6 @@ const moneyFormatter = new Intl.NumberFormat(undefined, {
 const Reports = () => {
   const [timeRange, setTimeRange] = useState(TIME_RANGES[0]);
   const [reportType, setReportType] = useState(REPORT_OPTIONS[0]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [userName, setUserName] = useState("Account");
   const [summaryRows, setSummaryRows] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [chartColor, setChartColor] = useState("#2563eb");
@@ -41,7 +36,6 @@ const Reports = () => {
   const [tableRows, setTableRows] = useState([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [error, setError] = useState("");
-  const navigate = useNavigate();
   const [downloading, setDownloading] = useState(false);
   const printReport = () => {
     try {
@@ -90,23 +84,31 @@ const Reports = () => {
     }
   };
 
-  const handleLogout = () => {
-    setShowLogoutModal(false);
-    setShowDropdown(false);
+  const printStyles = (
+    <style>{`
+        @media print {
+          /* Hide sidebar and page chrome */
+          .print-hide, .print-hide * { display: none !important; }
+          /* Make main content full width for print */
+          .print-container { margin: 0 !important; padding: 0 16px !important; }
+          /* Avoid sticky gaps */
+          body { background: #fff !important; }
+        }
+      `}</style>
+  );
 
-    clearAuthSession();
-    broadcastAuthChange();
-
-    navigate("/signin", { replace: true });
-  };
-
-  useEffect(() => {
-    const stored = getStoredUser();
-    if (stored) {
-      const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split("@")[0] : null);
-      if (name) setUserName(name);
-    }
-  }, []);
+  const headerActions = (
+    <button
+      type="button"
+      onClick={() => window.location.reload()}
+      className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+    >
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+      Refresh
+    </button>
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -404,67 +406,14 @@ const Reports = () => {
   }, [reportType, timeRange]);
 
   return (
-    <div className="min-h-screen theme-shell">
-      <Sidebar />
-
-      {/* Print styles: hide chrome and show only report area when printing */}
-      <style>{`
-        @media print {
-          /* Hide sidebar and page chrome */
-          .print-hide, .print-hide * { display: none !important; }
-          /* Make main content full width for print */
-          .print-container { margin: 0 !important; padding: 0 16px !important; }
-          /* Avoid sticky gaps */
-          body { background: #fff !important; }
-        }
-      `}</style>
-      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8 print-container">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Reports</h1>
-            <p className="text-slate-600 dark:text-stone-400 mt-1">Generate comprehensive library reports and analytics</p>
-          </div>
-          <div className="flex items-center gap-4 print-hide">
-            <button 
-              onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="inline-flex items-center gap-3 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                <img src={profileImage} alt="Profile" className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20" />
-                <span className="text-sm font-medium text-slate-700 dark:text-stone-200 max-w-[12rem] truncate" title={userName}>
-                  {userName}
-                </span>
-                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showDropdown && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
-                  <button
-                    className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
-                    onClick={() => setShowLogoutModal(true)}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
+    <AdminPageLayout
+      title="Reports"
+      description="Generate comprehensive library reports and analytics"
+      beforeMain={printStyles}
+      actions={headerActions}
+      actionsClassName="print-hide"
+      mainClassName="print-container"
+    >
         <section className="mt-6" id="report-print-root">
           <h2 className="text-2xl font-semibold text-slate-900 dark:text-stone-100">Auto Reports</h2>
 
@@ -614,30 +563,7 @@ const Reports = () => {
             </button>
           </div>
         </section>
-      </main>
-
-      {showLogoutModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Are you sure you want to logout?</h3>
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200"
-                onClick={() => setShowLogoutModal(false)}
-              >
-                Close
-              </button>
-              <button
-                className="rounded-lg px-4 py-2 bg-red-600 text-white hover:bg-red-500"
-                onClick={handleLogout}
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </AdminPageLayout>
   );
 };
 

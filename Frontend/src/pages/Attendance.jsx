@@ -1,10 +1,9 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import Sidebar from "../components/Sidebar";
+import { Link, useLocation } from "react-router-dom";
 import CollapsibleSection from "../components/CollapsibleSection";
-import profileImage from "../assets/pfp.png";
-import api, { broadcastAuthChange, clearAuthSession, getStoredUser } from "../api";
+import AdminPageLayout from "../components/AdminPageLayout";
+import api from "../api";
 import usePagination from "../hooks/usePagination";
 import { surfacePanelClass, autoRefreshButtonClass, inputClass } from "../designSystem/classes";
 
@@ -108,12 +107,7 @@ function mapRecentVisit(row, index) {
 }
 
 const Attendance = () => {
-  const navigate = useNavigate();
   const routeLocation = useLocation();
-
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [userName, setUserName] = useState("Account");
 
   const [stats, setStats] = useState(() => createDefaultStats());
   const [statsError, setStatsError] = useState("");
@@ -138,14 +132,6 @@ const Attendance = () => {
 
   const [autoRefresh, setAutoRefresh] = useState(false);
 
-  useEffect(() => {
-    const stored = getStoredUser();
-    if (!stored) return;
-    const name =
-      stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split("@")[0] : "");
-    if (name) setUserName(name);
-  }, []);
-
   const statsRangeLabel = stats.rangeHours ? `Last ${stats.rangeHours}h` : null;
   const statsSinceLabel = useMemo(() => {
     if (!stats.rangeSince) return null;
@@ -159,6 +145,12 @@ const Attendance = () => {
     if (Number.isNaN(dt.getTime())) return null;
     return dt.toLocaleString();
   }, [stats.startOfDay]);
+  const headerMeta =
+    statsRangeLabel || startOfDayLabel
+      ? `${statsRangeLabel ? `${statsRangeLabel} window since ${statsSinceLabel || "recently"}. ` : ""}${
+          startOfDayLabel ? `Daily counts reset at midnight (${startOfDayLabel}).` : ""
+        }`
+      : null;
 
   const refreshStats = useCallback(async () => {
     setStatsError("");
@@ -315,14 +307,6 @@ const Attendance = () => {
   const manualInputHelpId = "attendance-manual-entry-help";
 
 
-  const handleLogout = useCallback(() => {
-    setShowLogoutModal(false);
-    setShowDropdown(false);
-    clearAuthSession();
-    broadcastAuthChange();
-    navigate("/signin", { replace: true });
-  }, [navigate]);
-
   const handleManualSubmit = useCallback(
     async (type) => {
       setManualTouched(true);
@@ -390,92 +374,47 @@ const Attendance = () => {
     URL.revokeObjectURL(url);
   }, [filteredLogs]);
 
-  return (
-    <div className="min-h-screen theme-shell">
-      <Sidebar />
+  const headerActions = (
+    <>
+      <button
+        type="button"
+        onClick={() => setAutoRefresh((prev) => !prev)}
+        className={autoRefreshButtonClass(autoRefresh)}
+      >
+        <span className={`inline-flex h-2.5 w-2.5 rounded-full ${autoRefresh ? "bg-emerald-500" : "bg-slate-300"}`} />
+        Auto refresh
+      </button>
+      <button
+        type="button"
+        onClick={handleRefreshAll}
+        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+      >
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          />
+        </svg>
+        Refresh
+      </button>
+      <Link
+        to="/tracker"
+        className="inline-flex items-center gap-2 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-stone-200 hover:bg-white dark:hover:bg-stone-900 transition-colors duration-200"
+      >
+        Back to Tracker
+      </Link>
+    </>
+  );
 
-      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Attendance</h1>
-            <p className="text-slate-600 dark:text-stone-400 mt-1">
-              Detailed tracker for library visits and activity history.
-            </p>
-            {(statsRangeLabel || startOfDayLabel) && (
-              <p className="mt-2 text-xs text-slate-500 dark:text-stone-400">
-                {statsRangeLabel ? `${statsRangeLabel} window since ${statsSinceLabel || "recently"}. ` : ""}
-                {startOfDayLabel ? `Daily counts reset at midnight (${startOfDayLabel}).` : ""}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => setAutoRefresh((prev) => !prev)}
-              className={autoRefreshButtonClass(autoRefresh)}
-            >
-              <span
-                className={`inline-flex h-2.5 w-2.5 rounded-full ${
-                  autoRefresh ? "bg-emerald-500" : "bg-slate-300"
-                }`}
-              />
-              Auto refresh
-            </button>
-            <button
-              onClick={handleRefreshAll}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Refresh
-            </button>
-            <Link
-              to="/tracker"
-              className="inline-flex items-center gap-2 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-stone-200 hover:bg-white dark:hover:bg-stone-900 transition-colors duration-200"
-            >
-              Back to Tracker
-            </Link>
-            <div className="relative">
-              <button
-                onClick={() => setShowDropdown((prev) => !prev)}
-                className="inline-flex items-center gap-3 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                <img
-                  src={profileImage}
-                  alt="Profile"
-                  className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20"
-                />
-                <span
-                  className="text-sm font-medium text-slate-700 dark:text-stone-200 max-w-[12rem] truncate"
-                  title={userName}
-                >
-                  {userName}
-                </span>
-                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showDropdown && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
-                  <button
-                    className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
-                    onClick={() => setShowLogoutModal(true)}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+  return (
+    <AdminPageLayout
+      title="Attendance"
+      description="Detailed tracker for library visits and activity history."
+      meta={headerMeta}
+      actions={headerActions}
+    >
 
         {statsError && (
           <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
@@ -801,32 +740,7 @@ const Attendance = () => {
             </CollapsibleSection>
           </div>
         </div>
-      </main>
-
-      {showLogoutModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">
-              Are you sure you want to logout?
-            </h3>
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200"
-                onClick={() => setShowLogoutModal(false)}
-              >
-                Close
-              </button>
-              <button
-                className="rounded-lg px-4 py-2 bg-red-600 text-white hover:bg-red-500"
-                onClick={handleLogout}
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </AdminPageLayout>
   );
 };
 

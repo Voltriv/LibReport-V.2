@@ -1,13 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import Sidebar from "../components/Sidebar";
-import pfp from "../assets/pfp.png";
-import { useNavigate } from "react-router-dom";
-import api, {
-  resolveMediaUrl,
-  clearAuthSession,
-  broadcastAuthChange,
-  getStoredUser,
-} from "../api";
+import AdminPageLayout from "../components/AdminPageLayout";
+import api, { resolveMediaUrl } from "../api";
 import BookFormModal from "../components/BookFormModal";
 import DeleteConfirmModal from "../components/DeleteConfirmModal";
 
@@ -15,11 +8,8 @@ const BooksManagement = () => {
   const [books, setBooks] = useState([]);
   const [toast, setToast] = useState(null); // { msg, type }
   const toastTimeoutRef = useRef(null);
-  // Separate dropdown states: header profile vs. per-card menu
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  // Separate dropdown state for per-card menu
   const [cardMenuOpenId, setCardMenuOpenId] = useState(null);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [userName, setUserName] = useState("Account");
 
   // Form/UI states
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -30,18 +20,7 @@ const BooksManagement = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    setShowLogoutModal(false);
-    setProfileMenuOpen(false);
-    clearAuthSession();
-    broadcastAuthChange();
-    navigate("/signin", { replace: true });
-  };
-
   const toggleDropdown = (id) => {
-    setProfileMenuOpen(false);
     setCardMenuOpenId((prev) => (prev === id ? null : id));
   };
 
@@ -92,22 +71,22 @@ const BooksManagement = () => {
     loadCatalog();
   }, [loadCatalog]);
 
+  const handleManualRefresh = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await loadCatalog();
+      setRefreshNonce((n) => n + 1);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshing, loadCatalog]);
+
   const showToast = (msg, type) => {
     setToast({ msg, type });
     clearTimeout(toastTimeoutRef.current);
     toastTimeoutRef.current = setTimeout(() => setToast(null), 3000);
   };
-
-  useEffect(() => {
-    const stored = getStoredUser();
-    if (stored) {
-      const name =
-        stored?.fullName ||
-        stored?.name ||
-        (stored?.email ? String(stored.email).split("@")[0] : null);
-      if (name) setUserName(name);
-    }
-  }, []);
 
   // Create book
   async function handleCreateBook(payload) {
@@ -163,84 +142,37 @@ const BooksManagement = () => {
     }
   }
 
-  return (
-    <div className="min-h-screen theme-shell">
-      <Sidebar />
-      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">
-              Books Management
-            </h1>
-            <p className="text-slate-600 dark:text-stone-400 mt-1">
-              Manage your library's book collection
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={async () => {
-                if (refreshing) return;
-                setRefreshing(true);
-                try {
-                  await loadCatalog();
-                  setRefreshNonce((n) => n + 1);
-                } finally {
-                  setRefreshing(false);
-                }
-              }}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
-            >
-              <svg className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
-            <button
-              onClick={() => setIsAddOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-green text-white px-4 py-2 hover:bg-brand-greenDark transition-colors duration-200 shadow-lg hover:shadow-xl"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Book
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setProfileMenuOpen((v) => !v);
-                  setCardMenuOpenId(null);
-                }}
-                className="inline-flex items-center gap-3 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                <img src={pfp} alt="Profile" className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20" />
-                <span
-                  className="text-sm font-medium text-slate-700 dark:text-stone-200 max-w-[12rem] truncate"
-                  title={userName}
-                >
-                  {userName}
-                </span>
-                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {profileMenuOpen && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
-                  <button
-                    className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
-                    onClick={() => setShowLogoutModal(true)}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+  const headerActions = (
+    <>
+      <button
+        type="button"
+        onClick={handleManualRefresh}
+        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+      >
+        <svg className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        {refreshing ? "Refreshing..." : "Refresh"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setIsAddOpen(true)}
+        className="inline-flex items-center gap-2 rounded-xl bg-brand-green text-white px-4 py-2 hover:bg-brand-greenDark transition-colors duration-200 shadow-lg hover:shadow-xl"
+      >
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        Add Book
+      </button>
+    </>
+  );
 
+  return (
+    <AdminPageLayout
+      title="Books Management"
+      description="Manage your library's book collection"
+      actions={headerActions}
+    >
         {/* Cards + Grid (unchanged) */}
         {/* ...existing stats and cards code... */}
 
@@ -316,7 +248,6 @@ const BooksManagement = () => {
                               onClick={() => {
                                 setEditingBook(book);
                                 setCardMenuOpenId(null);
-                                setProfileMenuOpen(false);
                               }}
                               className="w-full text-left rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-stone-300 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
                             >
@@ -326,7 +257,6 @@ const BooksManagement = () => {
                               onClick={() => {
                                 setDeleteTarget(book);
                                 setCardMenuOpenId(null);
-                                setProfileMenuOpen(false);
                               }}
                               className="w-full text-left rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200"
                             >
@@ -412,40 +342,7 @@ const BooksManagement = () => {
           onConfirm={handleDeleteBook}
         />
 
-        {/* Logout Modal (unchanged) */}
-        {showLogoutModal && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
-                  <svg className="h-5 w-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Confirm Logout</h3>
-              </div>
-              <p className="text-slate-600 dark:text-stone-400 mb-6">
-                Are you sure you want to logout? You'll need to sign in again.
-              </p>
-              <div className="flex items-center justify-end gap-3">
-                <button
-                  className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
-                  onClick={() => setShowLogoutModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="rounded-xl px-4 py-2 bg-red-600 text-white hover:bg-red-700 transition-colors duration-200"
-                  onClick={handleLogout}
-                >
-                  Logout
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+    </AdminPageLayout>
   );
 };
 

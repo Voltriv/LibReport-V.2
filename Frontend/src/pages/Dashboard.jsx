@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import Sidebar from "../components/Sidebar";
 import ReportModal from "../components/GenReports";
 import CollapsibleSection from "../components/CollapsibleSection";
-import profileImage from "../assets/pfp.png";
-import { Link, useNavigate } from "react-router-dom";
-import api, { getStoredUser, clearAuthSession, broadcastAuthChange } from "../api";
+import AdminPageLayout from "../components/AdminPageLayout";
+import StatTile from "../components/StatTile";
+import api, { getStoredUser } from "../api";
 import {
   LineChart,
   Line,
@@ -19,18 +18,7 @@ const numberFormatter = new Intl.NumberFormat();
 
 const Dashboard = () => {
   const [showReport, setShowReport] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [userName, setUserName] = useState('Account');
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    setShowLogoutModal(false);
-    setShowDropdown(false);
-    clearAuthSession();
-    broadcastAuthChange();
-    navigate("/signin", { replace: true });
-  };
+  const [userName, setUserName] = useState("Account");
 
   const [counts, setCounts] = useState({
     users: 0,
@@ -75,117 +63,76 @@ const Dashboard = () => {
     }
   }, []);
 
+  const totalKnownUsers = counts.totalUsers || counts.users + counts.disabledUsers;
+  const overviewTiles = [
+    {
+      id: "books",
+      title: "Total Books",
+      value: numberFormatter.format(counts.books),
+      subtitle: "In library collection",
+      tone: "blue",
+      icon: (
+        <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      ),
+      to: "/booksmanagement",
+      ariaLabel: "Go to Books Management to view all books",
+    },
+    {
+      id: "borrowed",
+      title: "Books Borrowed",
+      value: numberFormatter.format(counts.activeLoans),
+      subtitle: "Currently checked out",
+      tone: "green",
+      icon: (
+        <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+        </svg>
+      ),
+      to: "/borrowing",
+      ariaLabel: "Open Borrow Management to review borrowed books",
+    },
+    {
+      id: "overdue",
+      title: "Overdue Books",
+      value: numberFormatter.format(counts.overdue),
+      subtitle: "Need attention",
+      tone: "red",
+      icon: (
+        <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+      ),
+      to: "/borrowing",
+      ariaLabel: "View overdue loans in Borrow Management",
+    },
+    {
+      id: "users",
+      title: "Active Users",
+      value: numberFormatter.format(counts.users),
+      subtitle: `Disabled: ${numberFormatter.format(counts.disabledUsers)} · Total: ${numberFormatter.format(totalKnownUsers)}`,
+      tone: "purple",
+      icon: (
+        <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+        </svg>
+      ),
+      to: "/usermanagement",
+      ariaLabel: "Open User Management to review active users",
+    },
+  ];
+
   return (
-    <div className="min-h-screen theme-shell">
-      <Sidebar />
-
-      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Dashboard</h1>
-            <p className="text-slate-600 dark:text-stone-400 mt-1">Welcome back, {userName}! Here's your library overview.</p>
-          </div>
-          <div className="relative">
-            <button onClick={() => setShowDropdown(!showDropdown)} className="inline-flex items-center gap-3 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200">
-              <img src={profileImage} alt="Profile" className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20" />
-              <span className="text-sm font-medium text-slate-700 dark:text-stone-200 max-w-[12rem] truncate" title={userName}>{userName}</span>
-              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {showDropdown && (
-              <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
-                <button className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2" onClick={() => setShowLogoutModal(true)}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  Logout
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
+    <AdminPageLayout
+      title="Dashboard"
+      description={`Welcome back, ${userName}! Here's your library overview.`}
+    >
         {/* Stats Cards */}
         <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-          <Link
-            to="/booksmanagement"
-            className="interactive-card group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-            aria-label="Go to Books Management to view all books"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Books</p>
-                <p className="mt-2 text-3xl font-bold text-blue-900 dark:text-blue-100">{counts.books}</p>
-                <p className="text-xs text-blue-500 dark:text-blue-300 mt-1">In library collection</p>
-              </div>
-              <div className="h-12 w-12 rounded-xl bg-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            to="/borrowing"
-            className="interactive-card group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 ring-1 ring-green-200 dark:ring-green-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400"
-            aria-label="Open Borrow Management to review borrowed books"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-green-600 dark:text-green-400">Books Borrowed</p>
-                <p className="mt-2 text-3xl font-bold text-green-900 dark:text-green-100">{counts.activeLoans}</p>
-                <p className="text-xs text-green-500 dark:text-green-300 mt-1">Currently checked out</p>
-              </div>
-              <div className="h-12 w-12 rounded-xl bg-green-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            to="/borrowing"
-            className="interactive-card group relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 ring-1 ring-red-200 dark:ring-red-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-            aria-label="View overdue loans in Borrow Management"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-red-600 dark:text-red-400">Overdue Books</p>
-                <p className="mt-2 text-3xl font-bold text-red-900 dark:text-red-100">{counts.overdue}</p>
-                <p className="text-xs text-red-500 dark:text-red-300 mt-1">Need attention</p>
-              </div>
-              <div className="h-12 w-12 rounded-xl bg-red-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            to="/usermanagement"
-            className="interactive-card group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 ring-1 ring-purple-200 dark:ring-purple-800 p-6 hover:shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-            aria-label="Open User Management to review active users"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Active Users</p>
-                <p className="mt-2 text-3xl font-bold text-purple-900 dark:text-purple-100">{counts.users}</p>
-                <p className="text-xs text-purple-500 dark:text-purple-300 mt-1">
-                  Disabled: {counts.disabledUsers} | Total: {counts.totalUsers || counts.users + counts.disabledUsers}
-                </p>
-              </div>
-              <div className="h-12 w-12 rounded-xl bg-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
-              </div>
-            </div>
-          </Link>
+          {overviewTiles.map((tile) => (
+            <StatTile key={tile.id} {...tile} />
+          ))}
         </section>
 
         {/* Usage Chart */}
@@ -355,42 +302,8 @@ const Dashboard = () => {
           </CollapsibleSection>
         </section>
 
-        {showReport && <ReportModal onClose={() => setShowReport(false)} />}
-      </main>
-
-      {showLogoutModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
-                <svg className="h-5 w-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Confirm Logout</h3>
-            </div>
-            <p className="text-slate-600 dark:text-stone-400 mb-6">Are you sure you want to logout? You'll need to sign in again to access the admin panel.</p>
-            <div className="flex items-center justify-end gap-3">
-              <button 
-                className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200" 
-                onClick={() => setShowLogoutModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="rounded-xl px-4 py-2 bg-red-600 text-white hover:bg-red-700 transition-colors duration-200 flex items-center gap-2" 
-                onClick={handleLogout}
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      {showReport && <ReportModal onClose={() => setShowReport(false)} />}
+    </AdminPageLayout>
   );
 };
 

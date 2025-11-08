@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
+﻿/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useCallback, useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import CollapsibleSection from "../components/CollapsibleSection";
@@ -265,13 +265,13 @@ const Tracker = () => {
     rangeLabel ? `${rangeLabel}: ${formatNumber(stats.inbound.range)}` : null
   ]
     .filter(Boolean)
-    .join(' • ');
+    .join(' ΓÇó ');
   const outboundSubtitle = [
     `Today: ${formatNumber(stats.outbound.today)}`,
     rangeLabel ? `${rangeLabel}: ${formatNumber(stats.outbound.range)}` : null
   ]
     .filter(Boolean)
-    .join(' • ');
+    .join(' ΓÇó ');
   const logsPageCount = Math.max(1, Math.ceil((logs.length || 0) / PAGE_SIZE));
   const safeLogsPage = Math.min(Math.max(logsPage, 1), logsPageCount);
   const logsStartIndex = (safeLogsPage - 1) * PAGE_SIZE;
@@ -471,12 +471,12 @@ const Tracker = () => {
                     {staffing.peakHours.map((slot) => (
                       <li
                         key={slot.label}
-                        className="flex items-center justify-between rounded-xl bg-slate-50 dark:bg-stone-800 px-4 py-3"
+                        className="flex items-center justify-between rounded-xl bg-white/90 dark:bg-stone-900/70 ring-1 ring-slate-100 dark:ring-stone-700 px-4 py-3 shadow-sm"
                       >
                         <div>
                           <p className="text-sm font-medium text-slate-900 dark:text-stone-100">{slot.label}</p>
                           <p className="text-xs text-slate-500 dark:text-stone-400">
-                            Avg {Number(slot.avgVisits || 0).toFixed(1)} visits • Staff goal {formatNumber(slot.recommendedStaff || 0)}
+                            Avg {Number(slot.avgVisits || 0).toFixed(1)} visits ΓÇó Staff goal {formatNumber(slot.recommendedStaff || 0)}
                           </p>
                         </div>
                         <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-200 text-sm font-semibold">
@@ -513,7 +513,7 @@ const Tracker = () => {
                     {staffing.busyDays.map((day) => (
                       <li
                         key={day.label}
-                        className="flex items-center justify-between rounded-xl bg-slate-50 dark:bg-stone-800 px-4 py-2 text-sm text-slate-700 dark:text-stone-200"
+                        className="flex items-center justify-between rounded-xl bg-white/90 dark:bg-stone-900/70 ring-1 ring-slate-100 dark:ring-stone-700 px-4 py-2 text-sm text-slate-700 dark:text-stone-200 shadow-sm"
                       >
                         <span>{day.label}</span>
                         <span>{Number(day.avgVisits || 0).toFixed(1)} visits/day</span>
@@ -708,7 +708,7 @@ const Tracker = () => {
             {feed.map((v, i) => (
               <li key={i} className="py-2 text-sm text-slate-700 dark:text-stone-200 flex items-center justify-between">
                 <span>{v.name} <span className="text-slate-500">@ {v.branch}</span></span>
-                <span className="text-slate-500">{v.enteredAt}{v.exitedAt ? ` → ${v.exitedAt}` : ''}</span>
+                <span className="text-slate-500">{v.enteredAt}{v.exitedAt ? ` ΓåÆ ${v.exitedAt}` : ''}</span>
               </li>
             ))}
           </ul>

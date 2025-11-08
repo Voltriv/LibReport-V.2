@@ -1,5 +1,5 @@
 import React from "react";
-import Sidebar from "../components/Sidebar";
+import AdminPageLayout from "../components/AdminPageLayout";
 import api from "../api";
 import usePagination from "../hooks/usePagination";
 
@@ -554,25 +554,17 @@ const Borrowing = () => {
     }
   }, [returnTarget, loadActiveLoans, loadLoanHistory, showToast]);
 
+  const toastBanner = toast ? <InlineToast toast={toast} onClose={hideToast} /> : null;
+  const headerActions = <StatsCard pendingCount={pendingCount} />;
+
   return (
-    <div className="min-h-screen theme-shell">
-      <Sidebar />
-      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
-        {toast ? <InlineToast toast={toast} onClose={hideToast} /> : null}
-
-        <header className="mb-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-brand-green-muted dark:text-brand-gold-soft">
-              Circulation
-            </p>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Borrowing</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-stone-400">
-              Review student borrowing requests, approve or decline loans, and adjust renewal schedules for active checkouts.
-            </p>
-          </div>
-          <StatsCard pendingCount={pendingCount} />
-        </header>
-
+    <AdminPageLayout
+      eyebrow="Circulation"
+      title="Borrowing"
+      description="Review student borrowing requests, approve or decline loans, and adjust renewal schedules for active checkouts."
+      actions={headerActions}
+      beforeHeader={toastBanner}
+    >
         <div className="space-y-10">
           <SectionCard
             title="Borrow requests"
@@ -763,8 +755,6 @@ const Borrowing = () => {
             )}
           </SectionCard>
         </div>
-      </main>
-
       <ApprovalDialog
         request={approvalTarget}
         busy={approvalBusy}
@@ -793,7 +783,7 @@ const Borrowing = () => {
         onClose={() => setReturnTarget(null)}
         onSubmit={handleReturn}
       />
-    </div>
+    </AdminPageLayout>
   );
 };
 

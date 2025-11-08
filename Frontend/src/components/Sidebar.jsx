@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import logo from "../assets/fav_logo.png";
-import ThemeToggle from "./ThemeToggle";
 import api, { getStoredUser } from "../api";
 
 const Sidebar = () => {
@@ -127,7 +126,6 @@ const Sidebar = () => {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <ThemeToggle />
             <button
               className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
               onClick={() => setIsOpen(false)}

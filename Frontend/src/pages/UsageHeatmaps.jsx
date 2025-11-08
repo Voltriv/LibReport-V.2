@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import Sidebar from "../components/Sidebar";
+import AdminPageLayout from "../components/AdminPageLayout";
 import {
   LineChart,
   Line,
@@ -9,9 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import profileImage from "../assets/pfp.png";
-import { useNavigate } from "react-router-dom";
-import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
+import api from "../api";
 
 const ranges = [
   { label: "Last 7 days", value: 7 },
@@ -25,10 +23,6 @@ const UsageHeatmaps = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [userName, setUserName] = useState("Account");
-  const navigate = useNavigate();
 
   const load = useCallback(async (days) => {
     setLoading(true);
@@ -47,22 +41,6 @@ const UsageHeatmaps = () => {
   useEffect(() => {
     load(range.value);
   }, [load, range]);
-
-  useEffect(() => {
-    const stored = getStoredUser();
-    if (stored) {
-      const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split("@")[0] : null);
-      if (name) setUserName(name);
-    }
-  }, []);
-
-  const handleLogout = () => {
-    setShowLogoutModal(false);
-    setShowDropdown(false);
-    clearAuthSession();
-    broadcastAuthChange();
-    navigate("/signin", { replace: true });
-  };
 
   const dailySeries = useMemo(() => {
     const sums = new Array(7).fill(0);
@@ -99,57 +77,25 @@ const UsageHeatmaps = () => {
   const chartData = view === "hourly" ? hourlySeries : dailySeries;
   const chartLabel = view === "hourly" ? "Visits by Hour" : "Visits by Day of Week";
 
+  const headerActions = (
+    <button
+      type="button"
+      onClick={() => window.location.reload()}
+      className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
+    >
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+      Refresh
+    </button>
+  );
+
   return (
-    <div className="min-h-screen theme-shell">
-      <Sidebar />
-
-      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">Usage Heatmaps</h1>
-            <p className="text-slate-600 dark:text-stone-400 mt-1">Visualize library usage patterns and trends</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="inline-flex items-center gap-3 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                <img src={profileImage} alt="Profile" className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20" />
-                <span className="text-sm font-medium text-slate-700 dark:text-stone-200" title={userName}>
-                  {userName}
-                </span>
-                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showDropdown && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
-                  <button
-                    className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
-                    onClick={() => setShowLogoutModal(true)}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
+    <AdminPageLayout
+      title="Usage Heatmaps"
+      description="Visualize library usage patterns and trends"
+      actions={headerActions}
+    >
         <section className="mt-6 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-4">
@@ -229,27 +175,7 @@ const UsageHeatmaps = () => {
             </p>
           </div>
         </section>
-      </main>
-
-      {showLogoutModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">Are you sure you want to logout?</h3>
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                className="rounded-lg px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200"
-                onClick={() => setShowLogoutModal(false)}
-              >
-                Close
-              </button>
-              <button className="rounded-lg px-4 py-2 bg-red-600 text-white hover:bg-red-500" onClick={handleLogout}>
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </AdminPageLayout>
   );
 };
 

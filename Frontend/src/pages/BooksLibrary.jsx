@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Sidebar from "../components/Sidebar";
+import AdminPageLayout from "../components/AdminPageLayout";
 import api, { resolveMediaUrl } from "../api";
 
 const PAGE_SIZE = 24;
@@ -306,9 +306,10 @@ const BooksLibrary = () => {
   }, [items.length, load]);
 
   return (
-    <div className="min-h-screen theme-shell">
-      <Sidebar />
-      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
+    <AdminPageLayout
+      title="Library Catalogue"
+      description="Explore and curate digital-ready and physical titles across every department."
+    >
         <div className="space-y-8">
           <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-green via-brand-greenDark to-slate-900 text-white shadow-xl">
             <div className="pointer-events-none absolute -left-16 top-10 h-48 w-48 rounded-full bg-white/10 blur-3xl" />
@@ -378,31 +379,31 @@ const BooksLibrary = () => {
             </div>
           </section>
 
-          <section className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-stone-700 dark:bg-stone-900/80">
+          <section className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm backdrop-blur  ">
             <form onSubmit={handleSearchSubmit} className="flex flex-col gap-4 lg:flex-row lg:items-end">
               <label className="flex-1">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-stone-400">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 ">
                   Search collection
                 </span>
-                <div className="mt-2 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition focus-within:border-brand-gold focus-within:ring-2 focus-within:ring-brand-gold dark:border-stone-700 dark:bg-stone-900">
+                <div className="mt-2 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition focus-within:border-brand-gold focus-within:ring-2 focus-within:ring-brand-gold  ">
                   <IconSearch className="h-4 w-4 text-slate-400" />
                   <input
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Search by title, author, or ISBN"
-                    className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-stone-100"
+                    className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 "
                   />
                 </div>
               </label>
 
               <label className="lg:w-48">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-stone-400">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 ">
                   Department focus
                 </span>
                 <select
                   value={tag}
                   onChange={handleSelectChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm transition focus:border-brand-gold focus:outline-none focus:ring-2 focus:ring-brand-gold dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm transition focus:border-brand-gold focus:outline-none focus:ring-2 focus:ring-brand-gold   "
                 >
                   <option value="">All departments</option>
                   {DEPARTMENT_TAGS.map((department) => (
@@ -414,7 +415,7 @@ const BooksLibrary = () => {
               </label>
 
               <div className="flex flex-wrap items-center gap-3">
-                <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition hover:border-brand-gold hover:text-brand-gold dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300">
+                <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition hover:border-brand-gold hover:text-brand-gold   ">
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-slate-300 text-brand-gold focus:ring-brand-gold"
@@ -433,7 +434,7 @@ const BooksLibrary = () => {
                   type="button"
                   onClick={handleClearFilters}
                   disabled={!hasFilters && !searchTerm}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-5 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 transition hover:border-brand-gold hover:text-brand-gold disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:text-stone-400"
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-5 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 transition hover:border-brand-gold hover:text-brand-gold disabled:cursor-not-allowed disabled:opacity-50  "
                 >
                   Clear
                 </button>
@@ -441,7 +442,7 @@ const BooksLibrary = () => {
             </form>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-stone-500">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 ">
                 Quick focus
               </span>
               {DEPARTMENT_TAGS.map((department) => {
@@ -454,7 +455,7 @@ const BooksLibrary = () => {
                     className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] transition ${
                       isActive
                         ? "bg-brand-green text-white shadow-sm"
-                        : "border border-slate-200 bg-white text-slate-600 hover:border-brand-gold hover:text-brand-gold dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
+                        : "border border-slate-200 bg-white text-slate-600 hover:border-brand-gold hover:text-brand-gold   "
                     }`}
                   >
                     {department}
@@ -465,7 +466,7 @@ const BooksLibrary = () => {
 
             {hasFilters && (
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-stone-500">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 ">
                   Active filters
                 </span>
                 {q && (
@@ -502,7 +503,7 @@ const BooksLibrary = () => {
             )}
 
             {error && (
-              <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-rose-200/70 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 shadow-sm dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-100">
+              <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-rose-200/70 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 shadow-sm   ">
                 <span>{error}</span>
                 <button
                   type="button"
@@ -515,19 +516,19 @@ const BooksLibrary = () => {
             )}
           </section>
 
-          <section className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-stone-700 dark:bg-stone-900/80">
+          <section className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm backdrop-blur  ">
             {showSkeleton && (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {placeholders.map((_, index) => (
                   <div
                     key={index}
-                    className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-stone-700 dark:bg-stone-900"
+                    className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm  "
                   >
-                    <div className="aspect-[3/4] animate-pulse bg-slate-200/80 dark:bg-stone-800" />
+                    <div className="aspect-[3/4] animate-pulse bg-slate-200/80 " />
                     <div className="space-y-3 p-4">
-                      <div className="h-3 w-3/4 animate-pulse rounded-full bg-slate-200/90 dark:bg-stone-700" />
-                      <div className="h-3 w-2/3 animate-pulse rounded-full bg-slate-200/80 dark:bg-stone-700" />
-                      <div className="h-3 w-1/2 animate-pulse rounded-full bg-slate-200/70 dark:bg-stone-700" />
+                      <div className="h-3 w-3/4 animate-pulse rounded-full bg-slate-200/90 " />
+                      <div className="h-3 w-2/3 animate-pulse rounded-full bg-slate-200/80 " />
+                      <div className="h-3 w-1/2 animate-pulse rounded-full bg-slate-200/70 " />
                     </div>
                   </div>
                 ))}
@@ -548,10 +549,10 @@ const BooksLibrary = () => {
                   return (
                     <article
                       key={key}
-                      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-stone-700 dark:bg-stone-900/80"
+                      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl  "
                     >
                       <div className="relative">
-                        <div className="aspect-[3/4] overflow-hidden bg-slate-100 dark:bg-stone-900">
+                        <div className="aspect-[3/4] overflow-hidden bg-slate-100 ">
                           {imageUrl ? (
                             <img
                               src={imageUrl}
@@ -560,13 +561,13 @@ const BooksLibrary = () => {
                               loading="lazy"
                             />
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center text-sm font-medium text-slate-400 dark:text-stone-500">
+                            <div className="flex h-full w-full items-center justify-center text-sm font-medium text-slate-400 ">
                               No cover available
                             </div>
                           )}
                         </div>
                         {book.department && (
-                          <span className="absolute left-3 top-3 inline-flex items-center rounded-full bg-white/90 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-slate-700 shadow-sm dark:bg-stone-950/80 dark:text-stone-200">
+                          <span className="absolute left-3 top-3 inline-flex items-center rounded-full bg-white/90 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-slate-700 shadow-sm  ">
                             {book.department}
                           </span>
                         )}
@@ -578,16 +579,16 @@ const BooksLibrary = () => {
                       </div>
                       <div className="flex flex-1 flex-col gap-3 p-4">
                         <div>
-                          <h2 className="text-sm font-semibold text-slate-900 transition group-hover:text-brand-green dark:text-stone-100">
+                          <h2 className="text-sm font-semibold text-slate-900 transition group-hover:text-brand-green ">
                             <span className="line-clamp-2">{book.title}</span>
                           </h2>
-                          <p className="mt-1 text-xs text-slate-500 dark:text-stone-400">{author}</p>
+                          <p className="mt-1 text-xs text-slate-500 ">{author}</p>
                         </div>
-                        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 text-[0.7rem] uppercase tracking-[0.2em] text-slate-400 dark:text-stone-500">
+                        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 text-[0.7rem] uppercase tracking-[0.2em] text-slate-400 ">
                           <div className="flex flex-wrap items-center gap-2">
                             {genre && <span>{genre}</span>}
                             {bookCode && (
-                              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[0.65rem] font-semibold text-slate-500 dark:bg-stone-800 dark:text-stone-300">
+                              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[0.65rem] font-semibold text-slate-500  ">
                                 {bookCode}
                               </span>
                             )}
@@ -611,11 +612,11 @@ const BooksLibrary = () => {
             )}
 
             {showEmptyState && (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-slate-200/70 bg-white/80 px-6 py-12 text-center shadow-sm dark:border-stone-700 dark:bg-stone-900/60">
-                <IconEmptyState className="h-16 w-16 text-slate-300 dark:text-stone-600" />
+              <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-slate-200/70 bg-white/80 px-6 py-12 text-center shadow-sm  ">
+                <IconEmptyState className="h-16 w-16 text-slate-300 " />
                 <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-stone-100">No books found</h3>
-                  <p className="text-sm text-slate-500 dark:text-stone-400">
+                  <h3 className="text-lg font-semibold text-slate-900 ">No books found</h3>
+                  <p className="text-sm text-slate-500 ">
                     Adjust your filters or reset the search to explore more of the collection.
                   </p>
                 </div>
@@ -632,20 +633,19 @@ const BooksLibrary = () => {
             <div ref={sentinelRef} className="h-1" />
 
             {loading && items.length > 0 && (
-              <div className="flex justify-center py-6 text-sm font-medium text-slate-500 dark:text-stone-400">
+              <div className="flex justify-center py-6 text-sm font-medium text-slate-500 ">
                 Loading more titles…
               </div>
             )}
 
             {!loading && !hasMore && items.length > 0 && (
-              <div className="flex justify-center py-6 text-sm font-medium text-slate-500 dark:text-stone-400">
+              <div className="flex justify-center py-6 text-sm font-medium text-slate-500 ">
                 You have reached the end of the catalogue.
               </div>
             )}
           </section>
         </div>
-      </main>
-    </div>
+    </AdminPageLayout>
   );
 };
 

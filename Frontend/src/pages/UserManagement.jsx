@@ -1,8 +1,6 @@
-import React, { useEffect, useState } from "react";
-import Sidebar from "../components/Sidebar";
-import pfp from "../assets/pfp.png";
-import { useNavigate } from "react-router-dom";
-import api, { clearAuthSession, broadcastAuthChange, getStoredUser } from "../api";
+import React, { useCallback, useEffect, useState } from "react";
+import AdminPageLayout from "../components/AdminPageLayout";
+import api from "../api";
 
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{6}$/;
 const DEPARTMENTS = ["CAHS", "CITE", "CCJE", "CEA", "CELA", "COL", "SHS"];
@@ -65,11 +63,7 @@ const formatStudentId = (raw) => {
 const PAGE_SIZE = 10;
 
 const UserManagement = () => {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [userName, setUserName] = useState("Account");
-  const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,15 +73,19 @@ const UserManagement = () => {
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    api
-      .get("/admin/users")
-      .then((r) => {
-        setUsers(mapApiUsers(r.data || []));
-        setCurrentPage(1);
-      })
-      .catch(() => setUsers([]));
+  const refreshUsers = useCallback(async () => {
+    try {
+      const response = await api.get("/admin/users");
+      setUsers(mapApiUsers(response.data || []));
+      setCurrentPage(1);
+    } catch {
+      setUsers([]);
+    }
   }, []);
+
+  useEffect(() => {
+    refreshUsers();
+  }, [refreshUsers]);
 
   useEffect(() => {
     const maxPage = Math.max(1, Math.ceil((users.length || 0) / PAGE_SIZE));
@@ -180,9 +178,7 @@ const UserManagement = () => {
       await Promise.all(updates);
 
       closeEditModal();
-      const r = await api.get("/admin/users");
-      setUsers(mapApiUsers(r.data || []));
-      setCurrentPage(1);
+      await refreshUsers();
     } catch {
       closeEditModal();
     }
@@ -253,9 +249,7 @@ const UserManagement = () => {
         role: "faculty",
         status: "active" // keep consistent with Active/Disabled
       });
-      const r = await api.get("/admin/users");
-      setUsers(mapApiUsers(r.data || []));
-      setCurrentPage(1);
+      await refreshUsers();
       setIsCreateModalOpen(false);
       setCreateForm({ ...CREATE_FORM_DEFAULT });
       setCreateErrors({});
@@ -268,24 +262,6 @@ const UserManagement = () => {
     }
   };
 
-  const handleLogout = () => {
-    setShowLogoutModal(false);
-    setIsDropdownOpen(false);
-
-    clearAuthSession();
-    broadcastAuthChange();
-
-    navigate("/signin", { replace: true });
-  };
-
-  useEffect(() => {
-    const stored = getStoredUser();
-    if (stored) {
-      const name = stored?.fullName || stored?.name || (stored?.email ? String(stored.email).split("@")[0] : null);
-      if (name) setUserName(name);
-    }
-  }, []);
-
   const pageCount = Math.max(1, Math.ceil((users.length || 0) / PAGE_SIZE));
   const safePage = Math.min(Math.max(currentPage, 1), pageCount);
   const startIndex = (safePage - 1) * PAGE_SIZE;
@@ -293,101 +269,72 @@ const UserManagement = () => {
   const showingStart = users.length === 0 ? 0 : startIndex + 1;
   const showingEnd = Math.min(startIndex + PAGE_SIZE, users.length);
 
+  const headerActions = (
+    <>
+      <button
+        onClick={openCreateModal}
+        className="inline-flex items-center gap-2 rounded-xl bg-brand-green text-white px-4 py-2 hover:bg-brand-greenDark transition-colors duration-200"
+        type="button"
+      >
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        Add Faculty
+      </button>
+      <button
+        onClick={refreshUsers}
+        className="inline-flex items-center gap-2 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-stone-200 hover:bg-white dark:hover:bg-stone-800 transition-colors duration-200"
+        type="button"
+      >
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Refresh
+      </button>
+    </>
+  );
+
+  const totalUsers = users.length;
+  const disabledCount = users.filter((user) => normalizeStatus(user.status) === "disabled").length;
+
   return (
-    <div className="min-h-screen theme-shell">
-      <Sidebar />
-
-      <main className="admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-stone-100">User Management</h1>
-            <p className="text-slate-600 dark:text-stone-400 mt-1">Manage library users and their permissions</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={openCreateModal}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-green text-white px-4 py-2 hover:bg-brand-greenDark transition-colors duration-200"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Faculty
-            </button>
-            <button 
-              onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300 px-4 py-2 hover:bg-slate-200 dark:hover:bg-stone-700 transition-colors duration-200"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="inline-flex items-center gap-3 rounded-xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                <img src={pfp} alt="Profile" className="h-9 w-9 rounded-full ring-2 ring-brand-gold/20" />
-                <span className="text-sm font-medium text-slate-700 dark:text-stone-200 max-w-[12rem] truncate" title={userName}>
-                  {userName}
-                </span>
-                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {isDropdownOpen && (
-                <div className="absolute right-0 mt-3 w-48 rounded-xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-xl p-2 z-50">
-                  <button
-                    className="w-full text-left rounded-lg px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 flex items-center gap-2"
-                    onClick={() => setShowLogoutModal(true)}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+    <AdminPageLayout
+      title="User Management"
+      description="Manage library users and their permissions"
+      actions={headerActions}
+    >
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+        <div className="rounded-2xl bg-gradient-to-br from-brand-green/10 via-brand-green/5 to-white dark:from-brand-green/20 dark:via-brand-green/10 dark:to-stone-900 ring-1 ring-brand-green/20 p-6 shadow-sm">
+          <p className="text-sm font-medium text-brand-greenDark">Total users</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-stone-100">{totalUsers}</p>
+          <p className="text-xs text-slate-500 dark:text-stone-400 mt-1">Across all departments</p>
         </div>
-
-        {/* Stats Cards */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-          <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 ring-1 ring-blue-200 dark:ring-blue-800 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Users</p>
-                <p className="mt-2 text-2xl font-bold text-blue-900 dark:text-blue-100">{users.length}</p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-blue-500 flex items-center justify-center">
-                <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
-              </div>
-            </div>
+        <div className="rounded-2xl bg-gradient-to-br from-brand-gold/15 via-white to-white dark:from-brand-gold/20 dark:via-brand-gold/10 dark:to-stone-900 ring-1 ring-brand-gold/25 p-6 shadow-sm">
+          <p className="text-sm font-medium text-brand-gold-ink">Disabled accounts</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-stone-100">{disabledCount}</p>
+          <p className="text-xs text-slate-500 dark:text-stone-400 mt-1">Require review</p>
+        </div>
+        <div className="rounded-2xl bg-white/90 dark:bg-stone-900/80 ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-600 dark:text-stone-300">Active faculty</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-stone-100">
+              {totalUsers - disabledCount}
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-green hover:text-brand-greenDark transition-colors duration-200"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add faculty account
+          </button>
+        </div>
+      </section>
 
-          <div className="rounded-2xl bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 ring-1 ring-red-200 dark:ring-red-800 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-red-600 dark:text-red-400">Disabled Users</p>
-                <p className="mt-2 text-2xl font-bold text-red-900 dark:text-red-100">
-                  {users.filter((u) => normalizeStatus(u.status) === 'disabled').length}
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-red-500 flex items-center justify-center">
-                <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </div>
-            </div>
-          </div>
-          
-        </section>
-
-        {/* Users Table */}
+      {/* Users Table */}
         <section className="rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 shadow-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-200 dark:border-stone-700">
             <div className="flex items-center justify-between">
@@ -792,41 +739,7 @@ const UserManagement = () => {
             </div>
           </div>
         )}
-
-        {showLogoutModal && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-2xl theme-panel ring-1 ring-slate-200 dark:ring-stone-700 p-6 shadow-2xl">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
-                  <svg className="h-5 w-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-stone-100">Confirm Logout</h3>
-              </div>
-              <p className="text-slate-600 dark:text-stone-400 mb-6">Are you sure you want to logout? You'll need to sign in again to access the admin panel.</p>
-              <div className="flex items-center justify-end gap-3">
-                <button
-                  className="rounded-xl px-4 py-2 ring-1 ring-slate-200 dark:ring-stone-700 theme-panel text-slate-700 dark:text-stone-200 hover:bg-slate-50 dark:hover:bg-stone-800 transition-colors duration-200"
-                  onClick={() => setShowLogoutModal(false)}
-                >
-                  Cancel
-                </button>
-                <button 
-                  className="rounded-xl px-4 py-2 bg-red-600 text-white hover:bg-red-700 transition-colors duration-200 flex items-center gap-2" 
-                  onClick={handleLogout}
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  Logout
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+    </AdminPageLayout>
   );
 };
 
