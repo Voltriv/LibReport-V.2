@@ -56,10 +56,10 @@ const SignIn = () => {
           <div className="mb-4">
             <button
               type="button"
-              onClick={() => navigate("/student-landing")}
+              onClick={() => navigate("/student")}
               className="inline-flex items-center gap-2 text-sm font-bold text-slate-900 [[data-theme=dark]_&]:text-stone-100 hover:underline"
             >
-              ← Back
+              Back to student portal
             </button>
           </div>
 
@@ -118,3 +118,4 @@ const SignIn = () => {
 };
 
 export default SignIn;
+

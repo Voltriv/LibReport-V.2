@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import heroImage from "../assets/LibReport.png";
 
@@ -90,23 +90,22 @@ const digitalHighlights = [
 
 const supportChannels = [
   {
-    icon: "💬",
+    icon: "Chat",
     title: "Ask a Librarian",
     description: "Weekday live chat from 8:00 AM to 5:00 PM for research questions and borrowing concerns.",
     contact: "Messenger: @LibReportLibrary",
   },
   {
-    icon: "📧",
+    icon: "Email",
     title: "Email & Tickets",
     description: "Send detailed requests or attach syllabi so our team can prepare resources before your visit.",
     contact: "library@phinmaed.com",
   },
   {
-    icon: "🏛️",
+    icon: "Desk",
     title: "On-campus Help Desk",
     description: "Visit the circulation desk for ID validation, loan pickups, and technical assistance.",
-    contact: "Ground Floor · Learning Resource Center",
-
+    contact: "Ground Floor - Learning Resource Center",
   },
 ];
 
@@ -215,7 +214,7 @@ const StudentLanding = () => {
               <ul className="mt-6 space-y-3 text-sm text-slate-600">
                 {digitalHighlights.map((item) => (
                   <li key={item.title} className="flex items-start gap-3 rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-slate-200">
-                    <span className="student-check-icon">✓</span>
+                    <span className="student-check-icon">âœ“</span>
                     <div>
                       <p className="font-semibold text-slate-900">{item.title}</p>
                       <p className="text-xs text-slate-500">{item.description}</p>
@@ -247,20 +246,20 @@ const StudentLanding = () => {
           <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <h3 className="text-xl font-semibold text-slate-900">Library Objectives</h3>
             <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li>• Foster a culture of independent, critical, and creative thinking.</li>
-              <li>• Sustain a welcoming space for collaborative and individual learning.</li>
-              <li>• Preserve and showcase institutional knowledge and publications.</li>
-              <li>• Support faculty and students with timely research assistance.</li>
+              <li>â€¢ Foster a culture of independent, critical, and creative thinking.</li>
+              <li>â€¢ Sustain a welcoming space for collaborative and individual learning.</li>
+              <li>â€¢ Preserve and showcase institutional knowledge and publications.</li>
+              <li>â€¢ Support faculty and students with timely research assistance.</li>
             </ul>
           </div>
           <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <h3 className="text-xl font-semibold text-slate-900">Library Service Hours</h3>
             <p className="mt-2 text-sm text-slate-600">
-              Monday to Friday · 7:30 AM – 6:00 PM
+              Monday to Friday Â· 7:30 AM â€“ 6:00 PM
               <br />
-              Saturday · 8:00 AM – 5:30 PM
+              Saturday Â· 8:00 AM â€“ 5:30 PM
               <br />
-              Sunday & Holidays · Closed
+              Sunday & Holidays Â· Closed
             </p>
             <p className="mt-4 text-sm text-slate-600">
               Visit the <Link to="/student/catalog" className="text-brand-green hover:underline">online catalog</Link> or book a
@@ -274,7 +273,7 @@ const StudentLanding = () => {
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="text-center text-3xl font-semibold text-slate-900">Library Sections</h2>
           <p className="mt-2 text-center text-base text-slate-600">
-            Each section is designed to meet a specific study need—from curated reference materials to multimedia creation hubs.
+            Each section is designed to meet a specific study needâ€”from curated reference materials to multimedia creation hubs.
           </p>
           <div className="mt-8 grid gap-6 md:grid-cols-2">
             {sections.map((section, index) => (
@@ -305,7 +304,7 @@ const StudentLanding = () => {
           <div>
             <h2 className="text-3xl font-semibold text-slate-900">Library Services</h2>
             <p className="mt-3 text-base text-slate-600">
-              Our team is ready to support your learning journey—from first-year orientation to capstone completion. Connect with us
+              Our team is ready to support your learning journeyâ€”from first-year orientation to capstone completion. Connect with us
               on-site or online to get the most out of our services.
             </p>
             <div className="mt-6 grid gap-4">
@@ -337,7 +336,7 @@ const StudentLanding = () => {
           <div>
             <h2 className="text-3xl font-semibold text-slate-900">Ebook Collection</h2>
             <p className="mt-3 text-base text-slate-600">
-              Downloadable ebooks complement our print holdings, giving you the flexibility to study whenever—and wherever—you need
+              Downloadable ebooks complement our print holdings, giving you the flexibility to study wheneverâ€”and whereverâ€”you need
               to. Titles are organized by program with smart recommendations based on your reading history.
             </p>
             <ul className="mt-6 space-y-3 text-sm text-slate-600">
@@ -388,7 +387,7 @@ const StudentLanding = () => {
           <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             <div>
               <span className="btn-pill-sm bg-brand-green-soft text-brand-green">Support that follows you</span>
-              <h2 className="mt-4 text-3xl font-semibold text-slate-900">We’re here when you need library help</h2>
+              <h2 className="mt-4 text-3xl font-semibold text-slate-900">Weâ€™re here when you need library help</h2>
               <p className="mt-3 text-base text-slate-600">
                 Reach out from campus or off-site. Librarians respond quickly whether you prefer chat, email, or in-person
                 support.
@@ -417,15 +416,15 @@ const StudentLanding = () => {
               </p>
               <ul className="mt-5 space-y-3 text-sm text-white/85">
                 <li className="flex items-start gap-3">
-                  <span className="student-check-icon bg-white/20 text-white">✓</span>
+                  <span className="student-check-icon bg-white/20 text-white">âœ“</span>
                   Check in with the circulation desk when you arrive.
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="student-check-icon bg-white/20 text-white">✓</span>
+                  <span className="student-check-icon bg-white/20 text-white">âœ“</span>
                   Download PDFs ahead of time for blended or remote sessions.
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="student-check-icon bg-white/20 text-white">✓</span>
+                  <span className="student-check-icon bg-white/20 text-white">âœ“</span>
                   Request specialized materials at least two days before your visit.
                 </li>
               </ul>
@@ -476,3 +475,4 @@ const StudentLanding = () => {
 };
 
 export default StudentLanding;
+
