@@ -3825,17 +3825,21 @@ app.get('/api/reports/genre-trends', authRequired, async (req, res) => {
 
   const previousMap = new Map(previous.map((row) => [row.topic, Number(row.borrows || 0)]));
   const totalBorrows = current.reduce((acc, row) => acc + Number(row.borrows || 0), 0);
+  const totalActiveLoans = current.reduce((acc, row) => acc + Number(row.activeLoans || 0), 0);
+  const shareDenominator = totalBorrows + totalActiveLoans || totalBorrows || totalLoans || 0;
 
   const items = current.map((row) => {
     const borrows = Number(row.borrows || 0);
+    const activeLoans = Number(row.activeLoans || 0);
     const prev = previousMap.get(row.topic) || 0;
-    const share = totalLoans > 0 ? (borrows / totalLoans) * 100 : 0;
+    // Include active loans as a demand multiplier so high-inflight topics surface prominently.
+    const share = shareDenominator > 0 ? ((borrows + activeLoans) / shareDenominator) * 100 : 0;
     const growth =
       prev === 0 ? (borrows > 0 ? 100 : 0) : ((borrows - prev) / prev) * 100;
     return {
       topic: row.topic || 'Uncategorized',
       borrows,
-      activeLoans: Number(row.activeLoans || 0),
+      activeLoans,
       lastBorrowedAt: row.lastBorrowedAt || null,
       share: Number(share.toFixed(1)),
       growth: Number(growth.toFixed(1))
@@ -3955,6 +3959,7 @@ app.get('/api/reports/underutilized', authRequired, async (req, res) => {
       book.lastBorrowedAt && book.daysSinceBorrowed !== null && book.daysSinceBorrowed !== undefined
         ? Math.round(book.daysSinceBorrowed)
         : null;
+    const daysIdleLabel = daysSince === null || daysSince === undefined ? 'Never' : String(daysSince);
     return {
       bookId: String(book._id),
       title: book.title || 'Untitled',
@@ -3968,6 +3973,7 @@ app.get('/api/reports/underutilized', authRequired, async (req, res) => {
       activeLoans: Number(book.activeLoans || 0),
       lastBorrowedAt: book.lastBorrowedAt || null,
       daysSinceLastBorrowed: daysSince,
+      daysIdle: daysIdleLabel,
       status: book.lastBorrowedAt ? 'Stale' : 'Never borrowed'
     };
   });
@@ -4011,7 +4017,7 @@ app.get('/api/reports/fines', authRequired, async (req, res) => {
           $max: [
             0,
             {
-              $ceil: {
+              $floor: {
                 $divide: [{ $subtract: ['$$NOW', '$dueAt'] }, MILLIS_PER_DAY]
               }
             }
@@ -4072,8 +4078,14 @@ app.get('/api/reports/fines', authRequired, async (req, res) => {
     title: row.title || 'Untitled',
     dueAt: row.dueAt || null,
     borrowedAt: row.borrowedAt || null,
-    daysOverdue: Number(row.overdueDays || 0),
-    fine: Number(row.fine || 0)
+    daysOverdueValue: Math.max(0, Number(row.overdueDays || 0)),
+    fineValue: Math.max(0, Number(row.fine || 0))
+  }));
+
+  const formattedItems = items.map((item) => ({
+    ...item,
+    daysOverdue: item.daysOverdueValue.toString(),
+    fine: item.fineValue.toFixed(2)
   }));
 
   const totals = {
@@ -4092,7 +4104,7 @@ app.get('/api/reports/fines', authRequired, async (req, res) => {
   res.json({
     ratePerDay: FINE_RATE_PER_DAY,
     totals,
-    items
+    items: formattedItems
   });
 });
 
