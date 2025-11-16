@@ -31,7 +31,8 @@
     "build": "npm run build:tailwind && cross-env GENERATE_SOURCEMAP=false react-scripts build",
     "test": "react-scripts test",
     "pretest": "npm run build:tailwind",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "postinstall": "patch-package"
   },
   "eslintConfig": {
     "extends": [
@@ -58,6 +59,7 @@
     "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
     "http-proxy-middleware": "^3.0.0",
+    "patch-package": "^8.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.14"
   }

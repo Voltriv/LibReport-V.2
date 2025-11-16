@@ -109,7 +109,9 @@ const AdminPageLayout = ({
     <div className="min-h-screen theme-shell">
       <Sidebar />
       {beforeMain}
-      <main className={`admin-main px-6 md:pl-8 lg:pl-10 pr-6 py-8 ${mainClassName}`}>
+      <main
+        className={`admin-main pl-16 pr-6 pt-16 pb-8 md:pl-8 md:pr-8 md:pt-8 lg:pl-10 ${mainClassName}`}
+      >
         {beforeHeader}
         {(title || description || headerHasActions) && (
           <header className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
