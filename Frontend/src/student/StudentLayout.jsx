@@ -623,12 +623,7 @@ const StudentLayout = () => {
           </div>
           
           <div className="mt-8 border-t border-slate-200/60 pt-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-slate-500">&copy; {new Date().getFullYear()} LibReport Student Portal. All rights reserved.</p>
-              <div className="flex items-center gap-4 text-xs text-slate-500">
-                <span>Built with ❤️ for students</span>
-              </div>
-            </div>
+            <p className="text-center text-sm text-slate-500">&copy; {new Date().getFullYear()} LibReport Student Portal. All rights reserved.</p>
           </div>
         </div>
       </footer>

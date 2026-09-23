@@ -8,7 +8,7 @@ const { resolveMongoConfig } = require('../db/uri');
 const MEMORY_SERVER_VERSION =
   process.env.MONGO_MEMORY_SERVER_VERSION ||
   process.env.MONGO_MEMORY_VERSION ||
-  '7.0.5';
+  '7.0.14';
 const MEMORY_SERVER_DOWNLOAD_DIR = process.env.MONGO_MEMORY_DOWNLOAD_DIR || process.env.MONGOMS_DOWNLOAD_DIR;
 const MEMORY_SERVER_SYSTEM_BINARY =
   process.env.MONGO_MEMORY_SYSTEM_BINARY ||

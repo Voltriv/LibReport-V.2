@@ -18,6 +18,8 @@
         "db:seed": "node scripts/seed.js",
         "db:bootstrap": "npm run db:indexes && npm run db:seed",
         "db:check:admins": "node scripts/check_admins.js",
+        "admin:create": "node scripts/create_admin.js",
+        "admin:reset": "node scripts/create_admin.js --reset",
         "import:books": "node scripts/import_books.js",
         "export:books": "node scripts/books_export.js",
         "validate:books": "node scripts/books_validate.js",

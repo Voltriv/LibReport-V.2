@@ -11,10 +11,13 @@ try {
 }
 
 function config(options = {}) {
+  // Default to quiet: every script loads several .env paths, and the per-file
+  // "injecting env" banners drown out the output we actually care about.
+  const opts = { quiet: true, ...options };
   if (realDotenv && typeof realDotenv.config === 'function') {
-    return realDotenv.config(options);
+    return realDotenv.config(opts);
   }
-  return fallbackConfig(options);
+  return fallbackConfig(opts);
 }
 
 function fallbackConfig(options = {}) {

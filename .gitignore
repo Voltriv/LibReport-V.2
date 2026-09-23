@@ -29,6 +29,9 @@ Backend/.env
 # Frontend build
 Frontend/build/
 
+# Local development database (scripts/dev-all.js)
+.mongo-data/
+
 # Prevent accidental duplicates and stray folders
 Backend/backend/
 LibReport-V.2/
