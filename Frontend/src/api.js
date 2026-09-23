@@ -16,13 +16,13 @@ export function directBackendBase() {
 
     const { protocol = 'http:', hostname = 'localhost', port: locationPort = '' } = w.location || {};
     const overridePort = w.__BACKEND_PORT__;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
 
-    let port = overridePort ?? locationPort;
-    if (!port || port === '3000' || port === '5173' || port === '4173') {
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        port = '4000';
-      }
-    }
+    // In local dev the page is never served by the backend, so its own port is
+    // never the right target. Listing known frontend ports (3000/5173/4173) got
+    // this wrong the moment the dev server fell back to 3001 and the "fallback"
+    // pointed at the frontend itself.
+    let port = overridePort ?? (isLocal ? '4000' : locationPort);
 
     const normalizedPort = String(port || '').replace(/^:+/, '');
     const shouldIncludePort = normalizedPort && normalizedPort !== '80' && normalizedPort !== '443';
@@ -129,8 +129,11 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     const status = err?.response?.status;
-    if (!status || status === 404) {
-      // Network or proxy error — retry once directly to backend with CORS
+    if (!status) {
+      // Network/connection failure only — retry once directly to backend with CORS.
+      // A 404 used to be retried too, from when setupProxy.js stripped the /api
+      // prefix and every call 404'd. That is fixed, so a 404 now means "not
+      // found": retrying it doubled every request and re-sent POSTs.
       const cfg = err?.config || {};
       if (!cfg.__retriedDirect) {
         cfg.__retriedDirect = true;

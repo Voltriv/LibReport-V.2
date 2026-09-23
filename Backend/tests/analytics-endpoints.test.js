@@ -14,21 +14,25 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
-// MongoDB 7.0.5 binaries are not published for Ubuntu 22.04 which the
-// mongodb-memory-server library tries to detect automatically. Force the
-// download to use the ubuntu20.04 build that is still published so the
-// analytics integration tests can boot their in-memory database reliably.
+// On Linux CI the mongodb-memory-server OS detection picks Ubuntu 22.04, which
+// has no published build for the version we want, so pin it to the ubuntu20.04
+// one. This must stay Linux-only: forcing an Ubuntu build on macOS made
+// MongoMemoryServer.create time out ("Instance failed to start within 10000ms")
+// on every run, because no such binary exists for darwin/arm64.
+const IS_LINUX = process.platform === 'linux';
 const prevMemoryOsDist = process.env.MONGO_MEMORY_OS_DIST;
-if (!prevMemoryOsDist) {
+if (!prevMemoryOsDist && IS_LINUX) {
   process.env.MONGO_MEMORY_OS_DIST = 'ubuntu';
 }
 const prevMemoryOsRelease = process.env.MONGO_MEMORY_OS_RELEASE;
-if (!prevMemoryOsRelease) {
+if (!prevMemoryOsRelease && IS_LINUX) {
   process.env.MONGO_MEMORY_OS_RELEASE = '20.04';
 }
 const prevMemoryVersion = process.env.MONGO_MEMORY_VERSION;
 if (!prevMemoryVersion) {
-  process.env.MONGO_MEMORY_VERSION = '4.4.29';
+  // Matches server.js, scripts/seed.js, scripts/indexes.js and scripts/dev-all.js
+  // so every entry point shares one cached mongod binary.
+  process.env.MONGO_MEMORY_VERSION = '7.0.14';
 }
 
 function buildMemoryServerOptionsFromEnv() {

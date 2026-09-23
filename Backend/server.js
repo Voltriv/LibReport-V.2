@@ -1149,16 +1149,38 @@ function signToken(user) {
   return jwt.sign({ sub: String(user._id), email: user.email, role: safeRole }, JWT_SECRET, { expiresIn: '7d' });
 }
 
+// Tokens live for 7 days, so signature alone is not enough: an account
+// disabled after its token was issued must lose access immediately.
+async function accountIsDisabled(sub) {
+  if (NO_DB || !sub || !mongoose.isValidObjectId(sub)) return false;
+  if (!(mongoose.connection.readyState === 1 || DB_READY)) return false;
+  const projection = { status: 1 };
+  const found =
+    (await Admin.findById(sub, projection).lean())
+    || (await User.findById(sub, projection).lean())
+    || (await Faculty.findById(sub, projection).lean());
+  if (!found) return false;
+  return normalizeUserStatus(found.status) === 'disabled';
+}
+
 function authRequired(req, res, next) {
+  let claims;
   try {
     const header = req.headers.authorization || '';
     const [, token] = header.split(' ');
     if (!token) return res.status(401).json({ error: 'missing token' });
-    req.user = jwt.verify(token, JWT_SECRET);
-    return next();
+    claims = jwt.verify(token, JWT_SECRET);
   } catch {
     return res.status(401).json({ error: 'invalid token' });
   }
+
+  req.user = claims;
+  accountIsDisabled(claims.sub)
+    .then((disabled) => {
+      if (disabled) return res.status(401).json({ error: 'Account is disabled' });
+      return next();
+    })
+    .catch(next);
 }
 
 function adminRequired(req, res, next) {
@@ -1366,6 +1388,12 @@ app.post('/api/auth/login', authRateLimiter, async (req, res) => {
 
   const ok = await bcrypt.compare(String(password), account.passwordHash);
   if (!ok) return res.status(401).json({ error: 'invalid credentials' });
+
+  // Checked after the password so a wrong password on a disabled account still
+  // reads as "invalid credentials" and does not disclose that the account exists.
+  if (normalizeUserStatus(account.status) === 'disabled') {
+    return res.status(403).json({ error: 'Account is disabled' });
+  }
 
   const role = resolveUserRole(account.role, isAdmin ? 'librarian' : isFaculty ? 'faculty' : 'student');
   const baseAccount = typeof account.toObject === 'function' ? account.toObject() : account;
@@ -2346,6 +2374,25 @@ app.get('/api/books', adminRequired, async (req, res) => {
   }
   const items = await Book.find(filter).sort({ createdAt: -1, _id: -1 }).limit(400).lean();
   res.json(items);
+});
+
+// Registered before '/api/books/:id' — Express matches in order, and the
+// param route would otherwise swallow 'lookup' and throw a CastError.
+app.get('/api/books/lookup', authRequired, async (req, res) => {
+  const { isbn, q, code } = req.query || {};
+  const filter = {};
+  if (isbn) filter.isbn = String(isbn);
+  if (code) filter.bookCode = String(code);
+  if (q) {
+    const escaped = String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    filter.$or = [
+      { title: new RegExp(escaped, 'i') },
+      { author: new RegExp(escaped, 'i') },
+      { bookCode: new RegExp(escaped, 'i') }
+    ];
+  }
+  const items = await Book.find(filter).limit(20).lean();
+  res.json({ items });
 });
 
 app.get('/api/books/:id', adminRequired, async (req, res) => {
@@ -4160,9 +4207,11 @@ app.get('/api/hours', authRequired, async (req, res) => {
   await Hours.deleteMany({ branch, dayOfWeek: { $nin: VALID_LIBRARY_DAYS } });
   await Promise.all(
     DEFAULT_LIBRARY_HOURS.map(({ dayOfWeek, open, close }) =>
+      // $setOnInsert, not $set: this seeds missing days only. With $set every
+      // read would overwrite whatever an admin saved via PUT /api/hours/:branch/:day.
       Hours.updateOne(
         { branch, dayOfWeek },
-        { $set: { branch, dayOfWeek, open, close } },
+        { $setOnInsert: { branch, dayOfWeek, open, close } },
         { upsert: true, runValidators: true }
       )
     )
@@ -4489,24 +4538,35 @@ app.get('/api/users/lookup', authRequired, async (req, res) => {
   });
 });
 
-app.get('/api/books/lookup', authRequired, async (req, res) => {
-  const { isbn, q, code } = req.query || {};
-  const filter = {};
-  if (isbn) filter.isbn = String(isbn);
-  if (code) filter.bookCode = String(code);
-  if (q) {
-    const escaped = String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    filter.$or = [
-      { title: new RegExp(escaped, 'i') },
-      { author: new RegExp(escaped, 'i') },
-      { bookCode: new RegExp(escaped, 'i') }
-    ];
-  }
-  const items = await Book.find(filter).limit(20).lean();
-  res.json({ items });
-});
-
 // Static asset routes for legacy book files have been removed
+
+// --- Error handler
+// Registered last so it catches rejections from every route above (Express 5
+// forwards async errors here). Without it Express replies with an HTML page
+// that embeds the stack trace and absolute file paths, and the frontend — which
+// reads err.response.data.error — has nothing to show the user.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  if (res.headersSent) return;
+
+  if (err?.name === 'CastError') {
+    return res.status(400).json({ error: `invalid ${err.path === '_id' ? 'id' : err.path}` });
+  }
+  if (err?.name === 'ValidationError') {
+    const details = Object.values(err.errors || {}).map((e) => e.message);
+    return res.status(400).json({ error: details.join('; ') || 'validation failed' });
+  }
+  if (err?.code === 11000 || err?.code === 11001) {
+    const field = Object.keys(err.keyPattern || err.keyValue || {})[0];
+    return res.status(409).json({ error: field ? `${field} already exists` : 'duplicate value' });
+  }
+  if (err?.type === 'entity.parse.failed' || err instanceof SyntaxError) {
+    return res.status(400).json({ error: 'malformed JSON body' });
+  }
+
+  console.error(`Unhandled error on ${req.method} ${req.originalUrl}:`, err?.stack || err);
+  return res.status(500).json({ error: 'internal error' });
+});
 
 const PORT = process.env.BACKEND_PORT || 4000;
 if (require.main === module) {

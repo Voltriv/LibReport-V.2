@@ -157,7 +157,24 @@ function discardBrokenBinary() {
   try { fs.rmSync(binary, { force: true }); } catch {}
 }
 
+/* True when MONGO_URI points somewhere other than this machine (Atlas, a
+ * staging box). Starting a local mongod in that case wastes a process and
+ * misleads: the seed steps and the backend would both talk to the remote. */
+function usingRemoteMongo() {
+  const uri = (process.env.MONGO_URI || process.env.MONGODB_URI || '').trim();
+  if (!uri) return false;
+  if (uri.startsWith('mongodb+srv://')) return true;
+  const host = uri.replace(/^mongodb:\/\//, '').replace(/^[^@]*@/, '').split(/[/?,]/)[0];
+  const name = host.split(':')[0].toLowerCase();
+  return Boolean(name) && name !== 'localhost' && name !== '127.0.0.1' && name !== '::1';
+}
+
 async function startDatabase() {
+  if (usingRemoteMongo()) {
+    log('db', 'MONGO_URI points at a remote database — not starting a local mongod');
+    return null;
+  }
+
   if (await isPortOpen(MONGO_PORT)) {
     log('db', `reusing mongod already listening on ${MONGO_PORT}`);
     return null;
@@ -256,6 +273,13 @@ async function bootstrapData() {
     const { code, output } = await runToCompletion('node', step.args, { cwd: BACKEND, quiet: true });
     if (code !== 0) {
       process.stderr.write(output);
+      if (/bad auth|authentication failed|ENOTFOUND|ServerSelection/i.test(output)) {
+        process.stderr.write(
+          '[seed] MONGO_URI could not be reached. For Atlas: URL-encode the password, and add this '
+            + "machine's IP under Network Access. To use a local database instead, set "
+            + 'MONGO_URI=mongodb://127.0.0.1:27017/libreport in Backend/.env.\n'
+        );
+      }
       fail('seed', `${step.label} step failed.`);
     }
     log('seed', `${step.label} ok`);
