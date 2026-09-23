@@ -219,6 +219,23 @@ function runToCompletion(cmd, args, opts = {}) {
   });
 }
 
+async function countBooks() {
+  try {
+    const { MongoClient } = require(path.join(BACKEND, 'node_modules', 'mongodb'));
+    const { resolveMongoConfig } = require(path.join(BACKEND, 'db', 'uri.js'));
+    const { uri, dbName } = resolveMongoConfig();
+    const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
+    try {
+      await client.connect();
+      return await client.db(dbName).collection('books').countDocuments();
+    } finally {
+      await client.close().catch(() => {});
+    }
+  } catch {
+    return null;
+  }
+}
+
 async function bootstrapData() {
   const steps = [
     { label: 'indexes', args: ['scripts/indexes.js'] },
@@ -242,6 +259,16 @@ async function bootstrapData() {
       fail('seed', `${step.label} step failed.`);
     }
     log('seed', `${step.label} ok`);
+  }
+
+  // bootstrap-dev.js deliberately exits 0 even when the CSV import fails, so
+  // report the real count rather than trusting its exit code.
+  const books = await countBooks();
+  if (books === null) return;
+  if (books === 0) {
+    log('seed', 'warning: no books in the catalog — check the import output above');
+  } else {
+    log('seed', `catalog holds ${books} book${books === 1 ? '' : 's'}`);
   }
 }
 
