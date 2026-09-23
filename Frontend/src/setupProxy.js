@@ -27,38 +27,26 @@ function pickTarget() {
   return `http://127.0.0.1:${port}`;
 }
 
-/** @param {import('http').ServerResponse} res */
-function onProxyRes(proxyRes, req) {
-  // Helpful when debugging proxy issues
-  proxyRes.headers['x-dev-proxy'] = 'setupProxy.js';
-}
-
 module.exports = function (app) {
   const target = pickTarget();
-  const commonOptions = {
-    target,
-    changeOrigin: true,
-    ws: false,
-    logLevel: 'silent',
-    onProxyRes,
-    secure: false,
-  };
 
-  // API endpoints
+  // Mount without an Express path and select routes with pathFilter instead.
+  // `app.use('/api', middleware)` strips the "/api" prefix before the proxy
+  // sees the request, and http-proxy-middleware v3 does not restore it — the
+  // backend then receives "/auth/login" and answers 404.
   app.use(
-    '/api',
     createProxyMiddleware({
-      ...commonOptions,
-      // Do not rewrite paths; backend expects /api/...
-    })
-  );
-
-  // File downloads and media served by backend
-  app.use(
-    ['/uploads', '/files'],
-    createProxyMiddleware({
-      ...commonOptions,
+      target,
+      changeOrigin: true,
+      ws: false,
+      secure: false,
+      pathFilter: ['/api/**', '/uploads/**', '/files/**'],
+      on: {
+        // Helpful when debugging proxy issues
+        proxyRes: (proxyRes) => {
+          proxyRes.headers['x-dev-proxy'] = 'setupProxy.js';
+        }
+      }
     })
   );
 };
-
