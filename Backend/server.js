@@ -9,6 +9,8 @@ const compression = require('compression');
 const mongoose = require('mongoose');
 const morgan = require('morgan');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const validator = require('validator');
@@ -29,13 +31,48 @@ const {
   normalizeUserRole: normalizeRoleValue
 } = require('./models/validators');
 
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
 const app = express();
 app.set('etag', 'strong');
+// We sit behind a single reverse proxy (Nginx) in production, so trust the
+// first hop for correct req.ip (needed for per-IP rate limiting below).
+app.set('trust proxy', 1);
 app.use(compression());
-app.use(cors());
+app.use(
+  helmet({
+    // This process only serves JSON/files, not HTML pages, so a CSP tuned
+    // for documents would just add noise without protecting anything here.
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
+  })
+);
+
+const CORS_ORIGINS = String(process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+if (IS_PRODUCTION && !CORS_ORIGINS.length) {
+  console.warn(
+    'CORS_ORIGIN is not set in production; the API will accept requests from any origin. '
+      + 'Set CORS_ORIGIN to your frontend URL(s) (comma-separated) to restrict this.'
+  );
+}
+app.use(cors(CORS_ORIGINS.length ? { origin: CORS_ORIGINS, credentials: true } : {}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('tiny'));
+
+// Brute-force protection for auth endpoints. Keyed by IP; trust proxy above
+// ensures req.ip reflects the real client, not the Nginx hop.
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again later.' }
+});
 
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -937,6 +974,15 @@ async function aggregateBorrowRequests(match = {}, options = {}) {
 // Separate Admin collection (loaded from ./models)
 
 async function ensureDefaultAdmin() {
+  if (IS_PRODUCTION && !process.env.ADMIN_PASSWORD) {
+    console.error(
+      'Refusing to bootstrap a default admin in production without ADMIN_PASSWORD set. '
+        + 'Set ADMIN_EMAIL, ADMIN_ID and a strong ADMIN_PASSWORD in Backend/.env, or create the first '
+        + 'admin via POST /api/auth/admin-signup with ALLOW_ADMIN_SIGNUP=true (temporarily).'
+    );
+    process.exit(1);
+  }
+
   const rawEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
   const email = rawEmail ? String(rawEmail).trim().toLowerCase() : '';
   const adminId = String(process.env.ADMIN_ID || process.env.ADMIN_STUDENT_ID || '03-2324-032224').trim();
@@ -1150,7 +1196,7 @@ function studentRequired(req, res, next) {
 }
 
 // --- Auth: Student Signup
-app.post('/api/auth/signup', async (req, res) => {
+app.post('/api/auth/signup', authRateLimiter, async (req, res) => {
   try {
     if (!NO_DB && !(mongoose.connection.readyState === 1 || DB_READY)) {
       return res.status(503).json({ error: 'Database not ready' });
@@ -1223,7 +1269,7 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 // --- Admin Signup (enabled only if no admins yet, or ALLOW_ADMIN_SIGNUP=true)
-app.post('/api/auth/admin-signup', async (req, res) => {
+app.post('/api/auth/admin-signup', authRateLimiter, async (req, res) => {
   try {
     const allow = String(process.env.ALLOW_ADMIN_SIGNUP || '').toLowerCase() === 'true';
     const existing = await Admin.estimatedDocumentCount();
@@ -1263,7 +1309,7 @@ app.post('/api/auth/admin-signup', async (req, res) => {
 });
 
 // --- Auth: Login (studentId or email + password)
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authRateLimiter, async (req, res) => {
   const { password, studentId } = req.body || {};
   if (!studentId || !password) return res.status(400).json({ error: 'studentId and password required' });
   if (!NO_DB && !(mongoose.connection.readyState === 1 || DB_READY)) {
